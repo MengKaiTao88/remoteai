@@ -124,7 +124,9 @@ mod tests {
         let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
         reader.next_frame(&mut pixels).unwrap();
         assert!(pixels
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .any(|pixel| pixel[0] > 240 && pixel[1] < 10 && pixel[2] < 10));
     }
 }

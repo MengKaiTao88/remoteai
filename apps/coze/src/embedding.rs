@@ -110,8 +110,8 @@ pub fn similarity(query: &[f32], bytes: &[u8]) -> f32 {
     let mut dot = 0.0;
     let mut norm = 0.0;
     let query_norm: f32 = query.iter().map(|value| value * value).sum();
-    for (value, bytes) in query.iter().zip(bytes.chunks_exact(4)) {
-        let other = f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+    for (value, bytes) in query.iter().zip(bytes.as_chunks::<4>().0) {
+        let other = f32::from_le_bytes(*bytes);
         if !other.is_finite() {
             return 0.0;
         }
