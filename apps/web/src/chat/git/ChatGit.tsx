@@ -24,7 +24,7 @@ export function ChatGit(props: Props) {
   const commitFiles = useGitCommitFiles(props.client, props.cwd, detail?.commit?.hash, props.active && props.connected);
   const desktop = useDesktopLayout();
   return <Drawer open={props.active} title="Git" placement={desktop ? 'right' : 'bottom'}
-    height="90%" width={desktop ? '80%' : undefined} onClose={props.onClose} rootStyle={themeStyle}
+    height="90%" width={desktop ? 'min(800px, 80vw)' : undefined} onClose={props.onClose} rootStyle={themeStyle}
     rootClassName="chat-terminal-drawer chat-git-drawer" closable={{ 'aria-label': t('关闭 Git'), placement: 'end' }}
     extra={<span className="chat-terminal-device">{props.deviceName}</span>}>
     <ChatDetailsWorkspace selected={props.cwd} active={props.active} enabled={Boolean(props.desktopDiffs)}>
