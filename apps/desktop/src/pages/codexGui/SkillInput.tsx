@@ -9,6 +9,7 @@ import { insertSkill, readEditor, skillTrigger, writeEditor } from "./skillEdito
 import { composerOptions, type CompactCommand, type ComposerOption, type GoalCommand } from "./composerOptions";
 import type { SkillTrigger } from "./skillEditorDom";
 import { useComposerSkills } from "./useComposerSkills";
+import { useComposerCoze } from "./useComposerCoze";
 import { SkillMenu } from "./SkillMenu";
 import styles from "./SkillInput.module.less";
 import { readPastedContent } from "../../../../../shared/chat/clipboard";
@@ -33,11 +34,12 @@ export const SkillInput = forwardRef<SkillInputHandle, {
   goal?: GoalCommand;
   conversations?: Pick<GuiState, "selected" | "threads" | "conversations">;
   onConversation?: (reference: AttachmentReference) => void;
+  onCoze?: (reference: AttachmentReference) => void;
   editing?: { onCancel: () => void; className: string };
   onPaste: (event: ClipboardEvent<HTMLElement>) => void; onSend: () => void;
   onPasteKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
 }>(function SkillInput({ value, draftKey, cwd, active, connected, disabled, placeholder,
-  compact, goal, conversations, onConversation, editing, onChange, onPaste, onPasteKeyDown, onSend }, ref) {
+  compact, goal, conversations, onConversation, onCoze, editing, onChange, onPaste, onPasteKeyDown, onSend }, ref) {
   const editor = useRef<HTMLDivElement>(null);
   const savedCaret = useRef<Range | null>(null);
   const composing = useRef(false);
@@ -45,17 +47,30 @@ export const SkillInput = forwardRef<SkillInputHandle, {
   const [selected, setSelected] = useState(0);
   const listId = useId();
   const isConversation = trigger?.kind === "conversation";
-  const open = Boolean(trigger) && active && !disabled && (!isConversation || Boolean(onConversation));
-  const catalog = useComposerSkills({ cwd, active: open && !isConversation, connected });
+  const isCoze = trigger?.kind === "coze";
+  const open = Boolean(trigger) && active && !disabled && (!isConversation || Boolean(onConversation))
+    && (!isCoze || Boolean(onCoze));
+  const catalog = useComposerSkills({ cwd, active: open && !isConversation && !isCoze, connected });
+  const coze = useComposerCoze(open && isCoze && connected);
   const query = trigger?.query.toLocaleLowerCase() ?? "";
   const candidates = useConversationCandidates({ active: open && isConversation, connected, query });
-  const options: ComposerOption[] = isConversation ? conversationCandidates({ remote: candidates.threads,
+  const cozeOptions: ComposerOption[] = coze.items
+    .filter((item) => `${item.name} ${item.description}`.toLocaleLowerCase().includes(query))
+    .map((item) => ({ kind: "coze", key: item.id, label: item.name,
+      description: item.description || "已发布的 Coze 内容", enabled: true,
+      command: { enabled: true, run: () => onCoze?.({ kind: "coze", name: item.name, path: `coze://${item.id}` }) } }));
+  let options: ComposerOption[] = composerOptions(catalog.skills, query, compact, goal);
+  if (isConversation) options = conversationCandidates({ remote: candidates.threads,
     known: conversations?.threads ?? [], conversations: conversations?.conversations ?? {},
     currentId: conversations?.selected ?? null, query }).map((thread) => ({ kind: "conversation", key: thread.id,
       label: conversationReference(thread).name, enabled: true,
       description: guiText("{value1} · {value2}", { value1: thread.status?.type === "active" ? "运行中" : "空闲", value2: thread.cwd || "未选择项目" }),
       command: { enabled: true, run: () => onConversation?.(conversationReference(thread)) },
-    })) : composerOptions(catalog.skills, query, compact, goal);
+    }));
+  if (isCoze) options = cozeOptions;
+  let menuState: { loading: boolean; error: string } = catalog;
+  if (isConversation) menuState = candidates;
+  if (isCoze) menuState = coze;
   const selectedIndex = Math.min(selected, Math.max(0, options.length - 1));
 
   useLayoutEffect(() => {
@@ -132,8 +147,8 @@ export const SkillInput = forwardRef<SkillInputHandle, {
   };
   return <div className={styles.inputWrap}>
     {open && <SkillMenu id={listId} options={options} selected={selectedIndex}
-      loading={isConversation ? candidates.loading : catalog.loading}
-      error={isConversation ? candidates.error : catalog.error} conversations={isConversation}
+      loading={menuState.loading} error={menuState.error}
+      conversations={isConversation} coze={isCoze}
       onChoose={choose} below={Boolean(editing)}
       skillsOnly={!compact && !goal} />}
     <div ref={editor} role="textbox" aria-label={editing ? guiText("编辑消息内容") : guiText("消息")}

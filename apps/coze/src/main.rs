@@ -67,6 +67,9 @@ fn run() -> Result<()> {
         ModelProxy::new(&config.proxy_url, config.proxy_token)?,
     ));
     let host = Arc::new(Host::bind(config.token, root.join("ui"))?);
+    if let Err(error) = remoteai_coze::external::restore(&services) {
+        eprintln!("Coze external tools were not restarted: {error}");
+    }
     println!(
         "{}",
         serde_json::json!({"url":host.url,"version":env!("CARGO_PKG_VERSION")})

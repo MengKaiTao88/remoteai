@@ -12,6 +12,7 @@ import { DraftValidation, useDraftValidation } from "./draftValidation";
 import { AppEditor } from "./projects/AppEditor";
 import { ReleaseHistory } from "./projects/ReleaseHistory";
 import { AccessPanel } from "./projects/AccessPanel";
+import { ExternalToolsPanel } from "./external/ExternalToolsPanel";
 
 interface Props {
   resource: Resource; resources: Resource[]; onSaved: (resource: Resource) => void;
@@ -99,6 +100,7 @@ export function ResourceEditor({ resource, resources, onSaved, onBack, onDirty, 
       <h3>发布状态</h3><p>当前草稿版本：{resource.revision}　已发布版本：{resource.publishedRevision ?? "尚未发布"}</p>
       <ReleaseHistory resource={resource} onSaved={onSaved} />
       {resource.kind === "app" && <AccessPanel appId={resource.id} published={Boolean(resource.publishedRevision)} />}
+      <ExternalToolsPanel resource={resource} />
       {resource.mcpEnabled && <Button onClick={() => void perform(async () => {
         onSaved(await api<Resource>("publish", { id: resource.id, revision: resource.revision, enabled: false }));
       })}>停止向 Codex GUI 提供</Button>}

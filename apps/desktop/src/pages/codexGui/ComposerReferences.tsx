@@ -1,10 +1,12 @@
 import { guiText } from "../../i18n/guiText";
-import { Blocks, File, Folder, MessageSquare, X } from "lucide-react";
+import { Blocks, File, Folder, GitBranch, MessageSquare, X } from "lucide-react";
 import type { AttachmentReference } from "./attachmentTypes";
 import { isDesktopApp } from "../../api/backend";
 import { ComposerFileImage } from "./ComposerFileImage";
 import imageStyles from "./ImageAttachments.module.less";
 import styles from "./ComposerExtras.module.less";
+
+const referencePrefix = { file: "", folder: "", plugin: "", conversation: "@", coze: "#" } as const;
 
 function isImage(item: AttachmentReference) {
   return isDesktopApp && item.kind === "file" && /\.(png|jpe?g|webp|gif)$/i.test(item.path);
@@ -23,9 +25,9 @@ export function ComposerReferences({ items, disabled, active = true, onRemove }:
     </div>}
     {references.length > 0 && <div className={styles.references} aria-label={guiText("文件、插件和对话引用")}>
       {references.map((item) => {
-        const Icon = { plugin: Blocks, folder: Folder, file: File, conversation: MessageSquare }[item.kind];
+        const Icon = { plugin: Blocks, folder: Folder, file: File, conversation: MessageSquare, coze: GitBranch }[item.kind];
         return <span className={styles.reference} key={item.path}>
-          <Icon size={15} aria-hidden="true" /><span>{item.kind === "conversation" ? `@${item.name}` : item.name}</span>
+          <Icon size={15} aria-hidden="true" /><span>{referencePrefix[item.kind]}{item.name}</span>
           <button type="button" disabled={disabled} aria-label={guiText("移除附件：{value1}", { value1: item.name })}
             onClick={() => onRemove(item.path)}><X size={13} /></button>
         </span>;

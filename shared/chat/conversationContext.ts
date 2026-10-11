@@ -22,6 +22,10 @@ function reference(payload: string): Content[] {
     const data: unknown = JSON.parse(payload);
     if (!data || typeof data !== 'object') return [];
     const value = data as Record<string, unknown>;
+    if (value.kind === 'coze' && typeof value.name === 'string' && typeof value.id === 'string'
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value.id)) {
+      return [{ type: 'mention', name: value.name, path: `coze://${value.id}` }];
+    }
     if (value.kind !== 'reference' || typeof value.id !== 'string' || typeof value.name !== 'string'
       || !value.id || value.id.length > 200 || /[/\\\x00-\x1f\x7f]/u.test(value.id)) return [];
     return [{ type: 'mention', name: value.name, path: `${REFERENCE_PREFIX}${value.id}` }];

@@ -1,5 +1,7 @@
 #[derive(Debug, thiserror::Error)]
 pub(super) enum GuiError {
+    #[error("暂时无法加载 Coze 内容，请先从左侧打开 Coze 并发布需要使用的内容。")]
+    CozeUnavailable,
     #[error("引用的对话暂时无法读取，请重新选择后发送；每条消息最多引用 8 个其他对话。")]
     ConversationReference,
     #[error("暂时无法读取对话的上下文设置，请重试。")]

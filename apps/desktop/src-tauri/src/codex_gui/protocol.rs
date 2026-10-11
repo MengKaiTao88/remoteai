@@ -18,6 +18,7 @@ const PAGE_SIZE: u64 = 50;
     rename_all_fields = "camelCase"
 )]
 pub(crate) enum GuiRequest {
+    CozeCatalog,
     DownloadBrowse(super::downloads::Browse),
     DownloadOpen(super::downloads::Open),
     PreviewOpen(super::preview_download::Open),
@@ -233,6 +234,7 @@ impl GuiRequest {
             Self::EditMessage(_) => Err(GuiError::InvalidRequest),
             // Image previews are served locally, never forwarded as an app-server operation.
             Self::ImagePreview { .. } => Err(GuiError::InvalidRequest),
+            Self::CozeCatalog => Err(GuiError::InvalidRequest),
             Self::Plugins { cwd } => {
                 if let Some(cwd) = &cwd {
                     directory(cwd)?;

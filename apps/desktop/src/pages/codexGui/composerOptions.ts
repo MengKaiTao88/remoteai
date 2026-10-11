@@ -10,6 +10,7 @@ export interface CompactCommand {
   run: () => void;
 }
 export type ComposerOption =
+  | { kind: "coze"; key: string; label: string; description: string; enabled: boolean; command: GoalCommand }
   | { kind: "conversation"; key: string; label: string; description: string; enabled: boolean; command: GoalCommand }
   | { kind: "goal"; key: string; label: string; description: string; enabled: boolean; command: GoalCommand }
   | { kind: "compact"; key: string; label: string; description: string; enabled: boolean; command: CompactCommand }
@@ -47,7 +48,7 @@ export function composerOptions(skills: Skill[], query: string, command?: Compac
     description: skillDescription(skill), enabled: skill.enabled, skill }))];
   return options.filter((option) => {
     const name = option.kind === "skill" ? option.skill.name
-      : { compact: "compact 压缩 上下文", goal: "goal 目标", conversation: "对话" }[option.kind];
+      : { compact: "compact 压缩 上下文", goal: "goal 目标", conversation: "对话", coze: "Coze" }[option.kind];
     return `${name} ${option.label} ${option.description}`.toLocaleLowerCase().includes(query.toLocaleLowerCase());
   });
 }

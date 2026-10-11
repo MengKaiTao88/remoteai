@@ -1,5 +1,5 @@
 export interface AttachmentReference {
-  kind: "file" | "folder" | "plugin" | "conversation";
+  kind: "file" | "folder" | "plugin" | "conversation" | "coze";
   name: string;
   path: string;
   /** Inline bytes selected on a phone; materialized by the PC before sending. */

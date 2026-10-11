@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
 import { App, Button, Space } from "antd";
 import { Copy, Trash2 } from "lucide-react";
 import { Background, Panel, ReactFlow, ReactFlowProvider, SelectionMode, useEdgesState, useNodesState,
@@ -27,6 +27,9 @@ export function Canvas(props: Props) {
 function WorkflowCanvas({ graph, selected, onSelect, onChange, history }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>(toNodes(graph, selected));
   const [edges, setEdges, onEdgesChange] = useEdgesState(toEdges(graph));
+  // Reconnection hit targets must not cover an unselected short line.
+  const interactiveEdges = useMemo(() => edges.map((edge) => ({ ...edge,
+    reconnectable: edge.selected === true })), [edges]);
   const container = useRef<HTMLDivElement>(null);
   const reconnecting = useRef<string>();
   const flow = useReactFlow<CanvasNode>();
@@ -67,13 +70,17 @@ function WorkflowCanvas({ graph, selected, onSelect, onChange, history }: Props)
     if (modifier && key === "z") { event.preventDefault(); event.shiftKey ? history.redo() : history.undo(); }
     if (modifier && key === "y") { event.preventDefault(); history.redo(); }
     if (modifier && key === "d") { event.preventDefault(); duplicate(); }
-    if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); remove(); }
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault(); event.stopPropagation(); remove();
+    }
     if (event.key === "Escape") onSelect(undefined);
   };
   const hasSelection = nodes.some((node) => node.selected) || edges.some((edge) => edge.selected);
+  const selectedEdges = edges.filter((edge) => edge.selected).length;
+  const onlyEdges = selectedEdges > 0 && !nodes.some((node) => node.selected);
   return <div ref={container} className="workflow-canvas" aria-label="工作流画布" tabIndex={0}
     onKeyDown={shortcut} onPointerDownCapture={() => container.current?.focus({ preventScroll: true })}>
-    <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={(changes) => {
+    <ReactFlow nodes={nodes} edges={interactiveEdges} nodeTypes={nodeTypes} onNodesChange={(changes) => {
       onNodesChange(changes);
       const completed = changes.filter((item): item is NodePositionChange =>
         item.type === "position" && item.dragging === false);
@@ -84,6 +91,11 @@ function WorkflowCanvas({ graph, selected, onSelect, onChange, history }: Props)
       onEdgesChange={onEdgesChange} fitView fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
       minZoom={0.2} maxZoom={2} deleteKeyCode={null} selectionMode={SelectionMode.Partial}
       multiSelectionKeyCode={["Control", "Meta", "Shift"]}
+      reconnectRadius={5}
+      onEdgeClick={() => {
+        onSelect(undefined);
+        container.current?.focus({ preventScroll: true });
+      }}
       onNodeClick={(event, node) => {
         if (!event.shiftKey && !event.ctrlKey && !event.metaKey) onSelect(node.id);
       }} onPaneClick={() => onSelect(undefined)}
@@ -97,7 +109,10 @@ function WorkflowCanvas({ graph, selected, onSelect, onChange, history }: Props)
       <Panel position="top-left"><Space><NodePalette onAdd={add} />{hasSelection && <>
         <Button aria-label="复制节点" icon={<Copy size={15} />} onClick={duplicate}
           disabled={!selected || graph.nodes.find((node) => node.id === selected)?.type === "start"} />
-        <Button aria-label="删除所选" icon={<Trash2 size={15} />} onClick={remove} />
+        <Button danger aria-label="删除所选" icon={<Trash2 size={15} />} onClick={remove}>
+          {onlyEdges ? "删除连线" : "删除所选"}</Button>
+        {onlyEdges && <span className="edge-selection-hint" role="status">
+          已选中 {selectedEdges} 条连线 · Delete 删除</span>}
       </>}</Space></Panel>
       <CanvasControls graph={graph} onChange={onChange} history={history} />
       <Panel position="bottom-right" className="canvas-hint">拖拽圆点连线 · 滚轮缩放 · Shift 框选</Panel>

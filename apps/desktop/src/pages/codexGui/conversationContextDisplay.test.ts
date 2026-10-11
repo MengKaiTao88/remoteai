@@ -12,6 +12,18 @@ vi.mock("./api", () => ({ guiApi: { request: vi.fn() } }));
 
 const wrap = (value: unknown) => `<codex_gui_conversation_context>\n${JSON.stringify(value)}
 </codex_gui_conversation_context>`;
+
+it("shows selected Coze as a reference and retains it when restoring an edited message", () => {
+  const id = "f321c884-a198-4244-ad4f-53762b3d2aba";
+  const context = wrap({ kind: "coze", id, name: "查询库存", note: "private tool binding" });
+  const item = user(`查询一下${context}`);
+  expect(visibleUserContent(item.content)).toEqual([{ type: "text", text: "查询一下" },
+    { type: "mention", name: "查询库存", path: `coze://${id}` }]);
+  const value = conversation({ id: "thread", preview: "", cwd: "", updatedAt: 0,
+    turns: [{ id: "turn", status: "completed", items: [item] }] });
+  const restored = editedMessageDraft(value, { threadId: "thread", turnId: "turn", itemId: "user", text: "修改" });
+  expect(restored.attachments).toEqual([{ kind: "coze", name: "查询库存", path: `coze://${id}` }]);
+});
 const awareness = wrap({ kind: "awareness", current: "one", running: [{ id: "two", cwd: "D:/private" }], total: 1 });
 const user = (text: string): Item => ({ id: "user", type: "userMessage", content: [{ type: "text", text }] });
 

@@ -17,6 +17,7 @@ use std::{
 
 #[derive(Clone)]
 pub struct Services {
+    pub external: Arc<crate::external::ToolServer>,
     pub db: Database,
     pub embedder: Arc<dyn Embedder>,
     pub proxy: ModelProxy,
@@ -29,6 +30,7 @@ pub struct Services {
 impl Services {
     pub fn new(db: Database, embedder: Arc<dyn Embedder>, proxy: ModelProxy) -> Self {
         Self {
+            external: Arc::new(crate::external::ToolServer::default()),
             db,
             embedder,
             proxy,
@@ -90,6 +92,8 @@ impl Drop for OperationGuard<'_> {
     deny_unknown_fields
 )]
 pub enum Command {
+    ToolServiceStatus,
+    ConfigureToolService(crate::external::Settings),
     AccessInfo,
     IssueAccess(crate::collaboration_access::AccessIssue),
     ListAccess {
@@ -230,6 +234,10 @@ pub fn dispatch(services: &Services, command: Command) -> Result<Value> {
 fn dispatch_inner(services: &Services, command: Command) -> Result<Value> {
     let db = &services.db;
     match command {
+        Command::ToolServiceStatus => Ok(json!(services.external.status()?)),
+        Command::ConfigureToolService(settings) => {
+            Ok(json!(services.external.configure(services, settings)?))
+        }
         Command::AccessInfo => Ok(services.principal.info()),
         Command::IssueAccess(input) => crate::collaboration_access::issue(db, input),
         Command::ListAccess { id } => crate::collaboration_access::list(db, &id),

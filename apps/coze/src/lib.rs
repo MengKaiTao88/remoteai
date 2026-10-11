@@ -8,6 +8,7 @@ pub mod collaboration_access;
 pub mod database;
 pub mod embedding;
 pub mod error;
+pub mod external;
 pub mod jobs;
 pub mod knowledge;
 pub mod mcp;

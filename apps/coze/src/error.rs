@@ -41,6 +41,8 @@ pub enum Error {
     Unauthorized,
     #[error("外部请求未完成，请检查地址和服务状态。")]
     Network,
+    #[error("无法开启外部调用，请检查端口是否被占用。")]
+    ToolListener,
 }
 
 #[derive(Serialize)]

@@ -21,10 +21,14 @@ fn closing_tag(text: &str) -> Option<usize> {
 }
 
 fn reference(payload: &str) -> Option<Value> {
-    let Context::Reference { id, name, .. } = serde_json::from_str(payload.trim()).ok()? else {
-        return None;
+    let (id, name, prefix) = match serde_json::from_str(payload.trim()).ok()? {
+        Context::Reference { id, name, .. } => (id, name, REFERENCE_PREFIX),
+        Context::Coze { id, name, .. } if uuid::Uuid::parse_str(&id).is_ok() && id.len() == 36 => {
+            (id, name, "coze://")
+        }
+        _ => return None,
     };
-    Some(json!({"type": "mention", "name": name, "path": format!("{REFERENCE_PREFIX}{id}")}))
+    Some(json!({"type": "mention", "name": name, "path": format!("{prefix}{id}")}))
 }
 
 /// Private envelopes may be independent inputs, concatenated history, or an incomplete trailing snapshot.

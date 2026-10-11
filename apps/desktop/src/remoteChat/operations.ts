@@ -45,7 +45,7 @@ const OPERATIONS = new Set([
   'videoOpen', 'videoRead', 'videoClose',
   'projectDirectories',
   'models', 'list', 'read', 'start', 'resume', 'send', 'steer', 'interrupt', 'rename', 'archive', 'unarchive',
-  'compact', 'skills', 'projectFiles', 'imagePreview', 'textPreview', 'goalGet', 'goalSet', 'goalClear',
+  'compact', 'skills', 'cozeCatalog', 'projectFiles', 'imagePreview', 'textPreview', 'goalGet', 'goalSet', 'goalClear',
 ]);
 const CACHE_TTL_MS = 5 * 60_000;
 interface Cached {
@@ -64,6 +64,7 @@ const READ_OPERATIONS = new Set([
   'projectDirectories',
   'videoOpen', 'videoRead', 'videoClose',
   'textPreview',
+  'cozeCatalog',
   'guiAccountsRead', 'syncHistory', 'imageChunk', 'imagePreview', 'models', 'list', 'read', 'goalGet', 'skills', 'projectFiles', 'queueRead',
 ]);
 const QUEUE_OPERATIONS = new Set([

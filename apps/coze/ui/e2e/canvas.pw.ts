@@ -36,6 +36,15 @@ async function drag(page: Page, source: Locator, target: Locator) {
   await page.mouse.up();
 }
 
+async function edgePoint(edge: Locator, fraction = 0.5) {
+  return edge.locator(".react-flow__edge-path").evaluate((element, ratio) => {
+    const path = element as SVGPathElement;
+    const point = path.getPointAtLength(path.getTotalLength() * ratio);
+    const screen = new DOMPoint(point.x, point.y).matrixTransform(path.getScreenCTM()!);
+    return { x: screen.x, y: screen.y };
+  }, fraction);
+}
+
 test("drag ports, delete edges, undo, save and reopen without the inspector", async ({ page }) => {
   const state = await fixture(page, { ...defaultGraph, edges: [] });
   await drag(page, page.getByLabel("开始 输出端口"), page.getByLabel("文本处理 输入端口"));
@@ -105,6 +114,9 @@ test("node drag is one undo step; palette, inspector, zoom and full-height layou
 test("reconnect an edge by dragging its endpoint and undo the change", async ({ page }) => {
   const state = await fixture(page);
   const edge = page.locator(".react-flow__edge").first();
+  const point = await edgePoint(edge);
+  await page.mouse.click(point.x, point.y);
+  await expect(edge).toHaveClass(/selected/);
   await drag(page, edge.locator(".react-flow__edgeupdater-target"), page.getByLabel("结束 输入端口"));
   await page.getByRole("button", { name: "保存", exact: true }).click();
   expect(state.saved().edges).toContainEqual({ source: "start", target: "end" });
@@ -125,3 +137,23 @@ test("keyboard moves persist and input deletion does not delete a node", async (
   await name.fill("新名称"); await name.press("Backspace");
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
 });
+
+for (const fraction of [0.2, 0.5, 0.8]) {
+  test(`select a short line at ${fraction} and delete with the keyboard after editing a node`, async ({ page }) => {
+    const state = await fixture(page);
+    await page.locator('.react-flow__node[data-id="answer"]').click();
+    await page.locator(".node-inspector").getByRole("textbox").first().click();
+    const edge = page.locator(".react-flow__edge").first();
+    const point = await edgePoint(edge, fraction);
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down(); await page.mouse.up();
+    await expect(edge).toHaveClass(/selected/);
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    await expect(page.locator(".react-flow__node")).toHaveCount(3);
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    expect(state.saved().edges).toEqual([defaultGraph.edges[1]]);
+    await state.open();
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  });
+}

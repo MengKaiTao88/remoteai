@@ -2,6 +2,21 @@ use super::*;
 
 const PASTED_IMAGE: &str = "data:image/png;base64,iVBORw0KGgo=";
 
+#[test]
+fn editing_a_coze_message_preserves_its_selected_tool_binding() {
+    let id = "f321c884-a198-4244-ad4f-53762b3d2aba";
+    let mut source = history();
+    source["turns"][1]["items"][0]["content"] = json!([
+        {"type":"text","text":"original"},
+        super::super::coze_reference::inputs(&format!("coze://{id}"), "库存").unwrap()[0]
+    ]);
+    super::super::conversation_context::display(&mut source);
+    let input = edited_input(&source, &edit()).unwrap();
+    assert_eq!(input[0]["text"], "修改后的问题");
+    assert!(input[1]["text"].as_str().unwrap().contains("coze_call"));
+    assert!(input[1]["text"].as_str().unwrap().contains(id));
+}
+
 #[tokio::test]
 async fn pasted_images_and_selected_skills_are_sent_with_retained_attachments() {
     let directory = std::env::temp_dir().join(format!("edit-skill-{}", uuid::Uuid::new_v4()));

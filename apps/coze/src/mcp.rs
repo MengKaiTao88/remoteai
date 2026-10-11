@@ -178,6 +178,11 @@ fn call(services: &Services, params: &Value) -> Result<Value> {
 fn list_published(services: &Services) -> Result<Value> {
     let mut entries = Vec::new();
     for resource in resources::list(&services.db)? {
+        if matches!(&services.principal, crate::collaboration_access::Principal::Shared(grant)
+            if grant.role == crate::collaboration_access::Role::Tool && resource.id != grant.app_id)
+        {
+            continue;
+        }
         if !services.principal.allows(&resource.id)
             || !resource.mcp_enabled
             || resource.published_revision.is_none()

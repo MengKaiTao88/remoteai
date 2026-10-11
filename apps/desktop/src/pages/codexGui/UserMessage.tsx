@@ -17,6 +17,12 @@ import userStyles from "./UserMessage.module.less";
 import styles from "./styles.module.less";
 
 const MILLISECONDS_PER_SECOND = 1000;
+function referenceLabel(path?: string) {
+  if (path?.startsWith("coze://")) return "Coze";
+  if (path?.startsWith(CONVERSATION_PREFIX)) return guiText("引用对话");
+  if (path?.startsWith("plugin://")) return guiText("插件");
+  return guiText("附件");
+}
 const sentAtOptions: Intl.DateTimeFormatOptions = {
   year: "numeric", month: "2-digit", day: "2-digit",
   hour: "2-digit", minute: "2-digit", hourCycle: "h23",
@@ -45,8 +51,7 @@ export function UserMessage({ item, startedAt, onEdit, editDisabled = false }: {
         part.path && isFileReference(part.path)
           ? <FileMenu path={part.path} key={`reference-${index}`}>{part.name || part.path}</FileMenu>
           : <span className={styles.imageLabel} key={`reference-${index}`}>
-          {part.path?.startsWith(CONVERSATION_PREFIX) ? guiText("引用对话") : part.path?.startsWith("plugin://")
-            ? guiText("插件") : guiText("附件")}：{part.name || part.path}
+          {referenceLabel(part.path)}：{part.name || part.path}
         </span>)}
       {editing && onEdit ? <UserMessageEditor text={text} images={images}
         skills={parts.flatMap((part) => part.type === "skill" && part.path

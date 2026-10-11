@@ -1,7 +1,7 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "protocol": 1,
-  "releaseTag": "coze-v0.2.0",
+  "releaseTag": "coze-v0.2.1",
   "repository": "piperhex/remoteai",
   "model": {
     "repository": "intfloat/multilingual-e5-small",

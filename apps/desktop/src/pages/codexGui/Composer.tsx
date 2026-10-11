@@ -103,11 +103,12 @@ export const Composer = forwardRef<ComposerHandle, {
         }} />
       <SkillInput ref={skillInput} value={draft} draftKey={key} cwd={project} active={active}
         conversations={state} onConversation={(reference) => addAttachments([reference])}
+        onCoze={(reference) => addAttachments([reference])}
         connected={state.connection === "ready"} disabled={disabled}
         compact={compactCommand(state, () => void controller.compact())}
         goal={{ enabled: !disabled && !running, run: goalMode.enter }}
         placeholder={state.archived ? guiText("恢复对话后即可继续") : goalMode.enabled
-          ? guiText("描述想完成的目标…") : guiText("描述任务，@ 引用对话，/ 选择命令和技能…")}
+          ? guiText("描述想完成的目标…") : guiText("描述任务，# 调用 Coze，@ 引用对话，/ 选择技能…")}
         onChange={editContent} onPaste={paste} onPasteKeyDown={pasteKeyDown} onSend={() => void send()} />
       <div className={styles.composerControls}>
         <ComposerAddMenu cwd={project} active={active} disabled={disabled} anchor={composer}

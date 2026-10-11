@@ -18,7 +18,8 @@ export function AccessPanel({ appId, published }: Props) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [owner, setOwner] = useState(false);
-  const refresh = () => api<Grant[]>("list_access", { id: appId }).then(setItems);
+  const refresh = () => api<Grant[]>("list_access", { id: appId })
+    .then((items) => setItems(items.filter((item) => item.role in roles)));
   useEffect(() => {
     let current = true;
     void api<{ role: string }>("access_info").then((info) => {

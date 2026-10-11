@@ -93,6 +93,7 @@ struct Attachment {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 enum AttachmentKind {
+    Coze,
     File,
     Folder,
     Plugin,
@@ -224,6 +225,8 @@ mod tests {
         let snapshot: QueueSnapshot =
             serde_json::from_value(serde_json::json!({"revision":0,"threads":{
                 "thread":[{"id":"message","text":"hello","images":[],"skills":[],
+                    "attachments":[{"kind":"coze","name":"库存",
+                        "path":"coze://f321c884-a198-4244-ad4f-53762b3d2aba"}],
                     "model":"model","effort":"high","access":"read-only","busy":true}]
             }}))
             .unwrap();
@@ -237,6 +240,11 @@ mod tests {
         let restored = read(&connection).unwrap();
         assert_eq!(restored.revision, 1);
         assert_eq!(restored.threads["thread"][0].busy, Some(true));
+        let saved = serde_json::to_value(&restored).unwrap();
+        assert_eq!(
+            saved["threads"]["thread"][0]["attachments"][0]["kind"],
+            "coze"
+        );
         assert!(restored.has_pending(&["parent".into(), "thread".into()]));
         assert!(!restored.has_pending(&["unrelated".into()]));
         assert!(!QueueSnapshot::default().has_pending(&["thread".into()]));

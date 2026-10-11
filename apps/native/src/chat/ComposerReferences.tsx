@@ -8,7 +8,9 @@ import type { AttachmentReference } from '../../../desktop/src/pages/codexGui/at
 import { itemUploadProgress, type UploadProgress } from '../../../../shared/remote-chat/uploadProgress';
 import { ComposerUploadProgress } from './ComposerUploadProgress';
 
-const referenceIcons = { file: 'file-text', folder: 'folder', plugin: 'box', conversation: 'message-square' } as const;
+const referenceIcons = { file: 'file-text', folder: 'folder', plugin: 'box',
+  conversation: 'message-square', coze: 'git-branch' } as const;
+const referencePrefix = { file: '', folder: '', plugin: '', conversation: '@', coze: '#' } as const;
 
 export function ComposerReferences({ items, disabled, remove, upload, reconnecting }: {
   items: AttachmentReference[]; disabled: boolean; remove: (item: AttachmentReference) => void;
@@ -24,7 +26,7 @@ export function ComposerReferences({ items, disabled, remove, upload, reconnecti
     contentContainerStyle={referenceStyles.list}>
     {items.map((item, index) => <View key={`${item.path}:${index}`} style={referenceStyles.item}>
       <Feather name={referenceIcons[item.kind]} size={18} color={color("#555", 'ink')} />
-      <Text numberOfLines={1} style={referenceStyles.name}>{item.kind === 'conversation' ? `@${item.name}` : item.name}</Text>
+      <Text numberOfLines={1} style={referenceStyles.name}>{referencePrefix[item.kind]}{item.name}</Text>
       {!!item.data && <ComposerUploadProgress inline progress={itemUploadProgress(upload, 'attachment', index)}
         reconnecting={reconnecting} />}
       <Pressable accessibilityRole="button"

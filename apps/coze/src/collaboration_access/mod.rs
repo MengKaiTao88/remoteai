@@ -21,6 +21,7 @@ pub use storage::{authenticate, initialize, issue, list, revoke, AccessIssue};
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
+    Tool,
     Viewer,
     Runner,
     Editor,
@@ -95,7 +96,8 @@ pub(super) fn can_run(services: &Services, published: bool) -> Result<()> {
     match &services.principal {
         Principal::Owner => Ok(()),
         Principal::Shared(grant)
-            if grant.role == Role::Editor || (grant.role == Role::Runner && published) =>
+            if grant.role == Role::Editor
+                || (matches!(grant.role, Role::Runner | Role::Tool) && published) =>
         {
             Ok(())
         }

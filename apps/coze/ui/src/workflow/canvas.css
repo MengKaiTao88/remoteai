@@ -18,7 +18,13 @@
 .workflow-canvas { flex: 1; min-width: 0; min-height: 0; outline: none; background: #f5f6fa; }
 .workflow-canvas .react-flow { --xy-edge-stroke: #8979d8; --xy-edge-stroke-selected: #6551d2;
   --xy-edge-stroke-width: 2; --xy-connectionline-stroke: #6551d2; --xy-attribution-background-color: var(--surface); }
-.workflow-canvas .react-flow__edge.selected .react-flow__edge-path { stroke-width: 3; }
+.workflow-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #5935d5; stroke-width: 4; filter: drop-shadow(0 0 2px #8979d866);
+}
+.workflow-canvas .react-flow__edge.selected .react-flow__edgeupdater {
+  fill: var(--surface); stroke: #5935d5; stroke-width: 1.5;
+}
+.edge-selection-hint { font-size: 12px; color: var(--muted); }
 .workflow-canvas .react-flow__edge-textbg { fill: var(--surface); }
 .workflow-canvas .react-flow__edge-text { fill: var(--muted); }
 .workflow-node { width: 240px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
@@ -37,6 +43,9 @@
 .workflow-node .react-flow__handle { width: 12px; height: 12px; background: #8979d8;
   border: 2px solid var(--surface); cursor: crosshair; }
 .workflow-node .react-flow__handle::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; }
+/* Expand ports into the card and vertically, leaving the line itself clickable. */
+.workflow-node .react-flow__handle-right::after { right: 0; }
+.workflow-node .react-flow__handle-left::after { left: 0; }
 .workflow-node .react-flow__handle:hover, .workflow-node .react-flow__handle.connectingto {
   background: #4f37cf; box-shadow: 0 0 0 4px #8979d833;
 }

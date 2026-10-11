@@ -40,6 +40,9 @@ export function remoteAttachments(value: unknown, mode?: ConnectionMode): Attach
       && /^plugin:\/\/[\w.@-]+$/.test(item.path) && item.data === undefined) {
       return { kind: 'plugin', name: item.name, path: item.path };
     }
+    if (item.kind === 'coze' && typeof item.path === 'string'
+      && /^coze:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(item.path)
+      && item.data === undefined) return { kind: 'coze', name: item.name, path: item.path };
     if (item.kind === 'conversation' && typeof item.path === 'string'
       && item.path.length <= MAX_CONVERSATION_PATH_LENGTH
       && /^codex-thread:\/\/[^/\\\x00-\x1f\x7f]+$/u.test(item.path) && item.data === undefined) {

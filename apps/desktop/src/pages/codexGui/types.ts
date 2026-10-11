@@ -216,6 +216,7 @@ export type Request =
   | { operation: "goalGet" | "goalClear"; threadId: string }
   | { operation: "goalSet"; threadId: string; objective?: string; status: "active" | "paused" }
   | { operation: "plugins"; cwd?: string }
+  | { operation: "cozeCatalog" }
   | { operation: "sendBatch"; threadId: string; messages: MessageInput[]; model?: string; effort?: string;
       access: AccessMode; cwd?: string }
   | { operation: "steer"; threadId: string; turnId: string; text: string; images: string[];

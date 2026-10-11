@@ -16,6 +16,7 @@ mod connection;
 pub(crate) mod context_settings;
 mod conversation_context;
 mod conversation_tools;
+mod coze_reference;
 pub(crate) mod deletion;
 mod downloads;
 mod error;
@@ -169,6 +170,7 @@ pub(crate) async fn codex_gui_request(
 async fn execute_request(state: &GuiState, request: GuiRequest) -> Result<GuiResponse> {
     let client = connected(state).await?;
     match request {
+        GuiRequest::CozeCatalog => return client.coze_catalog().await,
         GuiRequest::DownloadBrowse(options) => return downloads::browse(&client, options).await,
         GuiRequest::DownloadOpen(options) => {
             return downloads::open(&client, Arc::clone(&state.downloads.0), options).await

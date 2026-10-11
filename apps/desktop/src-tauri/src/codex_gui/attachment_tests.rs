@@ -42,7 +42,8 @@ fn attachments_survive_single_batch_and_steering_turns() {
     let attachments = json!([
         {"kind": "file", "name": "notes.txt", "path": path},
         {"kind": "folder", "name": "project", "path": root},
-        {"kind": "plugin", "name": "Documents", "path": "plugin://documents@openai"}
+        {"kind": "plugin", "name": "Documents", "path": "plugin://documents@openai"},
+        {"kind": "coze", "name": "库存", "path": "coze://f321c884-a198-4244-ad4f-53762b3d2aba"}
     ]);
     let message = json!({"text": "", "images": [], "attachments": attachments});
     for operation in ["send", "steer", "sendBatch"] {
@@ -61,6 +62,10 @@ fn attachments_survive_single_batch_and_steering_turns() {
             format!("文件夹：{}", root.display())
         );
         assert_eq!(params["input"][4]["type"], "mention");
+        assert!(params["input"][5]["text"]
+            .as_str()
+            .unwrap()
+            .contains("coze_call"));
     }
     std::fs::remove_dir_all(root).unwrap();
 }

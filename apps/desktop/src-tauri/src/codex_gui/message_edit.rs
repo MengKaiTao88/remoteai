@@ -196,7 +196,19 @@ fn edited_attachments(content: &[Value], edit: &EditRequest) -> Result<Vec<Value
     if edit.skills.is_some() {
         retained.retain(|part| part["type"] != "skill");
     }
-    Ok(retained)
+    let mut inputs = Vec::new();
+    for part in retained {
+        let path = part["path"].as_str().unwrap_or_default();
+        if part["type"] == "mention" && path.starts_with("coze://") {
+            inputs.extend(super::coze_reference::inputs(
+                path,
+                part["name"].as_str().unwrap_or_default(),
+            )?);
+        } else {
+            inputs.push(part);
+        }
+    }
+    Ok(inputs)
 }
 
 fn retained_attachments(content: &[Value], removed: &[usize]) -> Result<Vec<Value>> {

@@ -46,7 +46,7 @@ pub fn issue(db: &Database, input: AccessIssue) -> Result<Value> {
         return Err(Error::Invalid);
     }
     let (app, _) = resources::published(db, &input.app_id)?;
-    if app.kind != ResourceKind::App {
+    if app.kind != ResourceKind::App && input.role != Role::Tool {
         return Err(Error::Invalid);
     }
     let _snapshot = crate::publications::snapshot(db, &input.app_id)?;
@@ -76,6 +76,7 @@ pub fn issue(db: &Database, input: AccessIssue) -> Result<Value> {
 fn role_name(role: Role) -> &'static str {
     match role {
         Role::Viewer => "viewer",
+        Role::Tool => "tool",
         Role::Runner => "runner",
         Role::Editor => "editor",
     }

@@ -1,4 +1,5 @@
 //! Lifecycle for the optional, independently signed Rust Coze runtime.
+pub(crate) mod catalog;
 pub(crate) mod commands;
 mod install;
 mod lifecycle;
@@ -13,7 +14,7 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 #[derive(Debug, thiserror::Error)]
-enum Error {
+pub(crate) enum Error {
     #[error("Coze 正在准备中，请稍候。")]
     Busy,
     #[error("请先下载 Coze，再开始使用。")]

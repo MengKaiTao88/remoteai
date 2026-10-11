@@ -32,6 +32,7 @@ export function conversationCandidates(options: {
 }
 
 export function referenceKind(path: string): AttachmentReference["kind"] {
+  if (path.startsWith("coze://")) return "coze";
   if (path.startsWith(CONVERSATION_PREFIX)) return "conversation";
   return path.startsWith("plugin://") ? "plugin" : "file";
 }

@@ -55,6 +55,16 @@ it('loads project skills through the PC allowlist without transferring large ico
   expect(guiApi.request).toHaveBeenCalledWith({ operation: 'skills', cwd: thread.cwd });
 });
 
+it('loads published Coze metadata through the authenticated PC connection', async () => {
+  const entries = [{ id: 'f321c884-a198-4244-ad4f-53762b3d2aba', name: '库存', kind: 'workflow', description: '' }];
+  vi.mocked(guiApi.request).mockResolvedValueOnce(entries);
+  const result = await new ChatOperations().execute({ kind: 'request', id: 'coze-catalog', method: 'request',
+    body: { operation: 'cozeCatalog' } });
+  expect(result.data).toEqual(entries);
+  expect(result.error).toBeUndefined();
+  expect(guiApi.request).toHaveBeenCalledWith({ operation: 'cozeCatalog' });
+});
+
 it.each(['new', 'existing', 'running'])('delivers structured skill references to the PC in a %s chat', async (mode) => {
   if (mode === 'running') remote.turns = [{ id: 'turn', status: 'inProgress', items: [] }];
   if (mode !== 'new') await controller.select(remote);

@@ -16,6 +16,10 @@ pub fn authorize(services: &Services, command: &Command) -> Result<Permit> {
         return Ok(Permit::default());
     }
     storage::ensure_active(services)?;
+    if matches!(&services.principal, super::Principal::Shared(grant) if grant.role == super::Role::Tool)
+    {
+        return Err(Error::Unauthorized);
+    }
     let output = match command {
         Command::ListResources => Output::Resources,
         Command::Models | Command::AccessInfo => Output::Plain,
@@ -215,6 +219,11 @@ pub fn authorize_mcp(services: &Services, request: &Value) -> Result<Permit> {
     let output = match request["params"]["name"].as_str() {
         Some("coze_list") => Output::McpList,
         Some("coze_call") => {
+            if matches!(&services.principal, super::Principal::Shared(grant)
+                if grant.role == super::Role::Tool && arguments["resource_id"] != grant.app_id)
+            {
+                return Err(Error::Unauthorized);
+            }
             executable(
                 services,
                 arguments["resource_id"]
