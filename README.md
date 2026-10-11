@@ -344,16 +344,6 @@ npm run release-beta
 
 Remote AI 使用 [Apache License 2.0](LICENSE)，与官方 [OpenAI Codex](https://github.com/openai/codex) 仓库一致。
 
-## 当前限制
-
-- OAuth 回调会优先使用本地端口 `1455`，失败后回退到 `1457`。
-- 桌面端及其提供的网页版支持 Provider 管理；移动端与独立 Web 端可远程切换指定 PC 的官方模型或已同步 Provider。远程启用 Provider 时，目标 PC 必须正在运行本地代理。
-- macOS 发布构建采用临时签名；除非在 CI 配置 Apple Developer 签名与公证凭据，否则不会完成公证。
-- 已发布的 iOS `.app.zip` 未签名，仅为 CI 构建产物，不能直接作为 App Store 安装包使用。
-- 内嵌登录依赖 WebView 与身份提供商策略；若失败，请使用系统浏览器登录。
-- 本地代理默认监听 `127.0.0.1:15722`，可在代理设置中开启局域网访问；Token 历史仅包含经该代理转发的请求。
-- “重启 ChatGPT”为尽力而为的操作，依赖本地进程发现以及操作系统重新启动 ChatGPT 或旧版 `codex` 入口的能力。
-
 ## 免责声明
 
 Remote AI 是独立开发的第三方软件，与 OpenAI 及其 Codex 产品不存在隶属、关联、授权、认可或官方合作关系。
