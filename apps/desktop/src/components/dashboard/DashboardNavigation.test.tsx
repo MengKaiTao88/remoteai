@@ -9,7 +9,7 @@ const t: Translate = (key, params) => translate("en", key, params);
 
 describe.each([
   { page: "totp", label: "2FA" },
-  { page: "coze", label: "coze" },
+  { page: "coze", label: "Coze" },
 ] as const)("$label navigation", ({ page, label }) => {
   it.each(["sidebar", "toolbox"] as const)("selects the independent page from the %s menu", async (variant) => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

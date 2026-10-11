@@ -86,7 +86,7 @@ export function Studio() {
     <SharedAppView access={access} resources={resources} onSaved={saved} />
   </main>;
   return <div className={`studio ${selected?.kind === "workflow" ? "studio-workflow" : ""}`}>
-    <aside className="studio-nav"><div className="brand"><span>c</span><strong>coze</strong></div>
+    <aside className="studio-nav"><div className="brand"><span>C</span><strong>Coze</strong></div>
       <small>你的 AI 创作空间</small>
       {kinds.map((item) => {
         const Icon = icons[item];

@@ -62,7 +62,7 @@ const TOOLBOX_NAVIGATION_ITEMS = [
   { page: "tokens", icon: BarChart3, labelKey: "nav.tokenUsage" },
   { page: "dreamSkin", icon: Palette, labelKey: "nav.dreamSkin" },
   { page: "skills", icon: PackageOpen, labelKey: "nav.skills" },
-  { page: "coze", icon: Bot, label: "coze" },
+  { page: "coze", icon: Bot, label: "Coze" },
 ] as const;
 
 export function isToolboxPage(page: DashboardPage) {

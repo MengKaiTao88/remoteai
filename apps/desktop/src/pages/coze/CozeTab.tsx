@@ -8,7 +8,7 @@ export function CozeTab({ active }: { active: boolean }) {
   const [visited, setVisited] = useState(active);
   useEffect(() => { if (active) setVisited(true); }, [active]);
   // Keep the editor mounted across main-menu navigation so drafts and the current view survive.
-  return <section className={styles.panel} hidden={!active} aria-label="coze">
+  return <section className={styles.panel} hidden={!active} aria-label="Coze">
     {(active || visited) && <Suspense fallback={<div className={styles.welcome} role="status">
       {guiText("正在加载…")}
     </div>}>

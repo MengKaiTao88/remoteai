@@ -9,7 +9,7 @@ export default function CozePage({ active }: { active: boolean }) {
   const coze = useCoze(active);
   const status = coze.status;
   if (!isDesktopApp) return <div className={styles.welcome}>
-    <h1>coze</h1><p>{guiText("请在这台电脑的 Remote AI 中打开 Coze。")}</p>
+    <h1>Coze</h1><p>{guiText("请在这台电脑的 Remote AI 中打开 Coze。")}</p>
   </div>;
   if (status?.url) return <div className={styles.workspace}>
     {coze.error && <Alert type="error" message={coze.error} />}
@@ -23,7 +23,7 @@ export default function CozePage({ active }: { active: boolean }) {
   const phase = status?.phase === "verifying" ? guiText("正在检查下载内容…")
     : status?.phase === "installing" || status?.phase === "starting"
       ? guiText("正在准备 Coze…") : guiText("正在下载 Coze…");
-  return <div className={styles.welcome}><div className={styles.logo}>c</div><h1>coze</h1>
+  return <div className={styles.welcome}><div className={styles.logo}>C</div><h1>Coze</h1>
     <h2>{guiText("把想法变成 AI 能力")}</h2>
     <p>{guiText("创建智能体、编排工作流，让知识库和自定义工具为你工作。")}</p>
     <Space className={styles.features} size={24}><span><Bot size={19} />{guiText("智能体")}</span>
