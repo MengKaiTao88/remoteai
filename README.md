@@ -13,9 +13,7 @@ Remote AI 是一款面向 Codex 的图形化 AI 编程工作台，以直观易�
 
 [![许可证](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE) [![发布版本](https://img.shields.io/github/v/release/piperhex/remoteai)](https://github.com/piperhex/remoteai/releases)
 
-QQ 技术交流群1：`1051213898`（已满）。
-
-QQ 技术交流群2：`972062132`。
+QQ 技术交流群：`972062132`。
 
 ## Codex Web
 
