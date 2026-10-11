@@ -71,10 +71,12 @@ jobs:
             os: windows-2022
             target: x86_64-pc-windows-msvc
             extension: .exe
+            msvcArch: amd64
           - name: windows-aarch64
             os: windows-2022
             target: aarch64-pc-windows-msvc
             extension: .exe
+            msvcArch: amd64_arm64
           - name: macos-aarch64
             os: macos-latest
             target: aarch64-apple-darwin
@@ -103,6 +105,21 @@ jobs:
         with:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
+      - name: Configure Windows compiler
+        if: startsWith(matrix.name, 'windows')
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvcArch }}
+      - name: Configure Windows ARM64 bindings
+        if: matrix.name == 'windows-aarch64'
+        shell: pwsh
+        run: |
+          $llvm = Join-Path $env:ProgramFiles 'LLVM/bin'
+          if (-not (Test-Path (Join-Path $llvm 'libclang.dll'))) {
+            throw 'LLVM libclang is required to generate Windows ARM64 JavaScript bindings.'
+          }
+          "LIBCLANG_PATH=$llvm" >> $env:GITHUB_ENV
+          $llvm >> $env:GITHUB_PATH
       - uses: swatinem/rust-cache@v2
         with:
           key: coze-${{ matrix.name }}
@@ -142,7 +159,7 @@ jobs:
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: npx tauri signer sign "apps/coze/dist/coze-${{ matrix.name }}.zip"
+        run: npx tauri signer sign --password "" "apps/coze/dist/coze-${{ matrix.name }}.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: coze-${{ matrix.name }}

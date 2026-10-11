@@ -47,6 +47,10 @@ url = "2"
 uuid = { version = "1", features = ["v4"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
+[target.'cfg(all(target_os = "windows", target_arch = "aarch64"))'.dependencies]
+# rquickjs 0.9 has no bundled Windows ARM64 bindings; generate them for this target.
+rquickjs = { version = "0.9", default-features = false, features = ["bindgen"] }
+
 [profile.release]
 strip = true
 lto = "thin"
