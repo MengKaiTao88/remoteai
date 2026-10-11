@@ -1,4 +1,10 @@
 .inputWrap { position: relative; }
+.suggestion { position: absolute; top: 5px; left: 8px; right: 8px; max-width: 400px;
+  pointer-events: none; user-select: none; color: inherit; opacity: .45;
+  font-size: var(--gui-font-size, 14px); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere;
+  kbd { margin-left: 8px; padding: 0 4px; border: 1px solid currentColor; border-radius: 4px;
+    font: inherit; font-size: .8em; white-space: nowrap; }
+}
 .editor { min-height: 83px; max-height: 240px; overflow-y: auto; padding: 5px 8px 12px;
   outline: none; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--gui-font-size, 14px);
   line-height: 1.7;

@@ -9,11 +9,14 @@ const TITLE_GENERATION_SESSION_TITLE: &str = "内部对话标题生成";
 /// Ephemeral naming threads have no saved metadata; label their requests before history is saved.
 pub(super) fn from_request(headers: &[(String, String)]) -> Option<&'static str> {
     use crate::codex_config::{
-        LOCAL_PROXY_REQUEST_PURPOSE_HEADER, TITLE_GENERATION_REQUEST_PURPOSE,
+        LOCAL_PROXY_REQUEST_PURPOSE_HEADER, PREDICTION_REQUEST_PURPOSE,
+        TITLE_GENERATION_REQUEST_PURPOSE,
     };
-    (super::header_value(headers, LOCAL_PROXY_REQUEST_PURPOSE_HEADER)
-        == Some(TITLE_GENERATION_REQUEST_PURPOSE))
-    .then_some(TITLE_GENERATION_SESSION_TITLE)
+    match super::header_value(headers, LOCAL_PROXY_REQUEST_PURPOSE_HEADER) {
+        Some(TITLE_GENERATION_REQUEST_PURPOSE) => Some(TITLE_GENERATION_SESSION_TITLE),
+        Some(PREDICTION_REQUEST_PURPOSE) => Some("下一句话建议"),
+        _ => None,
+    }
 }
 
 /// Called from the session list's blocking worker; metadata I/O must stay off the UI thread.

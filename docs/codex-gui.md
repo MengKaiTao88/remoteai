@@ -6,6 +6,19 @@ Providers (三方模型及中转). It supports project folders, text and image i
 streamed Markdown replies, command output, file diffs, plans, permission approvals, questions, interruption,
 history, search, renaming, pinning, and archiving/restoring conversations.
 
+After a completed reply, an empty composer can show a short, translucent suggestion for the next
+message. **Tab** accepts it into the draft; **Enter** then sends it. Typing, pasting, or starting an
+IME composition dismisses the suggestion immediately. Suggestions never replace existing drafts,
+block input, run tools, or send messages automatically. Switching conversations or starting a new
+turn discards any outstanding suggestion.
+
+Suggestions use a separate, best-effort request through the selected GUI account and model, with
+the fastest supported reasoning effort, a short timeout, and a 32-token output limit. This may use
+a small amount of additional quota. Only bounded, visible text history is included; tool output,
+attachments, and reasoning are excluded. Unsupported Providers and failures simply show no suggestion.
+The installed CLI prediction RPC is still a placeholder, so this request uses the existing local
+GUI proxy and never writes a prediction into the conversation history.
+
 Each submitted message includes a snapshot of other running GUI conversations. Type **@** to search for
 another conversation and attach its recent messages as context. See [conversation awareness](codex-gui-conversation-awareness.md)
 for scope, limits and verification.

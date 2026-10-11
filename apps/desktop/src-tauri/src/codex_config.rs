@@ -9,6 +9,7 @@ pub(crate) const LOCAL_PROXY_TOKEN: &str = "CODEX_SWITCH_LOCAL_PROXY";
 pub(crate) const LOCAL_PROXY_ACTOR_AUTHORIZATION_HEADER: &str = "x-openai-actor-authorization";
 pub(crate) const LOCAL_PROXY_REQUEST_PURPOSE_HEADER: &str = "x-codex-switch-request-purpose";
 pub(crate) const TITLE_GENERATION_REQUEST_PURPOSE: &str = "title-generation";
+pub(crate) const PREDICTION_REQUEST_PURPOSE: &str = "next-prompt-suggestion";
 pub(crate) const LOCAL_PROXY_PROVIDER_ID: &str = "codex-switch-local";
 
 const OFFICIAL_PROVIDER_ID: &str = "openai";

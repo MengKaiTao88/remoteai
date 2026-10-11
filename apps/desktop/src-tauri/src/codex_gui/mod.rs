@@ -42,6 +42,8 @@ pub(crate) mod notification_navigation;
 mod notifications;
 mod platform;
 pub(crate) mod plugin_client;
+mod prediction;
+mod prediction_transport;
 mod preview_download;
 mod project_directories;
 mod project_files;
@@ -179,6 +181,7 @@ async fn execute_request(state: &GuiState, request: GuiRequest) -> Result<GuiRes
             return preview_download::open(&client, Arc::clone(&state.downloads.0), options).await
         }
         GuiRequest::GenerateTitle(options) => return client.generate_title(options).await,
+        GuiRequest::SuggestNextPrompt(options) => return client.suggest_next_prompt(options).await,
         GuiRequest::FileOpen(options) => {
             return Arc::clone(&state.downloads.0).open(&client, options).await
         }

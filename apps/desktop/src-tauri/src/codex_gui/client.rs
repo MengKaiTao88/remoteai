@@ -7,6 +7,7 @@ mod deletion;
 mod idle_threads;
 mod live_settings;
 mod plugin_refresh;
+mod predictions;
 #[path = "title_service.rs"]
 mod title_service;
 mod workspace_activity;
@@ -46,6 +47,7 @@ pub(super) struct Client {
     title_jobs: Mutex<std::collections::HashSet<String>>,
     title_writes: Mutex<()>,
     title_slots: tokio::sync::Semaphore,
+    prediction_slot: tokio::sync::Semaphore,
     pub(super) home: PathBuf,
     pub(super) projectless_root: PathBuf,
     writer: Mutex<ChildStdin>,
@@ -115,6 +117,7 @@ impl Client {
             title_jobs: Mutex::default(),
             title_writes: Mutex::default(),
             title_slots: tokio::sync::Semaphore::new(MAX_CONCURRENT_TITLE_JOBS),
+            prediction_slot: tokio::sync::Semaphore::new(1),
             home,
             projectless_root,
             writer: Mutex::new(writer),

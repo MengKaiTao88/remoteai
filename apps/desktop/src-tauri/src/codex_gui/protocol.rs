@@ -23,6 +23,7 @@ pub(crate) enum GuiRequest {
     DownloadOpen(super::downloads::Open),
     PreviewOpen(super::preview_download::Open),
     GenerateTitle(super::title_generation::TitleRequest),
+    SuggestNextPrompt(super::prediction::PredictionRequest),
     FileOpen(super::file_stream::StreamOpen),
     FileRead(super::file_stream::StreamRead),
     FileClose(super::file_stream::StreamClose),
@@ -221,6 +222,7 @@ impl GuiRequest {
                 Err(GuiError::InvalidRequest)
             }
             Self::GenerateTitle(_) => Err(GuiError::InvalidRequest),
+            Self::SuggestNextPrompt(_) => Err(GuiError::InvalidRequest),
             Self::VideoOpen(_)
             | Self::VideoRead(_)
             | Self::VideoClose(_)

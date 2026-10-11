@@ -142,3 +142,15 @@ fn internal_naming_requests_keep_their_default_title_in_saved_history() {
     drop(guard);
     proxy_sessions().lock().unwrap().remove(&id);
 }
+
+#[test]
+fn prediction_requests_have_a_distinct_session_title() {
+    use crate::codex_config::{LOCAL_PROXY_REQUEST_PURPOSE_HEADER, PREDICTION_REQUEST_PURPOSE};
+    assert_eq!(
+        from_request(&[(
+            LOCAL_PROXY_REQUEST_PURPOSE_HEADER.into(),
+            PREDICTION_REQUEST_PURPOSE.into()
+        )]),
+        Some("下一句话建议")
+    );
+}

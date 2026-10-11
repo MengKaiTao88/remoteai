@@ -26,6 +26,7 @@ import { ProjectPicker } from "./ProjectPicker";
 import { GuiToolbox } from "./GuiToolbox";
 import { localGitClient } from "./localGitClient";
 import { SkillInput, type SkillInputHandle } from "./SkillInput";
+import { useNextPromptSuggestion } from './useNextPromptSuggestion';
 import { compactCommand } from "./composerOptions";
 import { QueuedMessages } from "./QueuedMessages";
 import { RunningChangesSummary } from "./RunningChangesSummary";
@@ -58,6 +59,8 @@ export const Composer = forwardRef<ComposerHandle, {
     || state.compacting === state.selected;
   const hasDraft = Boolean(draft.text.trim() || draft.images.length
     || draft.attachments?.length || draft.quotes?.length);
+  const suggestion = useNextPromptSuggestion(state, { active,
+    blocked: Boolean(draft.text || hasDraft || reading || goalMode.enabled || dialog) });
   useImperativeHandle(ref, () => ({ addQuote: (quote) => {
     if (disabled || !active || !current?.turns.some((turn) => turn.items.some((item) =>
       item.id === quote.messageId && item.type === "agentMessage"))) return false;
@@ -102,6 +105,7 @@ export const Composer = forwardRef<ComposerHandle, {
           addImages(Array.from(event.target.files ?? [])); event.target.value = "";
         }} />
       <SkillInput ref={skillInput} value={draft} draftKey={key} cwd={project} active={active}
+        suggestion={suggestion.text} onUserInput={suggestion.dismiss}
         conversations={state} onConversation={(reference) => addAttachments([reference])}
         onCoze={(reference) => addAttachments([reference])}
         connected={state.connection === "ready"} disabled={disabled}

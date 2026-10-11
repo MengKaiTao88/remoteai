@@ -11,6 +11,7 @@ import type { SkillTrigger } from "./skillEditorDom";
 import { useComposerSkills } from "./useComposerSkills";
 import { useComposerCoze } from "./useComposerCoze";
 import { SkillMenu } from "./SkillMenu";
+import { useSuggestionInput } from './useSuggestionInput';
 import styles from "./SkillInput.module.less";
 import { readPastedContent } from "../../../../../shared/chat/clipboard";
 
@@ -30,6 +31,7 @@ function focusEditor(node: HTMLDivElement, saved: Range | null): Range {
 export const SkillInput = forwardRef<SkillInputHandle, {
   value: ComposerText; draftKey: string; cwd: string; active: boolean; connected: boolean; disabled: boolean;
   placeholder: string; onChange: (value: ComposerText) => void;
+  suggestion?: string; onUserInput?: () => void;
   compact?: CompactCommand;
   goal?: GoalCommand;
   conversations?: Pick<GuiState, "selected" | "threads" | "conversations">;
@@ -39,7 +41,8 @@ export const SkillInput = forwardRef<SkillInputHandle, {
   onPaste: (event: ClipboardEvent<HTMLElement>) => void; onSend: () => void;
   onPasteKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
 }>(function SkillInput({ value, draftKey, cwd, active, connected, disabled, placeholder,
-  compact, goal, conversations, onConversation, onCoze, editing, onChange, onPaste, onPasteKeyDown, onSend }, ref) {
+  compact, goal, conversations, onConversation, onCoze, editing, onChange, onPaste, onPasteKeyDown, onSend,
+  suggestion, onUserInput }, ref) {
   const editor = useRef<HTMLDivElement>(null);
   const savedCaret = useRef<Range | null>(null);
   const composing = useRef(false);
@@ -50,6 +53,8 @@ export const SkillInput = forwardRef<SkillInputHandle, {
   const isCoze = trigger?.kind === "coze";
   const open = Boolean(trigger) && active && !disabled && (!isConversation || Boolean(onConversation))
     && (!isCoze || Boolean(onCoze));
+  const ghost = useSuggestionInput({ editor, value, text: suggestion,
+    enabled: active && connected && !disabled && !open && !editing, onChange, onUserInput });
   const catalog = useComposerSkills({ cwd, active: open && !isConversation && !isCoze, connected });
   const coze = useComposerCoze(open && isCoze && connected);
   const query = trigger?.query.toLocaleLowerCase() ?? "";
@@ -90,6 +95,7 @@ export const SkillInput = forwardRef<SkillInputHandle, {
     if (!node || disabled || !active || !connected || !skill.enabled) return;
     const range = focusEditor(node, savedCaret.current);
     insertSkill({ query: "", range }, skill);
+    ghost.dismiss();
     onChange(readEditor(node));
     setTrigger(null);
   } }));
@@ -102,6 +108,7 @@ export const SkillInput = forwardRef<SkillInputHandle, {
   };
   const change = () => {
     if (!editor.current) return;
+    ghost.dismiss();
     onChange(readEditor(editor.current));
     inspect();
   };
@@ -118,6 +125,9 @@ export const SkillInput = forwardRef<SkillInputHandle, {
     if (disabled || !active) return;
     onPasteKeyDown?.(event);
     if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (!open && ghost.keyDown(event)) return;
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey
+      || ['Backspace', 'Delete', 'Escape'].includes(event.key)) ghost.dismiss();
     const menuKey = ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key);
     if (open && menuKey && !(event.key === "Enter" && event.shiftKey)) {
       event.preventDefault();
@@ -138,6 +148,7 @@ export const SkillInput = forwardRef<SkillInputHandle, {
   };
   const paste = (event: ClipboardEvent<HTMLDivElement>) => {
     if (disabled || !active) { event.preventDefault(); return; }
+    ghost.dismiss();
     onPaste(event);
     if (event.defaultPrevented) return;
     event.preventDefault();
@@ -151,20 +162,24 @@ export const SkillInput = forwardRef<SkillInputHandle, {
       conversations={isConversation} coze={isCoze}
       onChoose={choose} below={Boolean(editing)}
       skillsOnly={!compact && !goal} />}
+    {ghost.text && <div className={styles.suggestion} aria-hidden="true" data-testid="next-prompt-suggestion">
+      <span>{ghost.text}</span><kbd>Tab</kbd>
+    </div>}
     <div ref={editor} role="textbox" aria-label={editing ? guiText("编辑消息内容") : guiText("消息")}
       aria-multiline="true" aria-disabled={disabled}
       aria-autocomplete="list" aria-controls={open ? listId : undefined}
       aria-activedescendant={open && options.length ? `${listId}-${selectedIndex}` : undefined}
       className={`${styles.editor} ${editing?.className ?? ""}`} contentEditable={!disabled}
       suppressContentEditableWarning
-      data-placeholder={placeholder} data-empty={!value.text} onInput={change} onKeyDown={keyDown}
+      data-placeholder={ghost.text ? '' : placeholder} data-empty={!value.text}
+      onBeforeInput={ghost.dismiss} onInput={change} onKeyDown={keyDown}
       onKeyUp={(event) => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) inspect(); }}
       onClick={inspect} onBlur={() => {
         const selection = window.getSelection();
         savedCaret.current = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
         setTrigger(null);
       }} onPaste={paste} onDrop={(event) => event.preventDefault()}
-      onCompositionStart={() => { composing.current = true; setTrigger(null); }}
+      onCompositionStart={() => { ghost.dismiss(); composing.current = true; setTrigger(null); }}
       onCompositionEnd={() => { composing.current = false; change(); }} />
   </div>;
 });
