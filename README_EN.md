@@ -9,7 +9,8 @@
 The interface opens in Chinese on Chinese-language systems and English on other systems.
 You can choose English, Chinese, or Russian in Settings; your choice is remembered.
 
-Remote AI is a desktop workspace built on Codex CLI, combining a graphical coding assistant with multi-account management.
+Remote AI is a graphical AI coding workspace for Codex, bringing chat-based coding, project organization,
+and multi-account management together in an intuitive desktop interface.
 Chat with Codex to understand code, build features, and troubleshoot problems while following progress and file changes.
 It also includes account sign-in and switching, usage monitoring, third-party Providers, a hot-switching local proxy,
 token analytics, a Skills Market, and one-click themes. Use its hosted browser UI or connect a self-hosted backend
