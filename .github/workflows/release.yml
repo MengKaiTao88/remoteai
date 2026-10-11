@@ -531,6 +531,13 @@ jobs:
     with:
       ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
+  coze-runtime:
+    name: Publish independent Coze runtime
+    uses: ./.github/workflows/coze-runtime.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+    secrets: inherit
+
   publish-release:
     name: Publish GitHub Release
     needs:
@@ -539,6 +546,7 @@ jobs:
       - native-android
       - native-ios
       - dream-skin-resources
+      - coze-runtime
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

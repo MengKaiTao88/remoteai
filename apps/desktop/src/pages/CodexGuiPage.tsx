@@ -38,6 +38,7 @@ import paneStyles from "./codexGui/workspacePanes.module.less";
 import { useOpenNotifiedThread, type ThreadNavigation } from "./codexGui/useNotificationNavigation";
 
 const GuiPluginsPage = lazy(() => import("./codexGui/GuiPluginsPage"));
+const CozePage = lazy(() => import("./coze/CozePage"));
 const GuiMigrationPage = lazy(() => import("./codexGui/GuiMigrationPage"));
 const ScheduledTasksPage = lazy(() => import("./codexGui/scheduledTasks/ScheduledTasksPage")
   .then((module) => ({ default: module.ScheduledTasksPage })));
@@ -69,6 +70,8 @@ function Workspace({ active, accountPicker, windowControls, plugins, hostPicker,
   const skinStyle = useDreamSkin(active);
   const [controller] = useState(getGuiController);
   const [view, setView] = useState<GuiView>("conversation");
+  const [cozeVisited, setCozeVisited] = useState(false);
+  useEffect(() => { if (view === "coze") setCozeVisited(true); }, [view]);
   const conversationActive = active && view === "conversation";
   useConversationReadState(conversationActive, controller);
   const openTaskConversation = (threadId: string) => {
@@ -149,7 +152,12 @@ function Workspace({ active, accountPicker, windowControls, plugins, hostPicker,
       {navigationApproval && <button className={styles.pendingBanner} onClick={() => {
         openTaskConversation(navigationApproval.params.threadId!);
       }}>{guiText("有对话需要你的确认，点击查看")}</button>}
-      {view !== "conversation" && <div className={paneStyles.feature}>
+      {(cozeVisited || view === "coze") && <div className={paneStyles.feature} hidden={view !== "coze"}>
+        <Suspense fallback={<div className={paneStyles.loading} role="status">{guiText("正在加载…")}</div>}>
+          <CozePage active={active && view === "coze"} />
+        </Suspense>
+      </div>}
+      {view !== "conversation" && view !== "coze" && <div className={paneStyles.feature}>
         <Suspense fallback={<div className={paneStyles.loading} role="status">{guiText("正在加载…")}</div>}>
           {view === "scheduled-tasks" && <ScheduledTasksPage active={active} cwd={project}
             onOpenThread={openTaskConversation} />}

@@ -28,6 +28,7 @@ mod codex_usage_summary;
 mod commands;
 mod computer_use;
 mod conversation_hub;
+mod coze;
 #[cfg(windows)]
 mod desktop_service;
 mod dream_skin;
@@ -136,6 +137,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_deep_link::init())
         .manage(AppState::default())
+        .manage(coze::CozeState::default())
         .manage(codex_gui::GuiState::default())
         .manage(codex_gui::file_preview::PreviewSessions::default())
         .manage(codex_gui::notification_navigation::NavigationState::default())
@@ -174,6 +176,7 @@ pub fn run() {
             }
             third_party_apps::capture_running_app_paths(app.handle());
             codex_home::initialize(&settings);
+            coze::restore(app.handle());
             main_window::configure_close_behavior(app.handle(), settings.close_to_tray);
             if let Err(error) = system_proxy::configure(&settings.network_proxy) {
                 eprintln!("failed to restore the network proxy setting: {error}");
@@ -283,6 +286,10 @@ pub fn run() {
             system_tray::quick_menu::handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
+            coze::commands::coze_status,
+            coze::commands::coze_install,
+            coze::commands::coze_start,
+            coze::commands::coze_stop,
             update_peers::commands::download_shared_app_update,
             update_peers::policy::update_sharing_status,
             update_peers::policy::set_update_sharing_preferences,
