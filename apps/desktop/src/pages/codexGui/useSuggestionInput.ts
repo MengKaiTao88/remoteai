@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 
 import { readEditor, writeEditor } from './skillEditorDom';
 import type { ComposerText } from './types';
 
-/** Ghost text never enters the editable DOM or the draft until an unmodified Tab accepts it. */
+/** Ghost text never enters the editable DOM or the draft until the user accepts it with Tab or the touch action. */
 export function useSuggestionInput(options: {
   editor: RefObject<HTMLDivElement>; text?: string; value: ComposerText; enabled: boolean;
   onChange: (value: ComposerText) => void; onUserInput?: () => void;
@@ -13,15 +13,17 @@ export function useSuggestionInput(options: {
   useEffect(() => { setDismissed(undefined); }, [options.text]);
   const text = options.enabled && !options.value.text && !options.value.mentions.length
     && dismissed !== options.text ? options.text ?? '' : '';
+  const available = useRef('');
+  available.current = text;
   const dismiss = () => {
+    available.current = '';
     setDismissed(latest.current.text);
     latest.current.onUserInput?.();
   };
-  const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || !text) return false;
+  const accept = () => {
+    const text = available.current;
     const node = options.editor.current;
-    if (!node || readEditor(node).text || event.nativeEvent.isComposing || event.keyCode === 229) return false;
-    event.preventDefault();
+    if (!text || !node || readEditor(node).text) return false;
     // Native insertion retains undo where available; DOM fallback supports embedded editors and tests.
     node.focus();
     if (!document.execCommand?.('insertText', false, text)) writeEditor(node, { text, mentions: [] });
@@ -32,5 +34,11 @@ export function useSuggestionInput(options: {
     dismiss();
     return true;
   };
-  return { text, dismiss, keyDown };
+  const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Tab' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
+    if (event.nativeEvent.isComposing || event.keyCode === 229 || !accept()) return false;
+    event.preventDefault();
+    return true;
+  };
+  return { text, dismiss, accept, keyDown };
 }

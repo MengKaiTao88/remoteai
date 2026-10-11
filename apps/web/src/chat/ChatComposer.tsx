@@ -1,3 +1,5 @@
+import { useComposerSuggestion } from '../../../../shared/chat/useComposerSuggestion';
+import { ComposerSuggestion } from './ComposerSuggestion';
 import { t, useLanguage } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, ChevronDown, File, MessageSquare, Pause, Play, Plus,
@@ -43,6 +45,12 @@ export function ChatComposer(props: ComposerProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const pickerThread = useRef(threadId);
   const dock = useRef<HTMLDivElement>(null);
+  const suggestion = useComposerSuggestion({ source: props.suggestions, value: draft.text,
+    blocked: !active || !ready || sending || props.running || props.compacting || settingsBusy || busy
+      || draft.hasContent || attachments.items.length > 0 || state.hasQuotes || state.readingClipboard
+      || state.queueEditor.loading || menu.open || adding || settings || !!projectFiles || goalMode.enabled,
+    fill: text => { draft.setText(text); menu.setSelection({ start: text.length, end: text.length });
+      menu.input.current?.focus(); } });
   const editing = draft.images.find(image => image.id === editingId);
   const readCatalog = useCallback(() => loadCatalog(cwd), [loadCatalog, cwd]);
   useEffect(() => { if (!active || busy || !editing) setEditingId(null); }, [active, busy, editing]);
@@ -87,7 +95,7 @@ export function ChatComposer(props: ComposerProps) {
     if (event.key === 'Escape') { setAdding(false); menu.close(); }
   }}>
     {queue && <ChatQueue {...queue} {...state.queueEditor} />}
-    <form className={`chat-composer${compact && !desktop ? ' is-compact' : ''}`}
+    <form className={`chat-composer${compact && !desktop && !suggestion.text ? ' is-compact' : ''}`}
       onSubmit={event => { event.preventDefault(); void state.submit(); }}>
       <input ref={photoInput} type="file" accept="image/*" multiple hidden aria-label={t("选择相册图片")}
         onChange={event => { pickPhotos(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
@@ -134,8 +142,12 @@ export function ChatComposer(props: ComposerProps) {
               <button type="button" aria-label={t("移除{value1}", { value1: item.name })}
                 disabled={busy} onClick={() => attachments.remove(item)}><X size={14} /></button></span>)}</div>
           <ComposerQuotes disabled={busy} />
+          <ComposerSuggestion text={suggestion.text} accept={suggestion.accept} />
           <textarea ref={menu.input} aria-label={t("聊天消息")} value={draft.text} maxLength={100_000} rows={1}
-            readOnly={state.queueEditor.loading} onPaste={state.paste} onChange={event => {
+            readOnly={state.queueEditor.loading}
+            onBeforeInput={suggestion.dismiss} onCompositionStart={suggestion.dismiss}
+            onPaste={event => { suggestion.dismiss(); state.paste(event); }} onChange={event => {
+              suggestion.dismiss();
               draft.setText(event.target.value);
               menu.setSelection({ start: event.target.selectionStart, end: event.target.selectionEnd });
             }}
@@ -144,6 +156,10 @@ export function ChatComposer(props: ComposerProps) {
             placeholder={ready ? (goalMode.enabled ? t("描述想完成的目标…") : placeholder) : t("连接后发消息")}
             onKeyDown={event => {
               if (event.defaultPrevented || event.nativeEvent.isComposing || event.keyCode === 229) return;
+              if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey
+                && !menu.open && suggestion.accept()) { event.preventDefault(); return; }
+              if ((event.key.length === 1 && !event.ctrlKey && !event.metaKey)
+                || ['Backspace', 'Delete', 'Escape'].includes(event.key)) suggestion.dismiss();
               state.pasteKeyDown(event);
               if (event.key === 'Escape') { menu.close(); setAdding(false); return; }
               if (event.key !== 'Enter' || event.shiftKey || event.altKey) return;

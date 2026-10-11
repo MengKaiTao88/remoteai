@@ -1,3 +1,4 @@
+import { remotePromptSuggestion } from '../../../../shared/remote-chat/client/promptSuggestion';
 import { t, useLanguage } from '../i18n';
 import { useEffect, useState, type ReactNode } from 'react';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -133,7 +134,8 @@ export function ConnectedChat({ chat, device, devices, active, scope, email, cho
       disabled={!ready || state.sending || state.settingsBusy || state.selectedArchived || state.queueBusy
         || state.compacting === state.selected?.id} answer={controller.answerAsyncQuestion} />
     {composerHeader}
-    <ChatComposer queue={queueProps(state, controller)} readClipboardImages={readClipboardImages}
+    <ChatComposer suggestions={remotePromptSuggestion(state, controller.suggestNextPrompt)}
+      queue={queueProps(state, controller)} readClipboardImages={readClipboardImages}
       connection={{ client: controller.guiAccounts, deviceName: device?.name ?? t("选择电脑"),
         chooseDevice: () => setPickingDevice(true) }}
       goals={controller.goals} goal={state.selected ? state.goals?.[state.selected.id] : null} goalBusy={!!state.goalBusy}

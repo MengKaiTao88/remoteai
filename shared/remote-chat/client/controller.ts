@@ -130,6 +130,8 @@ export class ChatController {
 
   snapshot = () => this.state;
   setWorkspaceBusy = (workspaceBusy: boolean) => this.update({ workspaceBusy });
+  suggestNextPrompt: import('../../chat/nextPromptSuggestion').RequestPromptSuggestion = target =>
+    this.request({ operation: 'suggestNextPrompt', ...target });
   readUsage = () => this.connection.request<UsageSummary>('request', { operation: 'usageSummary' });
   readConversationMetrics: ReadConversationMetrics = (threadId) =>
     this.connection.request('request', { operation: CONVERSATION_METRICS_OPERATION, threadId });

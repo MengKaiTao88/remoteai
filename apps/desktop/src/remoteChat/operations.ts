@@ -40,6 +40,7 @@ import { applyProjectOverride, effectiveProjectThread } from './projects';
 import { PROJECT_LIST_OPERATION } from '../../../../shared/remote-chat/projects';
 
 const OPERATIONS = new Set([
+  'suggestNextPrompt',
   'downloadOpen', 'downloadBrowse', 'previewOpen',
   'fileOpen', 'fileRead', 'fileClose',
   'videoOpen', 'videoRead', 'videoClose',
@@ -52,6 +53,7 @@ interface Cached {
   fingerprint: string; result: Promise<RpcResponse>; expires: number; completed: boolean; readOnly: boolean;
 }
 const READ_OPERATIONS = new Set([
+  'suggestNextPrompt',
   PROJECT_LIST_OPERATION,
   'downloadOpen', 'downloadBrowse', 'previewOpen',
   'guiCliStatus', 'guiCliRelease', 'guiTerminalRead', 'guiTerminalList',

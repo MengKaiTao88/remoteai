@@ -36,7 +36,7 @@ afterEach(async () => {
 });
 
 it('keeps ghost text outside the draft until Tab, then allows Enter to send the accepted draft', async () => {
-  expect(ghost()?.textContent).toBe(suggestion + 'Tab');
+  expect(ghost()?.querySelector('span')?.textContent).toBe(suggestion);
   expect(readEditor(editor())).toEqual({ text: '', mentions: [] });
   await key('Enter');
   expect(send).toHaveBeenLastCalledWith({ text: '', mentions: [] });
@@ -91,4 +91,11 @@ it('clears on paste and preserves pasted plain text', async () => {
   await act(async () => { editor().dispatchEvent(event); });
   expect(ghost()).toBeNull(); expect(editor().textContent).toBe('我自己的内容');
   expect(insert).toHaveBeenCalledExactlyOnceWith('insertText', false, '我自己的内容');
+});
+
+it('accepts through the touch action without submitting', async () => {
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="填入建议"]')!.click());
+  expect(readEditor(editor())).toEqual({ text: suggestion, mentions: [] });
+  expect(ghost()).toBeNull(); expect(send).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(editor());
 });

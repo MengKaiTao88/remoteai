@@ -109,6 +109,7 @@ export function useComposerState(props: ComposerProps) {
     else goalMode.exit();
   };
   return { draft, attachments, goalMode, menu, queueEditor, busy, compact, action, actionDisabled, pausing,
+    hasQuotes: Boolean(quotes?.quotes.length),
     error: error || paste.error || attachments.error || draft.error, submit, removeGoal,
     paste: paste.paste, pasteKeyDown: paste.pasteKeyDown, readingClipboard: paste.reading };
 }

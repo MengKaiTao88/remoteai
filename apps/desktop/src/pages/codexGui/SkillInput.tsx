@@ -162,8 +162,10 @@ export const SkillInput = forwardRef<SkillInputHandle, {
       conversations={isConversation} coze={isCoze}
       onChoose={choose} below={Boolean(editing)}
       skillsOnly={!compact && !goal} />}
-    {ghost.text && <div className={styles.suggestion} aria-hidden="true" data-testid="next-prompt-suggestion">
-      <span>{ghost.text}</span><kbd>Tab</kbd>
+    {ghost.text && <div className={styles.suggestion} data-testid="next-prompt-suggestion">
+      <span>{ghost.text}</span><kbd aria-hidden="true">Tab</kbd>
+      <button type="button" aria-label={guiText('填入建议')}
+        onPointerDown={event => event.preventDefault()} onClick={ghost.accept}>{guiText('填入')}</button>
     </div>}
     <div ref={editor} role="textbox" aria-label={editing ? guiText("编辑消息内容") : guiText("消息")}
       aria-multiline="true" aria-disabled={disabled}

@@ -7,7 +7,11 @@ streamed Markdown replies, command output, file diffs, plans, permission approva
 history, search, renaming, pinning, and archiving/restoring conversations.
 
 After a completed reply, an empty composer can show a short, translucent suggestion for the next
-message. **Tab** accepts it into the draft; **Enter** then sends it. Typing, pasting, or starting an
+message. On a keyboard, **Tab** accepts it into the draft; **Enter** then sends it on desktop.
+On a phone, tap the suggestion or **填入**, then use the normal send button. Native Android/iOS
+and remote Web chat support the same suggestions, including narrow and desktop Web layouts.
+The connected computer also needs a version with prediction support; older hosts continue chatting normally.
+Typing, pasting, or starting an
 IME composition dismisses the suggestion immediately. Suggestions never replace existing drafts,
 block input, run tools, or send messages automatically. Switching conversations or starting a new
 turn discards any outstanding suggestion.

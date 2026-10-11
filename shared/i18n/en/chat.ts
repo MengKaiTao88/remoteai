@@ -1,4 +1,6 @@
 export const chat = {
+  '填入建议': 'Use suggestion',
+  '填入': 'Use',
   '查看原图': 'View original',
   '正在加载模型…': 'Loading models…',
   '暂无可用模型，点击重试': 'No models available. Click to retry',

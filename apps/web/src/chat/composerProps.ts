@@ -1,3 +1,4 @@
+import type { PromptSuggestionSource } from '../../../../shared/chat/nextPromptSuggestion';
 import type { Model, SendInput, ThreadTokenUsage } from './types';
 import type { ChatConnectionProps } from './ChatProfileMenu';
 import type { ComposerSettings } from '../../../../shared/remote-chat/composer';
@@ -14,6 +15,7 @@ import type { ProjectFilesRequest, ProjectFilesResponse } from '../../../../shar
 import type { ConversationSearch } from '../../../../shared/chat/useConversationCandidates';
 
 export interface ComposerProps {
+  suggestions?: PromptSuggestionSource;
   connection: ChatConnectionProps;
   readClipboardImages?: () => Promise<File[]>;
   uploadProgress?: UploadProgress;

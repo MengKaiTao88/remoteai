@@ -1,3 +1,4 @@
+import { remotePromptSuggestion } from '../../../../shared/remote-chat/client/promptSuggestion';
 import { t, useLanguage } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Keyboard, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -191,7 +192,8 @@ function ConnectedChat({ session, device, devices, active: pageActive, chooseDev
       disabled={!ready || state.sending || state.settingsBusy || state.selectedArchived || state.queueBusy
         || state.compacting === state.selected?.id}
       answer={controller.answerAsyncQuestion} />
-    <ChatComposer queue={queueProps(state, controller)}
+    <ChatComposer suggestions={remotePromptSuggestion(state, controller.suggestNextPrompt)}
+      queue={queueProps(state, controller)}
       connection={{ client: controller.guiAccounts, deviceName: device?.name,
         chooseDevice: () => setPickingDevice(true) }}
       goals={controller.goals} goal={state.selected ? state.goals?.[state.selected.id] : null} goalBusy={state.goalBusy}

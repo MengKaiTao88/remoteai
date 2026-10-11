@@ -1,3 +1,6 @@
+import { useComposerSuggestion } from '../../../../shared/chat/useComposerSuggestion';
+import { ComposerSuggestion } from './ComposerSuggestion';
+import type { PromptSuggestionSource } from '../../../../shared/chat/nextPromptSuggestion';
 import { useThemeColor } from '../theme/store';
 import { t, useLanguage } from '../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -43,6 +46,7 @@ import type { QueueProps } from '../../../../shared/remote-chat/client/queueProp
 import { useQueueEditor } from '../../../../shared/remote-chat/client/useQueueEditor';
 
 interface Props {
+  suggestions?: PromptSuggestionSource;
   connection: ChatConnectionProps;
   upload?: UploadProgress;
   reconnecting?: boolean;
@@ -78,7 +82,7 @@ interface Props {
   loadConversations: ConversationSearch;
 }
 
-export function ChatComposer({ models, selection, settingsBusy, settingsError, updateSettings,
+export function ChatComposer({ suggestions, models, selection, settingsBusy, settingsError, updateSettings,
   readUsage, readConversationMetrics, usageActive, tokenUsage, contextSettings, connection, queue, goals, goal, goalBusy,
   threadId, active, ready, sending, running, upload, reconnecting = false, interrupted = false, send, interrupt,
   catalog, cwd, compactReason, compacting, compact, loadCatalog, loadFiles, loadConversations }: Props) {
@@ -121,7 +125,13 @@ export function ChatComposer({ models, selection, settingsBusy, settingsError, u
       menu.setSelection({ start: message.text.length, end: message.text.length });
       requestAnimationFrame(() => menu.input.current?.focus());
     } });
-  const compactField = !goalMode.enabled && !goal && !draft.text.length && !hasDraft && !photos.busy && !photos.error;
+  const suggestion = useComposerSuggestion({ source: suggestions, value: draft.text,
+    blocked: !active || !usageActive || disabled || sending || running || hasDraft || photos.busy || attachments.busy
+      || queueEditor.loading || menu.open || adding || settings || !!projectFiles || goalMode.enabled,
+    fill: text => { draft.setText(text); menu.setSelection({ start: text.length, end: text.length });
+      menu.input.current?.focus(); } });
+  const compactField = !suggestion.text && !goalMode.enabled && !goal && !draft.text.length && !hasDraft
+    && !photos.busy && !photos.error;
   useEffect(() => { if (!active) { setSettings(false); setAdding(false); setProjectFiles(null); } }, [active]);
   useEffect(() => { setSettings(false); setAdding(false); setProjectFiles(null); setAttachmentError(''); }, [threadId]);
   useEffect(() => { setProjectFiles(null); }, [cwd]);
@@ -199,12 +209,14 @@ export function ChatComposer({ models, selection, settingsBusy, settingsError, u
       <ComposerReferences items={attachments.items} disabled={attachmentBusy} remove={attachments.remove}
         upload={sending ? upload : undefined} reconnecting={reconnecting} />
       <ComposerQuotes disabled={sending} active={active} />
+      <ComposerSuggestion text={suggestion.text} accept={suggestion.accept} />
       <TextInput ref={menu.input} accessibilityLabel={t("聊天消息")}
         style={[styles.input, compactField && styles.inputCompact]}
         multiline value={draft.text} maxLength={100_000} selection={menu.selection} editable={!queueEditor.loading}
         placeholderTextColor={color("#999999", 'muted')} underlineColorAndroid="transparent"
         onSelectionChange={(event) => menu.setSelection(event.nativeEvent.selection)}
-        onChangeText={draft.setText}
+        onKeyPress={suggestion.dismiss}
+        onChangeText={text => { suggestion.dismiss(); draft.setText(text); }}
         placeholder={ready ? (goalMode.enabled ? t("描述想完成的目标…") : t("发消息，@ 引用对话…")) : t("连接后发消息")} />
       </ScrollView>
       <View pointerEvents="box-none" style={[styles.composerActions, compactField && styles.composerActionsCompact]}>

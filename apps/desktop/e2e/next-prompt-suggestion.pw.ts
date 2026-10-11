@@ -55,7 +55,7 @@ for (const dark of [false, true]) {
     const calls = await mockBackend(page);
     const editor = await openThread(page, dark);
     const ghost = page.getByTestId('next-prompt-suggestion');
-    await expect(ghost).toHaveText(text + 'Tab');
+    await expect(ghost.locator('span')).toHaveText(text);
     await expect(editor).toHaveText('');
     await expect(page.getByRole('button', { name: '发送消息', exact: true })).toBeDisabled();
     await expect(ghost).toHaveCSS('opacity', '0.45');
@@ -88,4 +88,24 @@ test('typing remains responsive while prediction is pending and rejects the late
   await editor.clear();
   await expect(page.getByTestId('next-prompt-suggestion')).toHaveCount(0);
   await editor.press('Tab'); await expect(editor).toHaveText('');
+});
+
+test.describe('touchscreen composer', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('fills through a touch action and sends only after confirmation', async ({ page }, info) => {
+    const calls = await mockBackend(page);
+    const editor = await openThread(page);
+    const accept = page.getByRole('button', { name: '填入建议', exact: true });
+    await expect(accept).toBeVisible();
+    const ghost = page.getByTestId('next-prompt-suggestion');
+    const bounds = (await ghost.boundingBox())!;
+    expect(bounds.width).toBeLessThanOrEqual(400);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+    await page.screenshot({ path: info.outputPath('touch-suggestion.png') });
+    await accept.tap();
+    await expect(editor).toHaveText(text); await expect(editor).toBeFocused();
+    expect(calls.some(call => call.operation === 'send')).toBe(false);
+    await page.getByRole('button', { name: '发送消息', exact: true }).tap();
+    await expect.poll(() => calls.filter(call => call.operation === 'send').length).toBe(1);
+  });
 });
