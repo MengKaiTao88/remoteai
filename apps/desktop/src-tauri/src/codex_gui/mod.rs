@@ -64,6 +64,7 @@ pub(crate) mod undo;
 pub(crate) mod upload_policy;
 pub(crate) mod usage;
 pub(crate) mod web;
+mod workspace_activity;
 mod workspaces;
 
 use std::{
@@ -80,6 +81,7 @@ use protocol::{ApprovalReply, GuiEvent, GuiRequest, GuiResponse};
 
 #[derive(Default)]
 pub(crate) struct GuiState {
+    workspaces: Arc<workspace_activity::WorkspaceActivity>,
     pub(crate) proxy: crate::local_proxy::gui_runtime::GuiProxyRuntime,
     pub(crate) upload_policy: Arc<upload_policy::UploadPolicyStore>,
     client: Mutex<Option<Arc<Client>>>,

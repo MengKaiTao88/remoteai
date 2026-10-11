@@ -61,6 +61,12 @@ fn removing_a_project_reuses_the_threads_scratch_folder_without_deleting_the_pro
     )
     .unwrap();
     assert_eq!(resumed["cwd"], first["cwd"]);
+    let batch = json!({"operation": "sendBatch", "threadId": thread_id, "cwd": "",
+        "messages": [{"text": "continue from phone", "images": []}]});
+    let sent = prepare(batch.clone(), &fixture.0).unwrap();
+    let retried = prepare(batch, &fixture.0).unwrap();
+    assert_eq!(sent["cwd"], resumed["cwd"]);
+    assert_eq!(retried["cwd"], resumed["cwd"]);
     assert_eq!(
         Path::new(first["cwd"].as_str().unwrap())
             .canonicalize()
@@ -87,6 +93,22 @@ fn invalid_selected_paths_are_not_silently_treated_as_projectless() {
         &fixture.0
     )
     .is_err());
+}
+
+#[test]
+fn queued_turns_keep_explicit_directories_and_reject_invalid_paths() {
+    let fixture = Fixture::new();
+    let path = execution_path(&fixture.0);
+    let mut input = json!({"operation": "sendBatch", "threadId": uuid::Uuid::new_v4().to_string(),
+        "cwd": path, "messages": [{"text": "continue", "images": []}]});
+    assert_eq!(prepare(input.clone(), &fixture.0).unwrap()["cwd"], path);
+    input["cwd"] = json!("../missing-project");
+    assert!(matches!(
+        prepare(input.clone(), &fixture.0),
+        Err(GuiError::Directory)
+    ));
+    input.as_object_mut().unwrap().remove("cwd");
+    assert!(prepare(input, &fixture.0).unwrap().get("cwd").is_none());
 }
 
 #[test]

@@ -138,8 +138,15 @@ pub(crate) async fn codex_gui_git_tool(
     state: State<'_, GitState>,
     request: Request,
 ) -> std::result::Result<Response, String> {
+    let workspace = match &request {
+        Request::Action { cwd, request } if request.changes_worktree() => {
+            Some(super::workspace_change(&app, cwd.clone()).await?)
+        }
+        _ => None,
+    };
     let guard = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let _workspace = workspace;
         // GitHub requests do not mutate local files and must not block unrelated Git tools during network waits.
         let needs_guard = !matches!(
             &request,

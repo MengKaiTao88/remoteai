@@ -106,6 +106,58 @@ fn validates_names_and_counts_renames_once() {
     assert_eq!(count_changes(b"R  new\0old\0?? another\0 M file\0"), 3);
 }
 
+#[tokio::test]
+async fn a_running_task_protects_its_branch_but_not_a_linked_worktree() {
+    use crate::codex_gui::workspace_activity::{WorkspaceActivity, WorkspaceKey, WorkspaceRequest};
+    let repo = Repo::new();
+    let linked = create_worktree(&repo.0, &repo.0.join("trees"), "parallel").unwrap();
+    fs::create_dir(repo.0.join("src")).unwrap();
+    let activity = WorkspaceActivity::default();
+    let key = WorkspaceKey::resolve(repo.0.join("src").to_str().unwrap()).unwrap();
+    activity
+        .begin(
+            "host",
+            WorkspaceRequest {
+                id: 1,
+                method: "turn/start",
+                params: &serde_json::json!({"threadId": "chat"}),
+            },
+            Some(key),
+        )
+        .await
+        .unwrap();
+    activity
+        .response(
+            "host",
+            1,
+            Some(&serde_json::json!({"turn": {"id": "turn", "status": "inProgress"}})),
+        )
+        .await;
+    assert!(activity
+        .change(WorkspaceKey::resolve(repo.0.to_str().unwrap()).unwrap())
+        .await
+        .is_err());
+    let guard = activity
+        .change(WorkspaceKey::resolve(linked.to_str().unwrap()).unwrap())
+        .await
+        .unwrap();
+    switch(&linked, "another", true).unwrap();
+    assert_eq!(status(&repo.0).unwrap().branch.as_deref(), Some("main"));
+    drop(guard);
+    activity
+        .event(
+            "host",
+            "turn/completed",
+            &serde_json::json!({"threadId": "chat", "turn": {"id": "turn", "status": "completed"}}),
+        )
+        .await;
+    let _guard = activity
+        .change(WorkspaceKey::resolve(repo.0.to_str().unwrap()).unwrap())
+        .await
+        .unwrap();
+    switch(&repo.0, "finished", true).unwrap();
+}
+
 #[test]
 fn inherited_checkout_environment_does_not_redirect_git_operations() {
     let result = Command::new(std::env::current_exe().unwrap())

@@ -32,6 +32,12 @@ pub(crate) struct ActionRequest {
     strategy: Strategy,
 }
 
+impl ActionRequest {
+    pub(super) fn changes_worktree(&self) -> bool {
+        matches!(self.action, Action::Switch | Action::Pull | Action::Update)
+    }
+}
+
 fn run(root: &Path, args: &[&str]) -> Result<bool> {
     command_options(root, false)
         .args([

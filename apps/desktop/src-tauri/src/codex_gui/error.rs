@@ -42,6 +42,8 @@ pub(super) enum GuiError {
     Directory,
     #[error("暂时无法准备对话，请稍后重试。")]
     Workspace,
+    #[error("此工作目录正在使用中，请等待当前任务或分支操作完成后重试。")]
+    WorkspaceBusy,
     #[error("对话请求无效，请刷新后重试。")]
     InvalidRequest,
     #[error("Codex 已断开连接，请重新连接后继续。")]

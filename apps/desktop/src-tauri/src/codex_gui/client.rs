@@ -8,6 +8,7 @@ mod live_settings;
 mod plugin_refresh;
 #[path = "title_service.rs"]
 mod title_service;
+mod workspace_activity;
 
 use std::{
     collections::HashMap,
@@ -20,7 +21,7 @@ use std::{
 };
 
 use serde_json::{json, Value};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -40,6 +41,7 @@ const MAX_CONCURRENT_TITLE_JOBS: usize = 2;
 type Pending = HashMap<u64, oneshot::Sender<Result<Value>>>;
 
 pub(super) struct Client {
+    workspaces: Arc<super::workspace_activity::WorkspaceActivity>,
     title_jobs: Mutex<std::collections::HashSet<String>>,
     title_writes: Mutex<()>,
     title_slots: tokio::sync::Semaphore,
@@ -108,6 +110,7 @@ impl Client {
         let writer = process.stdin.take().ok_or(GuiError::Startup)?;
         let stdout = process.stdout.take().ok_or(GuiError::Startup)?;
         let client = Arc::new(Self {
+            workspaces: Arc::clone(&app.state::<super::GuiState>().workspaces),
             title_jobs: Mutex::default(),
             title_writes: Mutex::default(),
             title_slots: tokio::sync::Semaphore::new(MAX_CONCURRENT_TITLE_JOBS),
@@ -194,10 +197,29 @@ impl Client {
     }
 
     async fn request_raw(&self, method: &str, params: Value) -> Result<Value> {
+        let workspace = self.request_workspace(method, &params).await?;
+        self.exchange(method, params, workspace).await
+    }
+
+    async fn exchange(
+        &self,
+        method: &str,
+        params: Value,
+        workspace: Option<super::workspace_activity::WorkspaceKey>,
+    ) -> Result<Value> {
         if !self.alive.load(Ordering::Acquire) {
             return Err(GuiError::Disconnected);
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        self.reserve_workspace(
+            super::workspace_activity::WorkspaceRequest {
+                id,
+                method,
+                params: &params,
+            },
+            workspace,
+        )
+        .await?;
         let (sender, receiver) = oneshot::channel();
         self.pending.lock().await.insert(id, sender);
         if let Err(error) = self
@@ -233,6 +255,9 @@ impl Client {
             if method.starts_with("codex/event/") {
                 return;
             }
+            self.workspaces
+                .event(&self.notification_session, method, &value["params"])
+                .await;
             self.idle_threads.event(method, &value["params"]).await;
             let mut event = GuiEvent {
                 method: method.to_owned(),
@@ -288,6 +313,13 @@ impl Client {
             }
             self.emit(event).await;
         } else if let Some(id) = value["id"].as_u64() {
+            self.workspaces
+                .response(
+                    &self.notification_session,
+                    id,
+                    value.get("result").filter(|_| value.get("error").is_none()),
+                )
+                .await;
             if let Some(sender) = self.pending.lock().await.remove(&id) {
                 let result = if value.get("error").is_some() {
                     Err(GuiError::from_rpc(&value["error"]))
@@ -340,6 +372,10 @@ impl Client {
     }
 
     async fn disconnect(&self, notify: bool) {
+        // EOF can follow an explicit stop; always retire any final buffered lifecycle events.
+        if notify {
+            self.workspaces.disconnect(&self.notification_session).await;
+        }
         if !self.alive.swap(false, Ordering::AcqRel) {
             return;
         }
@@ -363,5 +399,6 @@ impl Client {
         if self.process.lock().await.kill().await.is_err() {
             eprintln!("Codex GUI process was already stopped");
         }
+        self.workspaces.disconnect(&self.notification_session).await;
     }
 }

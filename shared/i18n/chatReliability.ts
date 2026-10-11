@@ -1,4 +1,6 @@
 export const reliabilityEnglish: Readonly<Record<string, string>> = {
+  '此工作目录正在使用中，请等待当前任务或分支操作完成后重试。':
+    'This folder is busy. Wait for the current task or branch operation to finish, then try again.',
   '当前 P2P 连接': 'Current P2P connection',
   '本机 IP 和端口': 'This device’s IP and port',
   '电脑 IP 和端口': 'Computer’s IP and port',
@@ -87,6 +89,8 @@ export const reliabilityEnglish: Readonly<Record<string, string>> = {
 };
 
 export const reliabilityRussian: Readonly<Record<string, string>> = {
+  '此工作目录正在使用中，请等待当前任务或分支操作完成后重试。':
+    'Эта папка занята. Дождитесь завершения текущей задачи или операции с веткой и повторите попытку.',
   '当前 P2P 连接': 'Текущее P2P-подключение',
   '本机 IP 和端口': 'IP и порт этого устройства',
   '电脑 IP 和端口': 'IP и порт компьютера',

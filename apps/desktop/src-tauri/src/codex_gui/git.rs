@@ -51,6 +51,8 @@ pub(super) enum GitError {
     Worktree,
     #[error("操作未完成，请稍后重试。")]
     Operation,
+    #[error("此工作目录正在使用中，请等待当前任务或分支操作完成后重试。")]
+    WorkspaceBusy,
     #[error("文件信息无效，请刷新后重试。")]
     File,
     #[error("改动文件过多，请先在电脑上整理后重试。")]
@@ -311,8 +313,13 @@ pub(crate) async fn codex_gui_git(
     state: State<'_, GitState>,
     request: GitRequest,
 ) -> std::result::Result<GitStatus, String> {
+    let workspace = match &request {
+        GitRequest::Switch { cwd, .. } => Some(workspace_change(&app, cwd.clone()).await?),
+        _ => None,
+    };
     let guard = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let _workspace = workspace;
         let _guard = guard.lock().map_err(|_| GitError::Operation)?;
         let storage = app
             .path()
@@ -324,4 +331,18 @@ pub(crate) async fn codex_gui_git(
     .await
     .map_err(|_| GitError::Operation.to_string())?
     .map_err(|error| error.to_string())
+}
+
+async fn workspace_change(
+    app: &AppHandle,
+    cwd: String,
+) -> std::result::Result<super::workspace_activity::WorkspaceChange, String> {
+    let key = super::workspace_activity::WorkspaceKey::from_cwd(cwd)
+        .await
+        .map_err(|error| error.to_string())?;
+    let activity = Arc::clone(&app.state::<super::GuiState>().workspaces);
+    activity
+        .change(key)
+        .await
+        .map_err(|_| GitError::WorkspaceBusy.to_string())
 }

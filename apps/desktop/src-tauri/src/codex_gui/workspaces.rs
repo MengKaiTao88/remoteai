@@ -56,6 +56,11 @@ pub(super) fn prepare_request_with_upload_policy(
             cwd: Some(cwd),
             thread_id,
             ..
+        }
+        | GuiRequest::SendBatch {
+            cwd: Some(cwd),
+            thread_id,
+            ..
         } => {
             *cwd = resolve_directory(Some(cwd), root, Some(thread_id))?;
         }

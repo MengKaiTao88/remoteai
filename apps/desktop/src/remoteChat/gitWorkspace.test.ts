@@ -39,17 +39,18 @@ it.each<GitRequest>([
   expect(host.workspaceBusy).toBe(false);
 });
 
-it('deduplicates retries and prevents overlapping host mutations until Git finishes', async () => {
+it('deduplicates retries and reports worktree admission errors from the host', async () => {
   let finish!: (value: GitStatus) => void;
-  vi.mocked(invoke).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  vi.mocked(invoke).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }))
+    .mockRejectedValueOnce('此工作目录正在使用中，请等待当前任务或分支操作完成后重试。');
   const operations = new ChatOperations();
   const request = envelope({ operation: 'createWorktree', cwd: status.cwd, branch: 'parallel' });
   const pending = operations.execute(request, 'relay', 'account');
   const retry = operations.execute(request, 'direct', 'account');
-  expect(host.workspaceBusy).toBe(true);
+  expect(host.workspaceBusy).toBe(false);
   const overlapping = await operations.execute({ ...request, id: 'other' }, 'relay', 'account');
-  expect(overlapping.error).toContain('项目正在处理中');
-  expect(invoke).toHaveBeenCalledOnce();
+  expect(overlapping.error).toContain('此工作目录正在使用中');
+  expect(invoke).toHaveBeenCalledTimes(2);
   finish({ ...status, cwd: '/remote/worktree', isWorktree: true });
   expect((await pending).data).toEqual((await retry).data);
   expect(host.workspaceBusy).toBe(false);
@@ -66,8 +67,12 @@ it('unlocks after failures, preserves safe errors, and rejects operations outsid
   } };
   expect((await operations.execute(invalid)).error).toContain('操作无效');
   host.sending = true;
-  expect((await operations.execute({ ...request, id: 'sending' })).error).toContain('项目正在处理中');
-  expect(invoke).toHaveBeenCalledOnce();
+  host.workspaceBusy = true;
+  vi.mocked(invoke).mockResolvedValue(status);
+  expect((await operations.execute({ ...request, id: 'another-worktree', body: {
+    operation: 'guiGitWorkspace', request: { operation: 'switch', cwd: '/remote/other', branch: 'next', create: false },
+  } })).error).toBeUndefined();
+  expect(invoke).toHaveBeenCalledTimes(2);
 });
 
 it('allows a large worktree checkout to finish beyond the normal RPC deadline', async () => {

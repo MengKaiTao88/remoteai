@@ -52,6 +52,22 @@ it('uses a remotely switched folder for both resume and the next queued turn', a
   }));
 });
 
+it('continues a retained remote chat with the detached directory marker after removing its project', async () => {
+  thread.cwd = '/removed/project';
+  thread.turns = [];
+  await controller.loadRemoteThread('phone');
+  expect(await controller.projectActions.remove(thread.cwd)).toBe(true);
+  expect(controller.getSnapshot().projectOverrides.phone).toBe('');
+  await queue.request(input);
+  await vi.waitFor(() => expect(guiApi.request).toHaveBeenCalledWith(expect.objectContaining({
+    operation: 'sendBatch', threadId: 'phone', cwd: '',
+  })));
+  expect(guiApi.request).toHaveBeenCalledWith(expect.objectContaining({
+    operation: 'resume', threadId: 'phone', cwd: '',
+  }));
+  await vi.waitFor(() => expect(queue.read().threads.phone).toBeUndefined());
+});
+
 it('returns each enqueue receipt even when another writer updates the same queue before acknowledgement', async () => {
   const [first, second] = await Promise.all([
     queue.request({ ...input, text: 'first retry' }), queue.request({ ...input, text: 'second retry' }),
