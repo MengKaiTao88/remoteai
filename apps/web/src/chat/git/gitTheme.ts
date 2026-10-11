@@ -3,19 +3,20 @@ import type { CSSProperties } from 'react';
 import type { GitArea } from '../../../../../shared/remote-chat/gitFiles';
 
 /** Put tokens on the drawer portal so desktop and Web share the active Ant Design theme. */
-export function useGitTheme(): CSSProperties {
+export function useGitTheme(matchWorkspace = false): CSSProperties {
   const { token } = theme.useToken();
+  const workspaceColor = (name: string, fallback: string) => matchWorkspace ? `var(${name}, ${fallback})` : fallback;
   // Small status labels need more contrast than the default accent hues in either theme.
   const statusColor = (color: string) => `color-mix(in srgb, ${color} 70%, ${token.colorText} 30%)`;
   return {
-    '--git-ink': token.colorText,
-    '--git-muted': token.colorTextSecondary,
-    '--git-border': token.colorBorder,
-    '--git-surface': token.colorBgContainer,
-    '--git-subtle': token.colorFillQuaternary,
+    '--git-ink': workspaceColor('--ink', token.colorText),
+    '--git-muted': workspaceColor('--muted', token.colorTextSecondary),
+    '--git-border': workspaceColor('--line', token.colorBorder),
+    '--git-surface': workspaceColor('--panel', token.colorBgContainer),
+    '--git-subtle': workspaceColor('--bg', token.colorFillQuaternary),
     '--git-hover': token.colorFillTertiary,
-    '--git-accent': token.colorPrimaryText,
-    '--git-accent-bg': token.colorPrimaryBg,
+    '--git-accent': workspaceColor('--green-dark', token.colorPrimaryText),
+    '--git-accent-bg': workspaceColor('--green-soft', token.colorPrimaryBg),
     '--git-action': token.colorPrimary,
     '--git-on-action': token.colorTextLightSolid,
     '--git-focus': token.colorPrimaryBorder,

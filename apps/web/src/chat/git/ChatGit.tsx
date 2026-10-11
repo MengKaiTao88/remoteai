@@ -1,4 +1,5 @@
 import { Drawer, Spin } from 'antd';
+import { GitBranch, X } from 'lucide-react';
 import type { GitClient } from '../../../../../shared/remote-chat/gitTypes';
 import { parentGitDetail, useRemoteGit } from '../../../../../shared/remote-chat/useRemoteGit';
 import { useGitCommitFiles } from '../../../../../shared/remote-chat/useGitCommitFiles';
@@ -11,6 +12,7 @@ import { useGitTheme } from './gitTheme';
 import { ChatDetailsWorkspace } from '../ChatDetailsWorkspace';
 import { useDesktopLayout } from '../../useDesktopLayout';
 import { t } from '../../i18n';
+import './gitDrawer.less';
 
 interface Props {
   client: GitClient; cwd: string; connected: boolean; active: boolean; deviceName?: string; onClose: () => void;
@@ -18,14 +20,16 @@ interface Props {
 }
 
 export function ChatGit(props: Props) {
-  const themeStyle = useGitTheme();
+  const themeStyle = useGitTheme(Boolean(props.desktopDiffs));
   const panel = useRemoteGit(props);
   const detail = props.desktopDiffs && panel.detail?.kind === 'diff' ? parentGitDetail(panel.detail) : panel.detail;
   const commitFiles = useGitCommitFiles(props.client, props.cwd, detail?.commit?.hash, props.active && props.connected);
   const desktop = useDesktopLayout();
-  return <Drawer open={props.active} title="Git" placement={desktop ? 'right' : 'bottom'}
+  const title = desktop ? <span className="git-drawer-title"><GitBranch size={16} />Git</span> : 'Git';
+  return <Drawer open={props.active} title={title} placement={desktop ? 'right' : 'bottom'}
     height="90%" width={desktop ? 'min(800px, 80vw)' : undefined} onClose={props.onClose} rootStyle={themeStyle}
     rootClassName="chat-terminal-drawer chat-git-drawer" closable={{ 'aria-label': t('关闭 Git'), placement: 'end' }}
+    closeIcon={desktop ? <X size={17} /> : undefined}
     extra={<span className="chat-terminal-device">{props.deviceName}</span>}>
     <ChatDetailsWorkspace selected={props.cwd} active={props.active} enabled={Boolean(props.desktopDiffs)}>
     <div className="chat-git">

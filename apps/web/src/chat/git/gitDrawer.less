@@ -1,0 +1,13 @@
+@import '../../../../../shared/chat/drawerAppearance.less';
+
+.chat-git-drawer.ant-drawer-right {
+  .ant-drawer-content-wrapper { box-shadow: none; }
+  .ant-drawer-content { .drawer-surface(); }
+  .ant-drawer-header { .drawer-header(); }
+  .ant-drawer-header-title { gap: 8px; min-width: 0; }
+  .ant-drawer-title { display: flex; min-width: 0; }
+  .git-drawer-title { .drawer-tab(); color: var(--ink); background: var(--green-soft); }
+  .ant-drawer-close { .drawer-control(); margin: 0; padding: 0; }
+  .ant-drawer-extra { min-width: 0; }
+  .chat-terminal-device { max-width: min(240px, 24vw); }
+}
