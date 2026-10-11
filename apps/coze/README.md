@@ -49,6 +49,9 @@ cargo test --manifest-path apps/coze/Cargo.toml
 cargo clippy --manifest-path apps/coze/Cargo.toml --all-targets -- -D warnings
 node node_modules/typescript/bin/tsc -p apps/coze/ui/tsconfig.json
 node node_modules/vite/bin/vite.js build --config apps/coze/ui/vite.config.ts
+npm run test -w @codex-switch/coze
+npx playwright install chromium
+npm run test:e2e -w @codex-switch/coze
 node scripts/prepare-coze-model.mjs
 cargo test --manifest-path apps/coze/Cargo.toml --test local_embedding -- --ignored
 $env:RUSTFLAGS = "-C target-feature=+crt-static"

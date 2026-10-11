@@ -1,47 +1,106 @@
-import { useRef, type PointerEvent } from "react";
-import type { Graph, Node } from "../types";
-import { nodeLabels } from "./nodes";
+import { useEffect, useRef, type KeyboardEvent } from "react";
+import { App, Button, Space } from "antd";
+import { Copy, Trash2 } from "lucide-react";
+import { Background, Panel, ReactFlow, ReactFlowProvider, SelectionMode, useEdgesState, useNodesState,
+  useReactFlow, type Connection, type NodePositionChange } from "@xyflow/react";
+import type { Graph } from "../types";
+import { connectionError, edgeId, MAX_NODES, removeSelection } from "./graphEditing";
+import { fromConnection, toEdges, toNodes } from "./flowAdapter";
+import { WorkflowNode, type CanvasNode } from "./WorkflowNode";
+import { CanvasControls, type HistoryControls } from "./CanvasControls";
+import { NodePalette } from "./NodePalette";
+import { newNode } from "./nodes";
+import { useCanvasResize } from "./useCanvasResize";
+import "@xyflow/react/dist/style.css";
+import "./canvas.css";
 
-interface Props { graph: Graph; selected?: string; onSelect: (id: string) => void; onChange: (graph: Graph) => void }
-const WIDTH = 195;
-const HEIGHT = 80;
+interface Props {
+  graph: Graph; selected?: string; onSelect: (id?: string) => void;
+  onChange: (graph: Graph) => void; history: HistoryControls;
+}
+const nodeTypes = { workflow: WorkflowNode };
 
-export function Canvas({ graph, selected, onSelect, onChange }: Props) {
-  const drag = useRef<{ id: string; x: number; y: number; initialX: number; initialY: number }>();
-  const start = (event: PointerEvent<HTMLButtonElement>, node: Node) => {
-    onSelect(node.id);
-    drag.current = { id: node.id, x: event.clientX, y: event.clientY, initialX: node.x, initialY: node.y };
-    event.currentTarget.setPointerCapture(event.pointerId);
+export function Canvas(props: Props) {
+  return <ReactFlowProvider><WorkflowCanvas {...props} /></ReactFlowProvider>;
+}
+
+function WorkflowCanvas({ graph, selected, onSelect, onChange, history }: Props) {
+  const [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>(toNodes(graph, selected));
+  const [edges, setEdges, onEdgesChange] = useEdgesState(toEdges(graph));
+  const container = useRef<HTMLDivElement>(null);
+  const reconnecting = useRef<string>();
+  const flow = useReactFlow<CanvasNode>();
+  useCanvasResize(container);
+  const { message } = App.useApp();
+  useEffect(() => setNodes(toNodes(graph, selected)), [graph, selected, setNodes]);
+  useEffect(() => setEdges(toEdges(graph)), [graph, setEdges]);
+  const connect = (connection: Connection, replaced?: string) => {
+    const edge = fromConnection(connection);
+    const base = { ...graph, edges: graph.edges.filter((item) => edgeId(item) !== replaced) };
+    const error = connectionError(base, edge);
+    if (error) { void message.info(error); return; }
+    onChange({ ...base, edges: [...base.edges, edge] });
   };
-  const move = (event: PointerEvent<HTMLButtonElement>) => {
-    const current = drag.current;
-    if (!current) return;
-    onChange({ ...graph, nodes: graph.nodes.map((node) => node.id === current.id ? { ...node,
-      x: Math.max(0, current.initialX + event.clientX - current.x),
-      y: Math.max(0, current.initialY + event.clientY - current.y) } : node) });
+  const add = (type: string) => {
+    if (graph.nodes.length >= MAX_NODES) { void message.info("节点数量已达到上限。"); return; }
+    const rect = container.current?.getBoundingClientRect();
+    if (!rect) return;
+    const position = flow.screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+    const node = { ...newNode(type, graph.nodes.length), x: position.x - 120, y: position.y - 50 };
+    onChange({ ...graph, nodes: [...graph.nodes, node] }); onSelect(node.id);
   };
-  const width = Math.max(1000, ...graph.nodes.map((node) => node.x + WIDTH + 100));
-  const height = Math.max(650, ...graph.nodes.map((node) => node.y + HEIGHT + 100));
-  return <div className="canvas-scroll"><div className="canvas" style={{ width, height }}>
-    <svg width={width} height={height} aria-label="工作流连线">
-      <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
-        orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" /></marker></defs>
-      {graph.edges.map((edge, index) => {
-        const from = graph.nodes.find((node) => node.id === edge.source);
-        const to = graph.nodes.find((node) => node.id === edge.target);
-        if (!from || !to) return null;
-        const x = from.x + WIDTH; const y = from.y + HEIGHT / 2;
-        const endY = to.y + HEIGHT / 2;
-        return <g key={index}><path d={`M${x} ${y} C${x + 70} ${y},${to.x - 70} ${endY},${to.x} ${endY}`}
-          fill="none" stroke="currentColor" strokeWidth="2" markerEnd="url(#arrow)" />
-          {edge.port !== undefined && <text x={x + 15} y={y - 10}>{edge.port ? "是" : "否"}</text>}</g>;
-      })}
-    </svg>
-    {graph.nodes.map((node) => <button key={node.id} className={`canvas-node ${selected === node.id ? "active" : ""}`}
-      style={{ left: node.x, top: node.y, width: WIDTH, height: HEIGHT }}
-      onClick={() => onSelect(node.id)} onPointerDown={(event) => start(event, node)} onPointerMove={move}
-      onPointerUp={() => { drag.current = undefined; }} onPointerCancel={() => { drag.current = undefined; }}>
-      <small>{nodeLabels[node.type] ?? node.type}</small><strong>{node.name}</strong><span>{node.id}</span>
-    </button>)}
-  </div></div>;
+  const remove = () => {
+    onChange(removeSelection(graph, nodes.filter((node) => node.selected).map((node) => node.id),
+      edges.filter((edge) => edge.selected).map((edge) => edge.id)));
+    onSelect(undefined);
+  };
+  const duplicate = () => {
+    const node = graph.nodes.find((node) => node.id === selected);
+    if (!node || node.type === "start" || graph.nodes.length >= MAX_NODES) return;
+    const copy = { ...node, id: newNode(node.type, 0).id, name: `${node.name} 副本`, x: node.x + 40, y: node.y + 140 };
+    onChange({ ...graph, nodes: [...graph.nodes, copy] }); onSelect(copy.id);
+  };
+  const shortcut = (event: KeyboardEvent) => {
+    if (event.target instanceof HTMLElement && event.target.closest("input,textarea,[contenteditable=true]")) return;
+    const modifier = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    if (modifier && key === "z") { event.preventDefault(); event.shiftKey ? history.redo() : history.undo(); }
+    if (modifier && key === "y") { event.preventDefault(); history.redo(); }
+    if (modifier && key === "d") { event.preventDefault(); duplicate(); }
+    if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); remove(); }
+    if (event.key === "Escape") onSelect(undefined);
+  };
+  const hasSelection = nodes.some((node) => node.selected) || edges.some((edge) => edge.selected);
+  return <div ref={container} className="workflow-canvas" aria-label="工作流画布" tabIndex={0}
+    onKeyDown={shortcut} onPointerDownCapture={() => container.current?.focus({ preventScroll: true })}>
+    <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={(changes) => {
+      onNodesChange(changes);
+      const completed = changes.filter((item): item is NodePositionChange =>
+        item.type === "position" && item.dragging === false);
+      if (!completed.length) return;
+      const positions = new Map(completed.map((item) => [item.id, item.position]));
+      onChange({ ...graph, nodes: graph.nodes.map((node) => ({ ...node, ...positions.get(node.id) })) });
+    }}
+      onEdgesChange={onEdgesChange} fitView fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+      minZoom={0.2} maxZoom={2} deleteKeyCode={null} selectionMode={SelectionMode.Partial}
+      multiSelectionKeyCode={["Control", "Meta", "Shift"]}
+      onNodeClick={(event, node) => {
+        if (!event.shiftKey && !event.ctrlKey && !event.metaKey) onSelect(node.id);
+      }} onPaneClick={() => onSelect(undefined)}
+      onConnect={(connection) => connect(connection)}
+      onReconnectStart={(_, edge) => { reconnecting.current = edge.id; }}
+      onReconnect={((edge, connection) => connect(connection, edge.id))}
+      onReconnectEnd={() => { reconnecting.current = undefined; }}
+      isValidConnection={(connection) => !connectionError({ ...graph,
+        edges: graph.edges.filter((edge) => edgeId(edge) !== reconnecting.current) }, fromConnection(connection))}>
+      <Background color="var(--border)" gap={20} size={1.5} />
+      <Panel position="top-left"><Space><NodePalette onAdd={add} />{hasSelection && <>
+        <Button aria-label="复制节点" icon={<Copy size={15} />} onClick={duplicate}
+          disabled={!selected || graph.nodes.find((node) => node.id === selected)?.type === "start"} />
+        <Button aria-label="删除所选" icon={<Trash2 size={15} />} onClick={remove} />
+      </>}</Space></Panel>
+      <CanvasControls graph={graph} onChange={onChange} history={history} />
+      <Panel position="bottom-right" className="canvas-hint">拖拽圆点连线 · 滚轮缩放 · Shift 框选</Panel>
+    </ReactFlow>
+  </div>;
 }

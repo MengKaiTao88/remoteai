@@ -24,3 +24,6 @@ Python code execution: Monty 1.0.0, https://github.com/pydantic/monty (MIT).
 TypeScript transformation: Oxc 0.75, https://github.com/oxc-project/oxc (MIT).
 PDF page rendering: Hayro 0.7, https://github.com/LaurenzV/hayro (MIT / Apache-2.0).
 Their license notices are included in licenses/ in the release archive.
+
+Workflow canvas: React Flow 12, https://github.com/xyflow/xyflow (MIT).
+Both @xyflow/react and @xyflow/system are covered by licenses/XYFLOW-MIT.

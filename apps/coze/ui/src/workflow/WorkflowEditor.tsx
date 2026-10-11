@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Drawer, Dropdown, Input, List, Space, Upload } from "antd";
-import { FileUp, History, Play, Plus, Square } from "lucide-react";
+import { Alert, Button, Drawer, Input, List, Space, Upload } from "antd";
+import { FileUp, History, Play, Square } from "lucide-react";
 import { api, errorText } from "../api";
 import type { Draft, Graph, Json, Model, Resource } from "../types";
 import { Canvas } from "./Canvas";
 import { NodeInspector } from "./NodeInspector";
-import { newNode, nodeLabels } from "./nodes";
+import { useGraphHistory } from "./useGraphHistory";
 import { RunResult } from "./RunResult";
 import { useWorkflowExecution, type Run } from "./useWorkflowExecution";
 
@@ -29,7 +29,8 @@ export function WorkflowEditor({ resource, resources, draft, onChange, save }: P
   useEffect(() => {
     void api<Model[]>("models").then(setModels).catch((error: unknown) => setModelError(errorText(error)));
   }, []);
-  const change = (graph: Graph) => onChange(graph as unknown as Draft);
+  const history = useGraphHistory(graph, (next) => onChange(next as unknown as Draft));
+  const { change } = history;
   const execute = async () => {
     setSaving(true); setError("");
     try {
@@ -54,11 +55,6 @@ export function WorkflowEditor({ resource, resources, draft, onChange, save }: P
   const node = graph.nodes.find((node) => node.id === selected);
   return <div className="workflow-editor">
     <div className="workflow-toolbar"><Space>
-      <Dropdown menu={{ items: Object.entries(nodeLabels).filter(([key]) => key !== "start")
-        .map(([key, label]) => ({ key, label })), onClick: ({ key }) => {
-          const node = newNode(key, graph.nodes.length); change({ ...graph, nodes: [...graph.nodes, node] });
-          setSelected(node.id);
-        } }}><Button icon={<Plus size={15} />}>添加节点</Button></Dropdown>
       <Upload accept=".json" showUploadList={false} beforeUpload={importCanvas}>
         <Button icon={<FileUp size={15} />}>导入画布</Button></Upload>
     </Space><Space>
@@ -72,8 +68,10 @@ export function WorkflowEditor({ resource, resources, draft, onChange, save }: P
     {imported && <Alert type="info" message="画布已导入，请检查所用模型和输入内容后保存。"
       closable onClose={() => setImported(false)} />}
     {error && !panel && <Alert type="error" message={error} closable onClose={() => setError("")} />}
-    <div className="workflow-workspace"><Canvas graph={graph} selected={selected} onSelect={setSelected} onChange={change} />
-      {node && <NodeInspector key={node.id} node={node} graph={graph} resources={resources} models={models} onChange={change} />}
+    <div className="workflow-workspace"><Canvas graph={graph} selected={selected} onSelect={setSelected}
+      onChange={change} history={history} />
+      {node && <NodeInspector key={node.id} node={node} graph={graph} resources={resources} models={models}
+        onChange={change} onClose={() => setSelected(undefined)} />}
     </div>
     <Drawer title={panel === "run" ? "试运行" : "运行记录"} open={Boolean(panel)} onClose={() => setPanel(undefined)} width={540}>
       {error && <Alert type="error" message={error} />}

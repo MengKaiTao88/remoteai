@@ -17,7 +17,7 @@ export const labels: Record<Kind, string> = {
 export interface Node {
   id: string; name: string; x: number; y: number; type: string; [key: string]: Json;
 }
-export interface Edge { source: string; target: string; port?: boolean }
+export interface Edge { source: string; target: string; port?: boolean | null }
 export interface InputField { name: string; description: string; kind: string; required: boolean }
 export interface Graph { nodes: Node[]; edges: Edge[]; inputs?: InputField[] }
 

@@ -54,7 +54,12 @@ export function ResourceEditor({ resource, resources, onSaved, onBack, onDirty, 
     anchor.href = url; anchor.download = `${name || "coze"}.json`; anchor.click(); URL.revokeObjectURL(url);
   });
   const back = <Button icon={<ArrowLeft size={16} />} onClick={modified ? undefined : onBack}>返回</Button>;
-  return <DraftValidation.Provider value={validation.report}><section className="resource-editor">
+  const workflow = resource.kind === "workflow";
+  const descriptionInput = <Input className="resource-description" aria-label="描述"
+    placeholder="描述用途，帮助你和 AI 更好地使用它" value={description}
+    maxLength={2000} onChange={(event) => setDescription(event.target.value)} />;
+  return <DraftValidation.Provider value={validation.report}>
+    <section className={`resource-editor ${workflow ? "workflow-resource" : ""}`}>
     <header className="editor-header"><Space>
       {modified ? <Popconfirm title="放弃未保存的修改？" onConfirm={onBack}
         styles={{ root: { maxWidth: 400 } }}>{back}</Popconfirm> : back}
@@ -70,8 +75,7 @@ export function ResourceEditor({ resource, resources, onSaved, onBack, onDirty, 
           onClick={() => void publish()}>发布到 Codex GUI</Button>}
     </Space></header>
     {error && <Alert type="error" message={error} closable onClose={() => setError("")} />}
-    <Input className="resource-description" placeholder="描述用途，帮助你和 AI 更好地使用它" value={description}
-      maxLength={2000} onChange={(event) => setDescription(event.target.value)} />
+    {!workflow && descriptionInput}
     <Tabs items={[{ key: "edit", label: "编辑与预览", children: <>
       {resource.kind === "app" && <AppEditor resource={resource} resources={resources}
         draft={draft} onChange={setDraft} save={dirty ? save : undefined} />}
@@ -86,6 +90,7 @@ export function ResourceEditor({ resource, resources, onSaved, onBack, onDirty, 
       {resource.kind === "plugin" && <ToolEditor resource={resource} draft={draft} onChange={setDraft}
         save={dirty || validation.invalid ? save : undefined} />}
     </> }, ...(manage ? [{ key: "settings", label: "设置", children: <div className="settings-panel">
+      {workflow && <><h3>用途描述</h3>{descriptionInput}</>}
       <h3>保存为模板</h3><p>将当前配置和引用的内容一起放入模板广场，方便复用或导出分享。</p>
       <Button disabled={modified} onClick={() => void perform(async () => {
         const bundle = await api<unknown>("export_template", { id: resource.id });

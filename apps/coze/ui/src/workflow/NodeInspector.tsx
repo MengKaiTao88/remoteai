@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Checkbox, Input, InputNumber, Select } from "antd";
+import { X } from "lucide-react";
 import type { Graph, Json, Model, Node, Resource } from "../types";
 import { nodeLabels } from "./nodes";
 import { useInvalidField } from "../draftValidation";
+import { ConnectionEditor } from "./ConnectionEditor";
+import { isTerminal, removeSelection } from "./graphEditing";
 
-interface Props { node: Node; graph: Graph; resources: Resource[]; models: Model[]; onChange: (graph: Graph) => void }
+interface Props {
+  node: Node; graph: Graph; resources: Resource[]; models: Model[];
+  onChange: (graph: Graph) => void; onClose: () => void;
+}
 
-export function NodeInspector({ node, graph, resources, models, onChange }: Props) {
-  const [target, setTarget] = useState<string>();
-  const [port, setPort] = useState(true);
+export function NodeInspector({ node, graph, resources, models, onChange, onClose }: Props) {
   const update = (key: string, value: Json) => onChange({ ...graph,
     nodes: graph.nodes.map((item) => item.id === node.id ? { ...item, [key]: value } : item) });
   const text = (key: string, label: string, rows = 3) => <label key={key}>{label}
@@ -17,9 +21,10 @@ export function NodeInspector({ node, graph, resources, models, onChange }: Prop
   const json = (key: string, label: string) => <JsonInput key={`${node.id}-${key}`} label={label}
     value={node[key]} onChange={(value) => update(key, value)} />;
   const workflows = resources.filter((item) => item.kind === "workflow").map((item) => ({ value: item.id, label: item.name }));
-  return <aside className="node-inspector"><h3>{nodeLabels[node.type]}</h3>
+  return <aside className="node-inspector"><header><h3>{nodeLabels[node.type]}</h3>
+    <Button type="text" aria-label="关闭节点配置" icon={<X size={16} />} onClick={onClose} /></header>
     <label>名称<Input value={node.name} onChange={(event) => update("name", event.target.value)} /></label>
-    <small>引用输入：<code>{"{{input.text}}"}</code><br />引用节点结果：<code>{"{{节点ID.output}}"}</code></small>
+    <small>引用输入：<code>{"{{input.text}}"}</code><br />此节点结果：<code>{`{{${node.id}.output}}`}</code></small>
     {node.type === "start" && <><h4>输入参数</h4>{(graph.inputs ?? []).map((field, index) => <div key={index}>
       <Input aria-label="参数名" placeholder="参数名" value={field.name} onChange={(event) => onChange({ ...graph,
         inputs: graph.inputs?.map((item, cursor) => cursor === index ? { ...item, name: event.target.value } : item) })} />
@@ -119,33 +124,24 @@ export function NodeInspector({ node, graph, resources, models, onChange }: Prop
       {node.type === "subworkflow" && json("input", "输入（JSON）")}
       {node.type !== "subworkflow" && <small>循环内可读取 input.item、input.index 和 variables 中的变量。</small>}</>}
     {["break", "continue"].includes(node.type) && <small>用于循环体工作流，在当前分支到达此处时立即生效。</small>}
-    {!["end", "break", "continue"].includes(node.type) && <div className="connection-controls"><h4>下一步</h4>
-      {node.type === "condition" && <Select className="full" value={String(port)}
-        options={[{ value: "true", label: "条件成立" }, { value: "false", label: "条件不成立" }]}
-        onChange={(value) => setPort(value === "true")} />}
-      <Select className="full" placeholder="选择要连接的节点" value={target} onChange={setTarget}
-        options={graph.nodes.filter((item) => item.id !== node.id && item.type !== "start")
-          .map((item) => ({ value: item.id, label: item.name }))} />
-      <Button disabled={!target} onClick={() => {
-        if (!target || graph.edges.some((edge) => edge.source === node.id && edge.target === target)) return;
-        onChange({ ...graph, edges: [...graph.edges, { source: node.id, target,
-          ...(node.type === "condition" ? { port } : {}) }] }); setTarget(undefined);
-      }}>连接</Button>
-      {graph.edges.filter((edge) => edge.source === node.id).map((edge) => <Button key={`${edge.target}-${edge.port}`}
-        type="text" danger onClick={() => onChange({ ...graph, edges: graph.edges.filter((item) => item !== edge) })}>
-        移除 → {graph.nodes.find((node) => node.id === edge.target)?.name}</Button>)}
-    </div>}
-    {node.type !== "start" && <Button danger onClick={() => onChange({
-      ...graph,
-      nodes: graph.nodes.filter((item) => item.id !== node.id),
-      edges: graph.edges.filter((edge) => edge.source !== node.id && edge.target !== node.id),
-    })}>删除节点</Button>}
+    {!isTerminal(node.type) && <ConnectionEditor node={node} graph={graph} onChange={onChange} />}
+    {node.type !== "start" && <Button danger disabled={node.type === "end"
+      && graph.nodes.filter((item) => item.type === "end").length === 1}
+      onClick={() => { onChange(removeSelection(graph, [node.id], [])); onClose(); }}>删除节点</Button>}
   </aside>;
 }
 
 function JsonInput({ value, onChange, label }: { value: Json; onChange: (value: Json) => void; label: string }) {
   const [text, setText] = useState(JSON.stringify(value, null, 2));
   const [invalid, setInvalid] = useState(false);
+  useEffect(() => {
+    setText((current) => {
+      try { if (JSON.stringify(JSON.parse(current)) === JSON.stringify(value)) return current; }
+      catch { /* An external undo replaces unfinished JSON as well as valid values. */ }
+      return JSON.stringify(value, null, 2);
+    });
+    setInvalid(false);
+  }, [value]);
   useInvalidField(invalid);
   return <label>{label}<Input.TextArea rows={3} value={text} status={invalid ? "error" : undefined}
     onChange={(event) => {

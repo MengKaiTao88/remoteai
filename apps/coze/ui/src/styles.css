@@ -44,15 +44,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
 .chat-message.user { background: var(--hover); }.chat-message p { white-space: pre-wrap; color: inherit; overflow-wrap: anywhere; }
 .chat-message details { color: var(--muted); font-size: 12px; }.chat-message summary { cursor: pointer; }
 .workflow-workspace { display: flex; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.canvas-scroll { flex: 1; min-width: 0; max-height: 650px; overflow: auto; }
-.canvas { position: relative; background-image: radial-gradient(var(--border) 1.3px, transparent 1.3px);
-  background-size: 18px 18px; }.canvas svg { position: absolute; color: #aaa0dd; pointer-events: none; }
-.canvas-node { position: absolute; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
-  box-shadow: 0 3px 14px #00000008; display: flex; flex-direction: column; align-items: flex-start;
-  padding: 10px 16px; color: inherit; touch-action: none; cursor: grab; }
-.canvas-node.active { outline: 2px solid #8a77e8; }.canvas-node small { color: #8a77e8; font-size: 11px; }
-.canvas-node strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.canvas-node span { font-size: 10px; color: var(--muted); }.node-inspector { width: 300px; flex-shrink: 0; padding: 18px;
+.node-inspector { width: 300px; flex-shrink: 0; padding: 18px;
   background: var(--surface); border-left: 1px solid var(--border); overflow: auto; max-height: 650px; }
 .node-inspector small { color: var(--muted); }.node-inspector .error-text { color: #da4848; }
 .node-inspector input, .node-inspector textarea, .node-inspector .ant-select { margin-top: 5px; }
