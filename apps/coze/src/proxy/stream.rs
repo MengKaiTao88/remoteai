@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
-const MAX_TOOL_CALLS: usize = 32;
+pub(super) const MAX_TOOL_CALLS: usize = 32;
 const MAX_ARGUMENT_BYTES: usize = 128 * 1024;
 
 pub struct CompletionRequest<'a> {
@@ -39,6 +39,7 @@ pub struct Completion {
 
 #[derive(Default)]
 struct Decoder {
+    native_responses: bool,
     pending: Vec<u8>,
     bytes: u64,
     content: String,
@@ -68,29 +69,44 @@ impl ModelProxy {
         runtime.block_on(self.stream(request, control))
     }
 
-    async fn stream(
+    async fn send(
         &self,
         request: CompletionRequest<'_>,
         control: &JobControl,
-    ) -> Result<Completion> {
+    ) -> Result<reqwest::Response> {
         let mut body = json!({"model":request.model,"messages":request.messages,
             "temperature":request.temperature,"stream":true});
         if !request.tools.is_empty() {
             body["tools"] = json!(request.tools);
         }
+        let endpoint = if self.native_responses {
+            body = super::responses::request_body(&request)?;
+            "responses"
+        } else {
+            "chat/completions"
+        };
         let send = self
             .stream_client
-            .post(format!("{}/chat/completions", self.base))
+            .post(format!("{}/{endpoint}", self.base))
             .bearer_auth(&self.token)
             .json(&body)
             .send();
-        let mut response = tokio::select! {
+        let response = tokio::select! {
             _ = control.cancelled() => return Err(Error::Cancelled),
             result = send => result.map_err(|_| Error::Proxy)?,
         };
         if !response.status().is_success() {
             return Err(Error::Proxy);
         }
+        Ok(response)
+    }
+
+    async fn stream(
+        &self,
+        request: CompletionRequest<'_>,
+        control: &JobControl,
+    ) -> Result<Completion> {
+        let mut response = self.send(request, control).await?;
         if response
             .headers()
             .get(reqwest::header::CONTENT_TYPE)
@@ -99,7 +115,10 @@ impl ModelProxy {
         {
             return json_response(response, control).await;
         }
-        let mut decoder = Decoder::default();
+        let mut decoder = Decoder {
+            native_responses: self.native_responses,
+            ..Decoder::default()
+        };
         loop {
             let chunk = tokio::select! {
                 _ = control.cancelled() => return Err(Error::Cancelled),
@@ -137,6 +156,11 @@ async fn json_response(
         }
     }
     let value: Value = serde_json::from_slice(&bytes).map_err(|_| Error::Proxy)?;
+    if value.get("output").is_some() {
+        let completion = super::responses::completion(&value)?;
+        control.emit(json!({"type":"delta","text":completion.content}))?;
+        return Ok(completion);
+    }
     let message = value.pointer("/choices/0/message").ok_or(Error::Proxy)?;
     let content = message["content"].as_str().unwrap_or_default().to_owned();
     let tool_calls: Vec<ToolCall> =
@@ -169,6 +193,9 @@ impl Decoder {
 
     fn data(&mut self, data: &str, control: &JobControl) -> Result<()> {
         if data == "[DONE]" {
+            if self.native_responses && !self.finished {
+                return Err(Error::Proxy);
+            }
             self.finished = true;
             return Ok(());
         }
@@ -176,8 +203,14 @@ impl Decoder {
             return Ok(());
         }
         let value: Value = serde_json::from_str(data).map_err(|_| Error::Proxy)?;
-        if value.get("error").is_some() {
+        if value.get("error").is_some_and(|error| !error.is_null()) {
             return Err(Error::Proxy);
+        }
+        if value["type"]
+            .as_str()
+            .is_some_and(|kind| kind.starts_with("response.") || kind == "error")
+        {
+            return self.response_event(&value, control);
         }
         let Some(choice) = value.pointer("/choices/0") else {
             return Ok(());
@@ -202,6 +235,66 @@ impl Decoder {
             self.finished = true;
         }
         Ok(())
+    }
+
+    fn response_event(&mut self, value: &Value, control: &JobControl) -> Result<()> {
+        match value["type"].as_str() {
+            Some("response.output_text.delta" | "response.refusal.delta") => {
+                let text = value["delta"].as_str().ok_or(Error::Proxy)?;
+                self.content.push_str(text);
+                control.emit(json!({"type":"delta","text":text}))?;
+            }
+            Some("response.completed") => {
+                let result = super::responses::completion(&value["response"])?;
+                // Codex routes can send output items separately and leave completed.output empty.
+                if !result.tool_calls.is_empty() {
+                    self.tools = result.tool_calls.into_iter().enumerate().collect();
+                }
+                if self.content.is_empty() && !result.content.is_empty() {
+                    control.emit(json!({"type":"delta","text":result.content}))?;
+                }
+                if !result.content.is_empty() {
+                    self.content = result.content;
+                }
+                if self.content.is_empty() && self.tools.is_empty() {
+                    return Err(Error::Proxy);
+                }
+                self.finished = true;
+            }
+            Some(
+                "response.output_item.added"
+                | "response.output_item.done"
+                | "response.function_call_arguments.delta"
+                | "response.function_call_arguments.done",
+            ) => {
+                self.response_tool(value)?;
+            }
+            Some("response.failed" | "response.incomplete" | "error") => return Err(Error::Proxy),
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn response_tool(&mut self, value: &Value) -> Result<()> {
+        let kind = value["type"].as_str().ok_or(Error::Proxy)?;
+        if kind.starts_with("response.output_item") && value["item"]["type"] != "function_call" {
+            return Ok(());
+        }
+        let index = value["output_index"].as_u64().ok_or(Error::Proxy)? as usize;
+        if kind.starts_with("response.output_item") {
+            self.tools
+                .insert(index, super::responses::tool_call(&value["item"])?);
+        } else {
+            let call = self.tools.get_mut(&index).ok_or(Error::Proxy)?;
+            if kind.ends_with(".delta") {
+                call.function
+                    .arguments
+                    .push_str(value["delta"].as_str().ok_or(Error::Proxy)?);
+            } else {
+                call.function.arguments = value["arguments"].as_str().ok_or(Error::Proxy)?.into();
+            }
+        }
+        validate_calls(self.tools.values())
     }
 
     fn tool(&mut self, delta: &Value) -> Result<()> {
@@ -245,12 +338,12 @@ impl Decoder {
     }
 }
 
-fn validate_calls(calls: &[ToolCall]) -> Result<()> {
+pub(super) fn validate_calls<'a>(calls: impl IntoIterator<Item = &'a ToolCall>) -> Result<()> {
     let mut ids = std::collections::HashSet::new();
-    if calls.len() > MAX_TOOL_CALLS {
-        return Err(Error::Limit);
-    }
-    for call in calls {
+    for (index, call) in calls.into_iter().enumerate() {
+        if index >= MAX_TOOL_CALLS {
+            return Err(Error::Limit);
+        }
         if call.id.is_empty()
             || call.id.len() > 200
             || call.kind != "function"

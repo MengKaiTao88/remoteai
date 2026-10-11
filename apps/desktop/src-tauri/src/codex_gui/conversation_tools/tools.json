@@ -2,13 +2,21 @@
   "tools": [
     {
       "name": "gui_create_conversation",
-      "description": "Create a real conversation in this host's Codex GUI and send its first message. Use only when the user requests another conversation or explicitly delegates work. Prefer this tool to desktop clicks. Supply a new requestId for each intended message; retry with the SAME requestId and arguments after an uncertain result to retrieve the receipt without sending twice. Omit cwd for an independent projectless chat, or provide the exact project directory. New conversations use workspace-write access and the GUI's saved draft model. Returns threadId and turnId; acceptance does not mean the task is finished. Use gui_read_conversation to check progress. Does not switch the user's selected conversation.",
+      "description": "Create a real conversation in this host's Codex GUI and send its first message. Use only when the user requests another conversation or explicitly delegates work. Prefer this tool to desktop clicks. Supply a new requestId for each intended message; retry with the SAME requestId and arguments after an uncertain result to retrieve the receipt without sending twice. Omit cwd for an independent projectless chat, or provide the exact project directory. New conversations use workspace-write access. Model and reasoning effort default to the invoking conversation's current turn; pass model and/or effort only to override that choice. The new conversation saves its own settings without changing the caller or GUI draft. Returns threadId and turnId; acceptance does not mean the task is finished. Use gui_read_conversation to check progress. Does not switch the user's selected conversation.",
       "inputSchema": {
         "type": "object", "additionalProperties": false,
         "properties": {
           "requestId": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
           "message": {"type": "string", "minLength": 1, "maxLength": 64000},
-          "cwd": {"type": "string", "description": "Absolute existing project directory on the GUI host. Omit for a projectless chat."}
+          "cwd": {"type": "string", "description": "Absolute existing project directory on the GUI host. Omit for a projectless chat."},
+          "model": {
+            "type": "string", "minLength": 1, "maxLength": 200,
+            "description": "Exact model ID for the new conversation. Omit to inherit the invoking conversation's model."
+          },
+          "effort": {
+            "type": "string", "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"],
+            "description": "Reasoning effort supported by the chosen model. Omit to inherit the invoking conversation's effort."
+          }
         },
         "required": ["requestId", "message"]
       },

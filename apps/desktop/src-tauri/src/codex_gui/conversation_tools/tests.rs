@@ -4,9 +4,13 @@ use super::{
     protocol::{self, Mutation, Send},
     *,
 };
+use crate::codex_gui::model_settings::{Effort, ModelSelection};
 use serde_json::{json, Value};
 use std::collections::VecDeque;
 use tokio::sync::Mutex;
+
+#[path = "model_tests.rs"]
+mod model_tests;
 
 struct Fake(Mutex<VecDeque<(&'static str, Value, Result<Value>)>>);
 
@@ -17,6 +21,12 @@ impl Backend for Fake {
         assert_eq!(method, expected_method);
         assert_eq!(params, expected_params);
         result
+    }
+
+    async fn save_model(&self, id: &str, selection: &ModelSelection) -> Result<()> {
+        self.request("save/model", json!({"threadId":id, "selection":selection}))
+            .await
+            .map(|_| ())
     }
 }
 
@@ -35,6 +45,36 @@ fn thread(active: bool) -> Value {
 
 fn prompt() -> Value {
     json!({"threadId":"target", "input":[{"type":"text", "text":"补充要求", "text_elements":[]}]})
+}
+
+fn selection() -> ModelSelection {
+    ModelSelection {
+        model: "caller-model".into(),
+        effort: Effort::High,
+    }
+}
+
+fn prepared(params: Value) -> operations::PreparedCreate {
+    operations::PreparedCreate {
+        params,
+        selection: selection(),
+        message: "补充要求".into(),
+    }
+}
+
+fn creation_prompt() -> Value {
+    let mut params = prompt();
+    params["model"] = json!("caller-model");
+    params["effort"] = json!("high");
+    params
+}
+
+fn saved_model() -> (&'static str, Value, Result<Value>) {
+    (
+        "save/model",
+        json!({"threadId":"target", "selection":selection()}),
+        Ok(json!({})),
+    )
 }
 
 #[test]
@@ -195,26 +235,27 @@ async fn creation_checkpoints_thread_before_sending_and_reports_uncertain_outcom
         request_id: "create-one".into(),
         message: "补充要求".into(),
         cwd: None,
+        model: None,
+        effort: None,
+        caller: Some(selection()),
     });
     let Claim::New(mut entry) = journal.claim(root.path(), &mutation).await.unwrap() else {
         panic!("not new")
     };
     let fake = Fake(Mutex::new(VecDeque::from([
         ("thread/start", json!({"cwd":"project"}), Ok(thread(false))),
+        saved_model(),
         (
             "turn/start",
-            prompt(),
+            creation_prompt(),
             Err(Error::Gui(crate::codex_gui::GuiError::Timeout)),
         ),
     ])));
-    assert!(operations::create(
-        &fake,
-        json!({"cwd":"project"}),
-        "补充要求".into(),
-        &mut entry
-    )
-    .await
-    .is_err());
+    assert!(
+        operations::create(&fake, prepared(json!({"cwd":"project"})), &mut entry)
+            .await
+            .is_err()
+    );
     let Claim::Existing(receipt) = Journal::default()
         .claim(root.path(), &mutation)
         .await
@@ -260,19 +301,23 @@ async fn successful_creation_returns_a_durable_receipt_without_resending() {
         request_id: "create-success".into(),
         message: "补充要求".into(),
         cwd: None,
+        model: None,
+        effort: None,
+        caller: Some(selection()),
     });
     let Claim::New(mut entry) = journal.claim(root.path(), &mutation).await.unwrap() else {
         panic!("not new")
     };
     let fake = Fake(Mutex::new(VecDeque::from([
         ("thread/start", json!({}), Ok(thread(false))),
+        saved_model(),
         (
             "turn/start",
-            prompt(),
+            creation_prompt(),
             Ok(json!({"turn":{"id":"created-turn"}})),
         ),
     ])));
-    let receipt = operations::create(&fake, json!({}), "补充要求".into(), &mut entry)
+    let receipt = operations::create(&fake, prepared(json!({})), &mut entry)
         .await
         .unwrap();
     assert_eq!(receipt["status"], "sent");

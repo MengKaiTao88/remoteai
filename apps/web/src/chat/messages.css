@@ -26,6 +26,8 @@
 .chat-markdown > :last-child { margin-bottom: 0; }
 .chat-markdown ul, .chat-markdown ol { padding-left: 24px; }
 .chat-markdown li + li { margin-top: 6px; }
+.chat-markdown li > p { margin-block: 10px; }
+.chat-markdown li > p:first-child { margin-top: 0; }
 .chat-markdown h1 { font-size: 24px; }
 .chat-markdown h2 { font-size: 21px; }
 .chat-markdown h3 { font-size: 18px; }

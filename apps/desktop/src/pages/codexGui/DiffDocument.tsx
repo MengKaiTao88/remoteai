@@ -1,9 +1,10 @@
 import { memo, useMemo, useState } from "react";
-import { ChevronDown, FileDiff } from "lucide-react";
+import { ChevronDown, FileDiff, Folder } from "lucide-react";
 import type { DiffFile, DiffLine } from "./diff";
 import { pairDiffLines } from "./diff";
 import { CopyButton } from "./CopyButton";
 import { useDiffText } from "../../../../../shared/chat/diffText";
+import { groupDiffFiles } from "../../../../../shared/chat/diffGroups";
 import { fileLanguage, HighlightedCode } from "./CodeHighlight";
 import styles from "./DiffView.module.less";
 
@@ -102,7 +103,18 @@ export const DiffDocument = memo(function DiffDocument({ files: allFiles, title 
         <button aria-pressed={split} onClick={() => setSplit(true)}>{t("并排")}</button>
       </div>
     </div>
-    {files.map((file, index) => <FileCard key={`${file.path}:${index}`} file={file} split={split}
-      initialOpen={initialOpen && (filePath !== undefined || index === 0)} />)}
+    {groupDiffFiles(files).map((group) => <section key={group.directory} className={styles.folderGroup}
+      aria-label={group.directory || t("根目录")}>
+      <header className={styles.folderHeader}>
+        <Folder size={16} aria-hidden="true" />
+        <div className={styles.folderInfo}>
+          <h3 className={styles.folderName}>
+            {group.directory && group.directory !== "/" ? group.name : t("根目录")}</h3>
+          <p className={styles.folderPath}>{group.directory || "."}</p>
+        </div>
+      </header>
+      {group.entries.map(({ file, index }) => <FileCard key={`${file.path}:${index}`} file={file} split={split}
+        initialOpen={initialOpen && (filePath !== undefined || index === 0)} />)}
+    </section>)}
   </div>;
 });

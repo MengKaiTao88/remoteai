@@ -9,8 +9,8 @@ import { MIN_MATH_HEIGHT, mathDocument, mathHeight, type MathTextOptions } from 
 import { SelectableChatText } from './SelectableChatText';
 import type { CopyAction } from './CopyTextButton';
 
-export function ChatMath({ markup, muted, fontSize, copy, compact = false }: MathTextOptions & {
-  markup: string; copy?: CopyAction; compact?: boolean;
+export function ChatMath({ markup, muted, fontSize, copy, compact = false, flushTop = false }: MathTextOptions & {
+  markup: string; copy?: CopyAction; compact?: boolean; flushTop?: boolean;
 }) {
   const styles = useStyles();
   const openFile = useContext(ChatFileContext);
@@ -18,7 +18,7 @@ export function ChatMath({ markup, muted, fontSize, copy, compact = false }: Mat
   const [height, setHeight] = useState(MIN_MATH_HEIGHT);
   const source = useMemo(() => ({ html: mathDocument(markup, { muted, fontSize, theme }),
     baseUrl: 'about:blank' }), [markup, muted, fontSize, theme]);
-  return <View style={[styles.container, compact && styles.compact]}>
+  return <View style={[styles.container, compact && styles.compact, flushTop && styles.flushTop]}>
     <WebView source={source} style={styles.content} containerStyle={{ flex: 0, height }} scrollEnabled={false}
       originWhitelist={['*']} onShouldStartLoadWithRequest={({ url }) => {
         if (url === 'about:blank') return true;
@@ -42,5 +42,6 @@ export function ChatMath({ markup, muted, fontSize, copy, compact = false }: Mat
 const useStyles = createThemedStyles(() => ({
   container: { minWidth: 120, alignSelf: 'stretch', marginVertical: 6 },
   compact: { marginVertical: 0 },
+  flushTop: { marginTop: 0 },
   content: { backgroundColor: 'transparent' },
 }));

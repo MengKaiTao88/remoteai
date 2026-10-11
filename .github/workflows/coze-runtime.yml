@@ -115,6 +115,11 @@ jobs:
       - name: Build standalone runtime
         run: cargo build --bins --release --locked --manifest-path apps/coze/Cargo.toml --target ${{ matrix.target }}
       - run: npm ci
+      - name: Verify Windows runtime independence
+        if: startsWith(matrix.name, 'windows')
+        run: |
+          node scripts/verify-windows-runtime.mjs apps/coze/target/${{ matrix.target }}/release/remoteai-coze.exe
+          node scripts/verify-windows-runtime.mjs apps/coze/target/${{ matrix.target }}/release/remoteai-coze-python.exe
       - name: Stage independent package
         run: >-
           node scripts/package-coze.mjs

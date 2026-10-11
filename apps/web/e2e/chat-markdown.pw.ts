@@ -2,12 +2,42 @@ import { expect, test } from '@playwright/test';
 import { createRequire } from 'node:module';
 import fixture from '../../../shared/chat/markdownFixture.json' with { type: 'json' };
 import lineBreaks from '../../../shared/chat/lineBreakFixture.json' with { type: 'json' };
+import lists from '../../../shared/chat/listAlignmentFixture.json' with { type: 'json' };
 import { screenshot } from './chat-helpers';
 const { markdownAnswer, markdownQuestion } = fixture;
 const require = createRequire(import.meta.url);
 const { parseMarkdown, renderMathParagraph }: typeof import('../../native/src/chat/markdownTree') =
   require('../../native/src/chat/markdownTree');
 const { mathDocument }: typeof import('../../native/src/chat/mathDocument') = require('../../native/src/chat/mathDocument');
+
+test('aligns loose list markers with the first paragraph and keeps subsequent paragraph spacing', async ({ page }, info) => {
+  await page.route('**/display-fixture.json', route => route.fulfill({ json: {
+    id: 'lists', cwd: '', preview: '', updatedAt: 1, turns: [{ id: 'turn', status: 'completed', items: [
+      { id: 'answer', type: 'agentMessage', text: Object.values(lists).join('\n\n---\n\n') },
+    ] }],
+  } }));
+  await page.goto('e2e/chat-display-harness.html');
+  const reply = page.locator('.chat-assistant-message .chat-markdown');
+  await expect(reply.locator('ol[start="9"] > li')).toHaveCount(3);
+  const leads = reply.locator('li > p:first-child');
+  expect(await leads.count()).toBeGreaterThan(5);
+  for (const lead of await leads.all()) {
+    const layout = await lead.evaluate(node => ({
+      inset: node.getBoundingClientRect().top - node.parentElement!.getBoundingClientRect().top,
+      margin: getComputedStyle(node).marginTop,
+      marker: getComputedStyle(node.parentElement!, '::marker').content,
+    }));
+    expect(Math.abs(layout.inset)).toBeLessThan(1);
+    expect(layout.margin).toBe('0px');
+    expect(layout.marker).not.toBe('none');
+  }
+  for (const paragraph of await reply.locator('li > p + p').all()) {
+    expect(await paragraph.evaluate(node => parseFloat(getComputedStyle(node).marginTop))).toBeGreaterThan(0);
+  }
+  expect(await reply.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await leads.first().scrollIntoViewIfNeeded();
+  await screenshot(page, info, 'list-first-line-alignment');
+});
 
 test('keeps all numbered answer lines and long user messages within their bounds', async ({ page }, info) => {
   await page.route('**/display-fixture.json', route => route.fulfill({ json: {

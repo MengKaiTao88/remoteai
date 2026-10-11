@@ -32,6 +32,8 @@ Python 使用 Monty 的受限 Python 语法和标准库，支持上游 `async de
 - Tauri 命令只委托阻塞工作线程。下载、解压、进程启动、配置访问及状态检查不占用窗口线程。
 - 独立进程只监听 `127.0.0.1` 的随机端口。界面和 MCP 请求需要每次启动生成的凭据；拒绝其他网页来源。
 - 启动信息通过 stdin 传递；父进程管道关闭后运行包退出。Windows 后台启动不弹出控制台。
+- 桌面连接使用 Codex GUI 的 Responses 接口，统一承载文字、图像和工具调用；模型目录自动补齐客户端版本。
+  独立测试连接普通 `/v1` 代理时保留 Chat Completions 兼容。中断或失败的流不会记作成功回答。
 - 数据位于应用数据目录的 `coze/data/coze.sqlite3`。WAL、外键和事务保证索引失败不留下半份文档，删除文档同时清理向量和全文记录。
 - 组件位于 `coze/packages/<version>`，更换包不删除 `coze/data`。未完成的下载不产生安装完成标记。
 - 向量模型为固定版本的 `multilingual-e5-small`，由 Candle 在 CPU 上运行；首次使用知识库时才载入内存，不再下载模型。
@@ -49,12 +51,22 @@ node node_modules/typescript/bin/tsc -p apps/coze/ui/tsconfig.json
 node node_modules/vite/bin/vite.js build --config apps/coze/ui/vite.config.ts
 node scripts/prepare-coze-model.mjs
 cargo test --manifest-path apps/coze/Cargo.toml --test local_embedding -- --ignored
+$env:RUSTFLAGS = "-C target-feature=+crt-static"
 cargo build --bins --manifest-path apps/coze/Cargo.toml
 node scripts/package-coze.mjs apps/coze/target/debug/remoteai-coze.exe .codex-tmp/coze-package
+node scripts/verify-windows-runtime.mjs .codex-tmp/coze-package/remoteai-coze.exe
+node scripts/verify-windows-runtime.mjs .codex-tmp/coze-package/remoteai-coze-python.exe
 node scripts/smoke-coze.mjs .codex-tmp/coze-package/remoteai-coze.exe
 ```
 
 需要 Rust 1.96 或更新版本。`package-coze.mjs` 要求新的输出目录，并同时验证主程序及 Python 节点程序。macOS/Linux 去掉 `.exe`。冒烟验证使用临时数据和测试模型代理，不修改用户知识库或真实模型配置；本地向量推理使用真实权重。
+
+Windows 构建使用静态 C 运行库，并检查两个程序的 DLL 导入，确保用户无需另装 Visual C++ 运行库。
+其他平台不设置上面的 `RUSTFLAGS`，也不运行 Windows DLL 检查。
+
+`scripts/smoke-coze-live.mjs` 可连接桌面启动的真实模型代理，验证流式输出、取消、带引用问答、工具调用与历史、SQL、代码节点、图片及扫描 PDF。
+它还测试整库恢复，因此必须使用空的专用验收工作区。传入 `runtime.json`、模型 ID、报告路径、测试图片和扫描 PDF；
+两份图片资料应包含 `Verification code: VX-84620`。报告仅记录测试结果，不记录运行凭据。
 
 ## 独立发布
 

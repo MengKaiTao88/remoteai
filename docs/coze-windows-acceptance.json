@@ -1,0 +1,222 @@
+{
+  "status": "blocked",
+  "date": "2026-10-11",
+  "baseCommit": "80bd330f13e83aec983b98e1227392534ab8a525",
+  "environment": {
+    "os": "Windows 11",
+    "version": "10.0.26200.0",
+    "memoryGB": 16,
+    "model": "gpt-6-astra"
+  },
+  "package": {
+    "version": "0.2.0",
+    "installation": "Manually staged test package; production signature checks unchanged",
+    "runtimeSha256": "232FE81D3D2A0EE7EF880214D91785E0253AADB89BCA7916B8754DCC9FEFA4C4",
+    "pythonWorkerSha256": "38BE02B5B360BBAEC6B6FEF1A08BA4DB5B1321736A4ED58921D51DECC2D1281F",
+    "externalVcRuntimeRequired": false
+  },
+  "liveModelChecks": [
+    {
+      "name": "real model catalog",
+      "passed": true,
+      "ms": 1672,
+      "evidence": {
+        "count": 10,
+        "selected": "gpt-6-astra"
+      }
+    },
+    {
+      "name": "local embeddings and Chinese retrieval",
+      "passed": true,
+      "ms": 1927,
+      "evidence": {
+        "document": "4a56fa5f-8b11-4e97-8f75-ce5abddef733",
+        "hits": 1,
+        "progressEvents": 2
+      }
+    },
+    {
+      "name": "live streaming before completion",
+      "passed": true,
+      "ms": 21344,
+      "evidence": {
+        "sawRunningDelta": true,
+        "deltaEvents": 485
+      }
+    },
+    {
+      "name": "real streaming RAG with citations",
+      "passed": true,
+      "ms": 3608,
+      "evidence": {
+        "answer": "专用验收编号：QL-739251；负责人：林晨。[1]",
+        "citations": 1,
+        "sawRunningDelta": true
+      }
+    },
+    {
+      "name": "cancel live model request",
+      "passed": true,
+      "ms": 619,
+      "evidence": {
+        "cancelMs": 111
+      }
+    },
+    {
+      "name": "real natural-language SQL generation and query",
+      "passed": true,
+      "ms": 3375,
+      "evidence": {
+        "sql": "SELECT \"value\" FROM \"t1\" WHERE \"code\" = 'VM_SECRET' LIMIT 1000;",
+        "rows": [
+          [
+            "ZEBRA-48219"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "real autonomous tool call and replayed history",
+      "passed": true,
+      "ms": 8307,
+      "evidence": {
+        "answer": "VM_SECRET 的 value 是 `ZEBRA-48219`。",
+        "repeated": "VM_SECRET 的 value 是 `ZEBRA-48219`。",
+        "eventTypes": [
+          "conversation",
+          "step",
+          "tool_start",
+          "tool_end",
+          "delta"
+        ]
+      }
+    },
+    {
+      "name": "workflow with real LLM and isolated Python",
+      "passed": true,
+      "ms": 2874,
+      "evidence": {
+        "sum": 10,
+        "text": "COZE_WORKFLOW_OK"
+      }
+    },
+    {
+      "name": "image OCR",
+      "passed": true,
+      "ms": 3495,
+      "evidence": {
+        "document": "66d8763b-fdda-4681-b73b-7c19629fe1d0",
+        "chunks": 1,
+        "progressEvents": 2
+      }
+    },
+    {
+      "name": "scanned PDF OCR",
+      "passed": true,
+      "ms": 4734,
+      "evidence": {
+        "document": "1d7a09f0-ec26-4d1b-a12f-d9a4ed5dda0a",
+        "chunks": 1,
+        "progressEvents": 3
+      }
+    },
+    {
+      "name": "packaged advanced workflows, sharing, templates, SQL and backup",
+      "passed": true,
+      "ms": 1198,
+      "evidence": "passed"
+    },
+    {
+      "name": "nested Chatflow checkpoint for restart",
+      "passed": true,
+      "ms": 103,
+      "evidence": {
+        "runId": "3fc4bd33-cc38-4964-8574-21e83ea7595c",
+        "interactionId": "fd96eb99-ea99-4e36-bfa1-7483ab334e6b",
+        "workflowId": "15c09c69-76e8-407a-ad6d-88c7d27000f9"
+      }
+    }
+  ],
+  "restart": {
+    "resourceCount": 24,
+    "messageCount": 2,
+    "status": "completed",
+    "output": {
+      "answer": "VM_RESTART_OK"
+    }
+  },
+  "desktopUi": {
+    "menuBelowPlugins": true,
+    "modelSelection": true,
+    "knowledgeChatWithCitations": true,
+    "executionCondition": "GUI interaction was verified in a debugger-launched process and after detaching the debugger."
+  },
+  "guiMcp": {
+    "tools": [
+      {
+        "tool": "coze_list",
+        "status": "completed",
+        "durationMs": 14
+      },
+      {
+        "tool": "coze_call",
+        "status": "completed",
+        "durationMs": 79
+      }
+    ],
+    "answer": "COZE_GUI_VM_739251",
+    "approval": "Single-use approval of the two fixture tool calls"
+  },
+  "firstUse": {
+    "downloadGateVerified": true,
+    "noWorkspaceBeforeDownload": true,
+    "downloadFailureRetryVerified": true,
+    "publicSignedDownload": "not verified"
+  },
+  "blocker": {
+    "kind": "Windows Defender process termination",
+    "detection": "Behavior:Win32/SuspClickFix.F",
+    "eventIds": [
+      1116,
+      1117
+    ],
+    "observedAtUtc": "2026-10-11T06:11:08.3532162Z",
+    "testProcessId": 12040,
+    "installedVersionAlsoDetected": true,
+    "normalWindowStartup": "failed",
+    "falsePositiveStatus": "not established",
+    "securitySettingsChanged": false
+  },
+  "fixes": [
+    "Supply the required model catalog client_version, preserving caller queries",
+    "Use the Codex GUI Responses transport for native model requests, images and tool history",
+    "Retain streamed function calls when the completion event has an empty output array",
+    "Describe actual data-table columns and equality filters to the model",
+    "Check both Windows runtime executables for external Visual C++ dependencies in CI"
+  ],
+  "verification": {
+    "cozeTests": {
+      "unitPassed": 65,
+      "pythonIntegrationPassed": 2,
+      "ignored": 2
+    },
+    "embeddingIntegration": "Verified with the actual local model in the VM",
+    "cozeClippy": "passed",
+    "desktopCatalogTests": "2 passed",
+    "desktopFullTests": "1810 passed, 18 ignored; installer unit/integration: 6 passed",
+    "desktopClippy": "passed",
+    "packagedSmoke": "passed",
+    "projectCheck": "passed: npm run check (frontend production builds, Go checks/tests, desktop Rust tests and installer tests)"
+  },
+  "cleanup": {
+    "diagnosticSourceEditsReverted": true,
+    "originalInstallationFilesChanged": false,
+    "managedMcpEntriesRestored": true,
+    "testWorkspace": "Preserved outside the active application data directory",
+    "originalApplicationRelaunched": false
+  },
+  "delivery": {
+    "commit": "pending; Windows GUI acceptance is blocked",
+    "push": "pending"
+  }
+}

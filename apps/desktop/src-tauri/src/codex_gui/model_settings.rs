@@ -111,13 +111,7 @@ fn save(
     thread_id: Option<String>,
     selection: ModelSelection,
 ) -> Result<ModelSettingsSnapshot> {
-    if selection.model.trim() != selection.model
-        || selection.model.is_empty()
-        || selection.model.len() > MAX_NAME_BYTES
-        || selection.model.chars().any(char::is_control)
-    {
-        return Err(ModelSettingsError::Invalid);
-    }
+    validate_model(&selection.model)?;
     let previous = read(root, thread_id.clone())?;
     if previous.selection.as_ref() == Some(&selection) {
         return Ok(previous);
@@ -136,6 +130,17 @@ fn save(
     let value = serde_json::to_value(&snapshot).map_err(|_| ModelSettingsError::Storage)?;
     crate::storage::write_json_atomic(&path, &value).map_err(|_| ModelSettingsError::Storage)?;
     Ok(snapshot)
+}
+
+pub(super) fn validate_model(model: &str) -> Result<()> {
+    if model.trim() != model
+        || model.is_empty()
+        || model.len() > MAX_NAME_BYTES
+        || model.chars().any(char::is_control)
+    {
+        return Err(ModelSettingsError::Invalid);
+    }
+    Ok(())
 }
 
 async fn access(
@@ -172,15 +177,19 @@ pub(crate) async fn codex_gui_model_settings(
         .map_err(|error| error.to_string())
 }
 
-/// Read saved defaults for a host-created conversation without changing the visible draft.
-pub(super) async fn saved_selection(
+/// Persist a host-created conversation's choice before its first turn, leaving the draft unchanged.
+pub(super) async fn persist_created(
     app: AppHandle,
-    thread_id: Option<String>,
-) -> super::Result<Option<ModelSelection>> {
-    access(app, thread_id, None)
+    thread_id: String,
+    selection: ModelSelection,
+) -> super::Result<()> {
+    let state = app.state::<ModelSettingsState>();
+    let _write = state.writes.lock().await;
+    let snapshot = access(app.clone(), Some(thread_id), Some(selection))
         .await
-        .map(|snapshot| snapshot.selection)
-        .map_err(|_| super::GuiError::Rpc)
+        .map_err(|_| super::GuiError::Rpc)?;
+    super::web::publish(&app, CHANGED_EVENT, &snapshot);
+    Ok(())
 }
 
 #[tauri::command]

@@ -1,0 +1,39 @@
+.panel { display: flex; flex-direction: column; gap: 16px; }
+.enableCard {
+  display: flex; align-items: center; gap: 14px; padding: 20px; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--panel);
+  &[data-enabled='true'] { border-color: color-mix(in srgb, var(--green) 30%, var(--line));
+    background: color-mix(in srgb, var(--green) 5%, var(--panel)); }
+  > div { flex: 1; min-width: 0; }
+  label { font-size: 14px; font-weight: 600; }
+  p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+}
+.enableIcon { display: grid; place-items: center; flex-shrink: 0; width: 42px; height: 42px;
+  color: var(--green-dark); background: var(--green-soft); border-radius: 12px; }
+.rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 18px 0;
+  &:nth-child(odd) { padding-right: 20px; }
+  &:nth-child(even) { padding-left: 20px; border-left: 1px solid var(--line); }
+  &:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  > div:first-child { display: contents; }
+  label { font-size: 13px; font-weight: 500; }
+  p { grid-row: 2; grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  > :global(.ant-switch), > :global(.ant-select), > :global(.ant-input-number),
+  > :global(.ant-input-number-affix-wrapper) { grid-column: 2; grid-row: 1; justify-self: end; }
+  > :global(.ant-input-number), > :global(.ant-input-number-affix-wrapper) { flex-shrink: 0; width: 112px; }
+  > :global(.ant-select) { flex-shrink: 0; width: 180px; }
+}
+.loading, .error { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.error { max-width: 400px; color: var(--ant-color-error, #c43c3c); }
+@media (max-width: 1100px) {
+  .rules { grid-template-columns: minmax(0, 1fr); }
+  .row:nth-child(n) { padding: 16px 0; border-left: 0; }
+  .row + .row { border-top: 1px solid var(--line); }
+}
+@media (max-width: 760px) {
+  .enableCard { padding: 16px; }
+  .rules { padding: 0 16px; }
+  .row { gap: 10px; }
+}

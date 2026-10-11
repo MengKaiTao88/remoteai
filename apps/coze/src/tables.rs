@@ -11,11 +11,13 @@ mod schema;
 mod sql;
 #[cfg(test)]
 mod sql_tests;
+mod tool_schema;
 
 pub use import::{import_rows, ImportRowsRequest};
 pub(crate) use schema::validate_columns;
 pub use schema::{get_schema, save_schema, Column, ColumnKind, SchemaInput, TableSchema, SCHEMA};
 pub use sql::{generate_sql, run_sql, GenerateSqlRequest, SqlRequest};
+pub(crate) use tool_schema::query_schema;
 
 fn ensure(db: &Database, id: &str) -> Result<()> {
     if resources::get(db, id)?.kind != ResourceKind::Table {

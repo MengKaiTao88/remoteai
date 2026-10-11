@@ -11,12 +11,17 @@ import { guiContextCatalog } from "./fixtures/gui-context-catalog.mjs";
 assert.ok(process.argv[2], "Pass the Codex executable path");
 const home = await mkdtemp(join(tmpdir(), "gui-conversation-tools-"));
 const catalog = join(home, "models.json");
-await writeFile(catalog, JSON.stringify(guiContextCatalog(null)));
+const catalogData = guiContextCatalog(null);
+catalogData.models[0].supported_reasoning_levels.push({ effort: "high", description: "High" });
+catalogData.models.push({ ...catalogData.models[0], slug: "fixture-other", display_name: "Other fixture" });
+await writeFile(catalog, JSON.stringify(catalogData));
 const tools = JSON.parse(await readFile(new URL(
   "../apps/desktop/src-tauri/src/codex_gui/conversation_tools/tools.json", import.meta.url), "utf8"));
 const requests = [];
 const calls = [];
 const authorizations = [];
+const createArguments = { requestId: "create-model-smoke", message: "Model choice smoke",
+  model: "fixture-other", effort: "low" };
 
 function mcp(message, response, authorized) {
   authorizations.push(authorized);
@@ -38,10 +43,11 @@ function model(body, response) {
   response.writeHead(200, { "Content-Type": "text/event-stream" });
   const emit = (event) => response.write(`data: ${JSON.stringify(event)}\n\n`);
   const id = `response-${requests.length}`;
-  const item = calls.length ? { type: "message", id: `message-${requests.length}`, role: "assistant",
+  const item = calls.length >= 2 ? { type: "message", id: `message-${requests.length}`, role: "assistant",
     content: [{ type: "output_text", text: "查询完成" }] }
-    : { type: "function_call", id: "tool-call", call_id: "call-running", namespace: "mcp__codex_gui",
-      name: "gui_list_running_conversations", arguments: "{}" };
+    : { type: "function_call", id: `tool-call-${calls.length}`, call_id: `call-${calls.length}`,
+      namespace: "mcp__codex_gui", name: calls.length ? "gui_create_conversation" : "gui_list_running_conversations",
+      arguments: JSON.stringify(calls.length ? createArguments : {}) };
   emit({ type: "response.created", response: { id } });
   emit({ type: "response.output_item.added", output_index: 0, item });
   emit({ type: "response.output_item.done", output_index: 0, item });
@@ -80,7 +86,7 @@ const client = connectAppServer({ executable: resolve(process.argv[2]), home, cw
 try {
   await client.initialize();
   const { thread } = await client.rpc("thread/start", {
-    cwd: home, approvalPolicy: "never", sandbox: "read-only",
+    cwd: home, approvalPolicy: "never", sandbox: "read-only", config: { model_reasoning_effort: "high" },
   });
   await client.rpc("config/mcpServer/reload");
   for (let index = 0; index < 2; index++) {
@@ -96,9 +102,35 @@ try {
   }
   assert.ok(requests.length >= 3, "Model did not continue after the tool result");
   assert.deepEqual(calls.map(({ name, arguments: args }) => ({ name, arguments: args })),
-    [{ name: "gui_list_running_conversations", arguments: {} }]);
+    [{ name: "gui_list_running_conversations", arguments: {} },
+      { name: "gui_create_conversation", arguments: createArguments }]);
+  for (const call of calls) {
+    const caller = call._meta["x-codex-turn-metadata"];
+    assert.equal(caller.thread_id, thread.id);
+    assert.equal(caller.model, "gpt-5.4");
+    assert.equal(caller.reasoning_effort, "high");
+  }
+  const caller = calls[0]._meta["x-codex-turn-metadata"];
+  // Exercise the CLI contract used by the Rust creation path and a subsequent tool-driven follow-up.
+  for (const selection of [{ model: caller.model, effort: caller.reasoning_effort }, createArguments]) {
+    const { thread: child } = await client.rpc("thread/start", { cwd: home, model: selection.model,
+      sandbox: "workspace-write", approvalPolicy: "never", config: { model_reasoning_effort: selection.effort } });
+    for (let index = 0; index < 2; index++) {
+      if (index) await client.rpc("thread/resume", { threadId: child.id });
+      const start = requests.length;
+      const overrides = index ? {} : { model: selection.model, effort: selection.effort };
+      const { turn } = await client.rpc("turn/start", { threadId: child.id, ...overrides,
+        input: [{ type: "text", text: "Reply briefly", text_elements: [] }] });
+      await client.waitFor((event) => event.method === "turn/completed" && event.params.turn.id === turn.id);
+      assert.ok(requests.length > start, "Child conversation did not reach the model");
+      for (const request of requests.slice(start)) {
+        assert.equal(request.model, selection.model);
+        assert.equal(request.reasoning.effort, selection.effort);
+      }
+    }
+  }
   assert.ok(authorizations.length >= 3 && authorizations.every(Boolean), "MCP authentication missing");
-  console.log("PASS: GUI MCP tools reach the model, execute, and survive reload/resume alongside GUI overrides.");
+  console.log("PASS: GUI MCP tools expose model choices and caller metadata; inherited/explicit choices survive follow-up.");
 } finally {
   await client.close();
   server.closeAllConnections(); server.close();

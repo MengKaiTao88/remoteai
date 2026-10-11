@@ -7,6 +7,13 @@
 .modes { display: flex; margin-left: auto; border: 1px solid var(--gui-border); border-radius: 6px; padding: 2px;
   button { border: 0; border-radius: 4px; background: transparent; color: var(--gui-muted); cursor: pointer;
     padding: 3px 8px; &[aria-pressed='true'] { background: var(--green-soft); color: var(--ink); } } }
+.folderGroup { min-width: 0; margin-top: 16px; }
+.folderHeader { display: flex; align-items: center; gap: 8px; padding: 4px 2px;
+  > svg { flex-shrink: 0; color: var(--gui-muted); } }
+.folderInfo { flex: 1; min-width: 0; }
+.folderName { margin: 0; font-size: inherit; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; }
+.folderPath { margin: 0; font-size: calc(var(--gui-font-size, 14px) - 3px); line-height: 1.6;
+  color: var(--gui-muted); font-family: Consolas, monospace; overflow-wrap: anywhere; }
 .file { border: 1px solid var(--gui-border); border-radius: 8px; overflow: hidden; margin-top: 6px; }
 .fileHeader { display: flex; gap: 9px; align-items: center; width: 100%; text-align: left; color: inherit;
   padding: 10px 12px; border: 0; background: var(--bg, #f6f8f7); cursor: pointer;

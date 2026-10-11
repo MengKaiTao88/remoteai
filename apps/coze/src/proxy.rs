@@ -6,6 +6,7 @@ use reqwest::blocking::Client;
 use serde_json::{json, Value};
 use std::{io::Read, time::Duration};
 
+mod responses;
 mod stream;
 #[cfg(test)]
 mod tests;
@@ -32,6 +33,7 @@ pub struct ModelProxy {
     token: String,
     client: Client,
     stream_client: reqwest::Client,
+    native_responses: bool,
 }
 
 impl ModelProxy {
@@ -60,6 +62,7 @@ impl ModelProxy {
             .build()
             .map_err(|_| Error::Proxy)?;
         Ok(Self {
+            native_responses: url.path().trim_end_matches('/') == "/codex-gui/v1",
             base: base.trim_end_matches('/').to_owned(),
             token,
             client,
@@ -94,20 +97,17 @@ impl ModelProxy {
             .iter()
             .map(|message| json!({"role":message.role,"content":message.content}))
             .collect();
-        let response = self
-            .client
-            .post(format!("{}/chat/completions", self.base))
-            .bearer_auth(&self.token)
-            .json(&json!({"model":model,"messages":messages,
-                "temperature":temperature,"stream":false}))
-            .send()
-            .map_err(|_| Error::Proxy)?;
-        let value = decode(response)?;
-        value
-            .pointer("/choices/0/message/content")
-            .and_then(Value::as_str)
-            .map(str::to_owned)
-            .ok_or(Error::Proxy)
+        Ok(self
+            .complete(
+                CompletionRequest {
+                    model,
+                    messages: &messages,
+                    temperature,
+                    tools: &[],
+                },
+                &crate::jobs::JobControl::detached(),
+            )?
+            .content)
     }
 
     /// Images are forwarded only to the Remote AI loopback proxy selected by the desktop.

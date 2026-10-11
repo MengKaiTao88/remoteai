@@ -37,19 +37,29 @@ function MarkdownPage<Node>({ nodes, render }: {
   </>;
 }
 
-function List({ node, context }: { node: MarkdownNode; context: MarkdownContext }) {
+function ListMarker({ label, reserve, context }: { label: string; reserve?: string; context: MarkdownContext }) {
   const markdownStyles = useMarkdownStyles();
   const styles = useStyles();
+  const textStyle = [styles.messageText, markdownStyles.marker, context.muted && markdownStyles.muted,
+    context.tone === 'process' && markdownStyles.process];
+  return <View style={markdownStyles.markerColumn}>
+    {reserve && <Text accessible={false} accessibilityElementsHidden importantForAccessibility="no"
+      style={[textStyle, markdownStyles.markerMeasure]}>{reserve}</Text>}
+    <Text style={[textStyle, reserve && markdownStyles.markerOverlay]}>{label}</Text>
+  </View>;
+}
+
+function List({ node, context }: { node: MarkdownNode; context: MarkdownContext }) {
+  const markdownStyles = useMarkdownStyles();
   useLanguage();
   const ordered = node.token.type === 'ordered_list_open';
   const start = Number(node.token.attrGet('start') ?? 1);
+  const markerDigits = String(start + node.children.length - 1).length;
   return <View style={markdownStyles.list}>
     <MarkdownPage nodes={node.children} render={(child, index) => <View key={index} style={markdownStyles.listRow}>
       {child.task === undefined
-        ? <Text style={[styles.messageText, markdownStyles.marker, context.muted && markdownStyles.muted,
-          context.tone === 'process' && markdownStyles.process]}>
-          {ordered ? `${start + index}.` : '•'}
-        </Text>
+        ? <ListMarker label={ordered ? `${start + index}.` : '•'} context={context}
+          reserve={ordered ? `${'0'.repeat(markerDigits)}.` : undefined} />
         : <View accessibilityRole="checkbox" accessibilityState={{ checked: child.task, disabled: true }}
           accessibilityLabel={child.task ? t("已完成") : t("未完成")}
           style={[markdownStyles.checkbox, child.task && markdownStyles.checked]}>
@@ -108,7 +118,8 @@ function Block({ node, context = {} }: { node: MarkdownNode; context?: MarkdownC
   const quote = token.type === 'blockquote_open';
   return <View style={quote ? markdownStyles.quote : undefined}>
     <MarkdownPage nodes={children} render={(child, index) => <Block key={index} node={child}
-      context={childContext({ ...context, muted: quote || context.muted }, index, children.length)} />} />
+      context={{ ...childContext({ ...context, muted: quote || context.muted }, index, children.length),
+        listItemStart: token.type === 'list_item_open' && index === 0 }} />} />
   </View>;
 }
 

@@ -1,4 +1,5 @@
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use tauri::AppHandle;
 
 use super::{
@@ -7,20 +8,38 @@ use super::{
     Error, Result,
 };
 use crate::codex_gui::{connection::Connection, model_settings, protocol::GuiRequest, workspaces};
+use model_settings::ModelSelection;
 
 /// The host service and pure state-machine tests use the same operation ordering.
 pub(super) trait Backend {
     async fn request(&self, method: &str, params: Value) -> Result<Value>;
+    async fn save_model(&self, id: &str, selection: &ModelSelection) -> Result<()>;
 }
 
-impl Backend for Connection {
+struct GuiBackend<'a> {
+    app: &'a AppHandle,
+    client: &'a Connection,
+}
+
+impl Backend for GuiBackend<'_> {
     async fn request(&self, method: &str, params: Value) -> Result<Value> {
-        let response = (**self).request(method, params).await?;
+        let response = self.client.request(method, params).await?;
         if matches!(method, "thread/start" | "thread/resume") {
-            self.publish_tool_conversation(&response).await;
+            self.client.publish_tool_conversation(&response).await;
         }
         Ok(response)
     }
+
+    async fn save_model(&self, id: &str, selection: &ModelSelection) -> Result<()> {
+        model_settings::persist_created(self.app.clone(), id.to_owned(), selection.clone()).await?;
+        Ok(())
+    }
+}
+
+pub(super) struct PreparedCreate {
+    pub params: Value,
+    pub selection: ModelSelection,
+    pub message: String,
 }
 
 pub(super) async fn execute(
@@ -33,16 +52,18 @@ pub(super) async fn execute(
         Claim::Existing(receipt) => return Ok(receipt),
         Claim::New(entry) => entry,
     };
+    let backend = GuiBackend { app, client };
     let result = match mutation {
-        Mutation::Create(args) => match prepare_create(app, client, &args).await {
-            Ok(params) => create(client, params, args.message, &mut entry).await,
+        Mutation::Create(args) => match prepare_create(client.projectless_root.clone(), args).await
+        {
+            Ok(prepared) => create(&backend, prepared, &mut entry).await,
             Err(error) => {
                 entry
                     .update(json!({"status":"failed", "error":error.to_string()}))
                     .await
             }
         },
-        Mutation::Send(args) => send(client, args, &mut entry).await,
+        Mutation::Send(args) => send(&backend, args, &mut entry).await,
     };
     match result {
         Ok(receipt) => Ok(receipt),
@@ -56,39 +77,42 @@ pub(super) async fn execute(
     }
 }
 
-async fn prepare_create(app: &AppHandle, client: &Connection, args: &Create) -> Result<Value> {
-    let selection = model_settings::saved_selection(app.clone(), None).await?;
-    let model = selection.as_ref().map(|selection| selection.model.clone());
+pub(super) async fn prepare_create(root: PathBuf, args: Create) -> Result<PreparedCreate> {
+    let selection = super::selection::resolve(&args)?;
     let mut request = GuiRequest::Start {
-        cwd: args.cwd.clone(),
-        model,
+        cwd: args.cwd,
+        model: Some(selection.model.clone()),
         access: crate::codex_gui::protocol::AccessMode::WorkspaceWrite,
     };
-    let root = client.projectless_root.clone();
     let mut params = tauri::async_runtime::spawn_blocking(move || {
         workspaces::prepare_request(&mut request, &root)?;
         request.into_rpc().map(|(_, params)| params)
     })
     .await
     .map_err(|_| Error::Unavailable)??;
-    if let Some(selection) = selection {
-        params["config"] = json!({"model_reasoning_effort": selection.effort});
-    }
-    Ok(params)
+    params["config"] = json!({"model_reasoning_effort": selection.effort});
+    Ok(PreparedCreate {
+        params,
+        selection,
+        message: args.message,
+    })
 }
 
 pub(super) async fn create(
     backend: &impl Backend,
-    params: Value,
-    message: String,
+    prepared: PreparedCreate,
     entry: &mut Entry,
 ) -> Result<Value> {
-    let response = backend.request("thread/start", params).await?;
+    let response = backend.request("thread/start", prepared.params).await?;
     let id = response["thread"]["id"].as_str().ok_or(Error::Changed)?;
     entry
         .update(json!({"threadId":id, "status":"unknown"}))
         .await?;
-    let response = backend.request("turn/start", prompt(id, message)).await?;
+    backend.save_model(id, &prepared.selection).await?;
+    let mut params = prompt(id, prepared.message);
+    params["model"] = json!(prepared.selection.model);
+    params["effort"] = json!(prepared.selection.effort);
+    let response = backend.request("turn/start", params).await?;
     let turn_id = response["turn"]["id"].as_str().ok_or(Error::Changed)?;
     entry
         .update(json!({"threadId":id, "turnId":turn_id, "status":"sent"}))

@@ -44,9 +44,7 @@ pub(super) fn prepare(services: &Services, agent: &Agent) -> Result<Vec<Tool>> {
                 json!({"type":"object","properties":{"query":{"type":"string"}},
                 "required":["query"],"additionalProperties":false})
             }
-            ResourceKind::Table => {
-                json!({"type":"object","properties":{"filter":{"type":"object"}}})
-            }
+            ResourceKind::Table => tables::query_schema(&services.db, id)?,
             ResourceKind::Plugin => json!({"type":"object","additionalProperties":true}),
             _ => return Err(Error::Invalid),
         };

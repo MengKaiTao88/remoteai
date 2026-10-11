@@ -69,7 +69,7 @@ it("loads the original on demand and closes the preview when leaving the compose
 it("allows retry and removal when a preview cannot be read", async () => {
   vi.mocked(invoke).mockRejectedValueOnce(new Error("missing"));
   await render();
-  expect(host.textContent).toContain("图片加载失败");
+  expect(host.textContent).toContain("图片无法读取，请重新选择。");
   await act(async () => host.querySelector<HTMLButtonElement>('[role="status"] button')!.click());
   expect(host.querySelector("img")?.getAttribute("src")).toBe(thumbnail);
   await click(`移除附件：${photo.name}`);

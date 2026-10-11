@@ -3,6 +3,7 @@ mod http;
 mod journal;
 mod operations;
 mod protocol;
+mod selection;
 mod summaries;
 #[cfg(test)]
 mod tests;
@@ -15,8 +16,10 @@ use super::{connected, GuiState};
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum Error {
-    #[error("对话请求无效，请检查对话标识、消息内容和项目目录。")]
+    #[error("对话请求无效，请检查消息、项目目录和模型设置。")]
     Invalid,
+    #[error("无法读取当前对话的模型设置，请指定模型和推理强度后重试。")]
+    ModelContext,
     #[error("这个请求标识已用于其他内容，请为新消息使用新的请求标识。")]
     RequestConflict,
     #[error("暂时无法保存发送记录，请先检查对话，勿重复发送。")]

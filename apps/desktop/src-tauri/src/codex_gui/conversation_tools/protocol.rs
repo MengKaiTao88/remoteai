@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::{Error, Result};
+use crate::codex_gui::model_settings::{self, Effort, ModelSelection};
 
 pub(super) const MAX_MESSAGE_BYTES: usize = 64_000;
 pub(super) const SERVER_NAME: &str = "codex_gui";
@@ -14,6 +15,13 @@ pub(super) struct Create {
     pub request_id: String,
     pub message: String,
     pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<Effort>,
+    // Runtime metadata is not a tool argument or part of the durable retry fingerprint.
+    #[serde(skip)]
+    pub caller: Option<ModelSelection>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -54,7 +62,12 @@ impl Mutation {
     pub fn validate(&self) -> Result<()> {
         identifier(self.request_id())?;
         let message = match self {
-            Self::Create(args) => &args.message,
+            Self::Create(args) => {
+                if let Some(model) = &args.model {
+                    model_settings::validate_model(model).map_err(|_| Error::Invalid)?;
+                }
+                &args.message
+            }
             Self::Send(args) => {
                 identifier(&args.thread_id)?;
                 &args.message
@@ -93,7 +106,9 @@ pub(super) fn parse(params: &Value) -> Result<Tool> {
         .unwrap_or_else(|| json!({}));
     let tool = match params["name"].as_str() {
         Some("gui_create_conversation") => {
-            Tool::Mutate(Mutation::Create(serde_json::from_value(arguments)?))
+            let mut args: Create = serde_json::from_value(arguments)?;
+            args.caller = super::selection::caller(params);
+            Tool::Mutate(Mutation::Create(args))
         }
         Some("gui_send_message") => {
             Tool::Mutate(Mutation::Send(serde_json::from_value(arguments)?))

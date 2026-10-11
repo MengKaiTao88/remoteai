@@ -18,20 +18,27 @@ let requests = 0;
 const proxy = createServer(async (request, response) => {
   assert.equal(request.headers.authorization, "Bearer fixture-local-proxy");
   response.setHeader("content-type", "application/json");
-  if (request.url === "/v1/models") return response.end(JSON.stringify({ data: [{ id: "test-model" }] }));
+  if (request.url === "/codex-gui/v1/models") {
+    return response.end(JSON.stringify({ models: [{ slug: "test-model", display_name: "Test model" }] }));
+  }
+  assert.equal(request.url, "/codex-gui/v1/responses");
   let body = "";
   for await (const chunk of request) body += chunk;
   const input = JSON.parse(body);
   assert.equal(input.model, "test-model");
+  assert.equal(input.stream, true);
+  assert.equal(input.store, false);
+  assert(Array.isArray(input.input));
   requests++;
-  response.end(JSON.stringify({ choices: [{ message: { content: "青岚计划的发布编号是 73。[1]" } }] }));
+  response.end(JSON.stringify({ status: "completed", output: [{ type: "message",
+    content: [{ type: "output_text", text: "青岚计划的发布编号是 73。[1]" }] }] }));
 });
 proxy.listen(0, "127.0.0.1");
 await once(proxy, "listening");
 const child = spawn(binary, ["--serve"], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
 child.stderr.on("data", (chunk) => process.stderr.write(chunk));
 child.stdin.write(`${JSON.stringify({ dataDir: data, token,
-  proxyUrl: `http://127.0.0.1:${proxy.address().port}/v1`, proxyToken: "fixture-local-proxy" })}\n`);
+  proxyUrl: `http://127.0.0.1:${proxy.address().port}/codex-gui/v1`, proxyToken: "fixture-local-proxy" })}\n`);
 const lines = createInterface({ input: child.stdout });
 const [ready] = await Promise.race([once(lines, "line"), once(child, "exit").then(() => {
   throw new Error("Runtime exited before becoming ready");

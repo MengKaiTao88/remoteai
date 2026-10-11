@@ -87,10 +87,15 @@ fn models<R: Runtime>(
             ));
         }
     }
+    let catalog_url = catalog_url(request.url, || {
+        Ok(crate::official_models::model_client_version(
+            &resolve_paths(request.app)?,
+        ))
+    })?;
     let payload = forward_active_request(ActiveForwardRequest {
         app: request.app,
         method: request.method,
-        url: request.url,
+        url: &catalog_url,
         headers: &unconditional_model_catalog_headers(request.headers),
         body: Vec::new(),
         target,
@@ -100,9 +105,56 @@ fn models<R: Runtime>(
     super::gui_context::model_catalog(payload)
 }
 
+fn catalog_url(
+    url: &str,
+    version: impl FnOnce() -> Result<String, String>,
+) -> Result<String, String> {
+    let mut parsed =
+        url::Url::parse(&format!("http://localhost{url}")).map_err(|error| error.to_string())?;
+    if !parsed
+        .query_pairs()
+        .any(|(key, value)| key == "client_version" && !value.is_empty())
+    {
+        let pairs: Vec<_> = parsed
+            .query_pairs()
+            .filter(|(key, _)| key != "client_version")
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+        parsed.set_query(None);
+        parsed
+            .query_pairs_mut()
+            .extend_pairs(pairs)
+            .append_pair("client_version", &version()?);
+    }
+    Ok(format!(
+        "{}?{}",
+        parsed.path(),
+        parsed.query().unwrap_or_default()
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn catalog_requests_supply_required_version_without_replacing_cli_queries() {
+        assert_eq!(
+            catalog_url("/v1/models", || Ok("0.162.1".into())).unwrap(),
+            "/v1/models?client_version=0.162.1"
+        );
+        assert_eq!(
+            catalog_url("/v1/models?client_version=&x=1", || Ok("0.162.1".into())).unwrap(),
+            "/v1/models?x=1&client_version=0.162.1"
+        );
+        assert_eq!(
+            catalog_url("/v1/models?client_version=0.170.0&x=1", || panic!(
+                "already supplied"
+            ))
+            .unwrap(),
+            "/v1/models?client_version=0.170.0&x=1"
+        );
+    }
 
     #[test]
     fn scopes_only_gui_urls_and_preserves_queries() {

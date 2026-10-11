@@ -8,6 +8,8 @@ import { reviewEnglish } from '../taskReview';
 import { cliImportEnglish } from '../cliImport';
 import { desktop } from './desktop';
 import { assistanceEnglish } from '../remoteAssistance';
+import { guiSettingsEnglish } from '../guiSettings';
+import { cozeEnglish } from '../coze';
 
 export const english: Readonly<Record<string, string>> = {
   ...messages, ...terminalMessages, ...gitMessages, ...remoteDesktopMessages, ...mobile,
@@ -16,4 +18,6 @@ export const english: Readonly<Record<string, string>> = {
   ...cliImportEnglish,
   ...desktop,
   ...assistanceEnglish,
+  ...guiSettingsEnglish,
+  ...cozeEnglish,
 };

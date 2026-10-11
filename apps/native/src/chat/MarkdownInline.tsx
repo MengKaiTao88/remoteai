@@ -14,6 +14,7 @@ import type { CopyAction } from './CopyTextButton';
 export interface MarkdownContext {
   muted?: boolean; compact?: boolean; header?: boolean; textAlign?: TextStyle['textAlign'];
   tone?: 'default' | 'process';
+  listItemStart?: boolean;
   copy?: CopyAction;
 }
 
@@ -92,12 +93,14 @@ export function MarkdownParagraph({ nodes, heading, context = {} }: {
       nodes={first.children} heading={heading} context={{ ...context, copy }} />;
     if (part.some(hasMarkdownMath)) return <ChatMath key={index} markup={renderMathParagraph(part)}
       muted={context.muted || context.tone === 'process'}
-      fontSize={heading ? headingStyles[heading]?.fontSize : undefined} copy={copy} compact={context.compact} />;
+      fontSize={heading ? headingStyles[heading]?.fontSize : undefined} copy={copy} compact={context.compact}
+      flushTop={context.listItemStart && index === 0} />;
     return <SelectableChatText key={index} copy={copy} accessibilityRole={heading ? 'header' : undefined}
       style={[styles.messageText, markdownStyles.paragraph, context.compact && markdownStyles.compact,
         context.tone === 'process' && markdownStyles.process,
         context.muted && markdownStyles.muted, (heading || context.header) && markdownStyles.bold,
-        heading ? headingStyles[heading] : undefined, { textAlign: context.textAlign }]}>
+        heading ? headingStyles[heading] : undefined,
+        context.listItemStart && index === 0 && markdownStyles.listLead, { textAlign: context.textAlign }]}>
       <Inline nodes={part} muted={context.muted || context.tone === 'process'} />
     </SelectableChatText>;
   })}</View>;

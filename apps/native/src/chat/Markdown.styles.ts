@@ -14,6 +14,8 @@ export const headingStyles: Record<string, TextStyle> = {
 export const useMarkdownStyles = createThemedStyles((color) => ({
   paragraph: { marginVertical: 10 },
   compact: { marginVertical: 0 },
+  // The first paragraph shares its top edge with the marker; later paragraphs retain their spacing.
+  listLead: { marginTop: 0 },
   bold: { fontWeight: '700' },
   italic: { fontStyle: 'italic' },
   strike: { textDecorationLine: 'line-through' },
@@ -26,7 +28,11 @@ export const useMarkdownStyles = createThemedStyles((color) => ({
   listRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   // Keep the intrinsic text size when a list is measured inside an auto-width message bubble.
   listContent: { flexShrink: 1, minWidth: 0 },
-  marker: { minWidth: 16, flexShrink: 0, textAlign: 'right' },
+  markerColumn: { minWidth: 16, flexShrink: 0 },
+  marker: { minWidth: 16, textAlign: 'right' },
+  // Measure the same sample in every row: some Android system fonts ignore tabular-nums.
+  markerMeasure: { opacity: 0 },
+  markerOverlay: { position: 'absolute', top: 0, right: 0 },
   checkbox: { width: 13, height: 13, borderWidth: 1, borderColor: color(palette.muted, 'muted'),
     borderRadius: 2, marginTop: 6, marginLeft: 3, alignItems: 'center', justifyContent: 'center' },
   checked: { backgroundColor: palette.green, borderColor: color(palette.green, 'accent') },

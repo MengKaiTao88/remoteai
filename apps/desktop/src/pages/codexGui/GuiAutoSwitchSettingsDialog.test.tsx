@@ -111,7 +111,7 @@ it("keeps saved prompt switches unchanged after a failed save and allows retry",
   expect(button("启用或禁用系统提示词过滤").getAttribute("aria-checked")).toBe("true");
 });
 
-it("switches between top tabs and saves appearance independently of account settings", async () => {
+it("switches between setting sections and saves appearance independently of account settings", async () => {
   await render();
   const tab = (label: string) => [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
     .find((element) => element.textContent === label)!;
@@ -193,7 +193,6 @@ it("keeps pending account changes saveable after switching to appearance", async
 it("loads GUI rules independently and saves participation, priority and thresholds together", async () => {
   await render();
   expect(invoke).toHaveBeenCalledExactlyOnceWith("codex_gui_auto_switch_settings");
-  expect(document.querySelector<HTMLElement>(".ant-modal")?.style.width).toBe("80vw");
   expect(button(`${account.email} 参与自动切换`).getAttribute("aria-checked")).toBe("true");
   expect(input(`${account.email} 优先级`).value).toBe("0");
   expect(Number(input(`${account.email} 剩余阈值`).value)).toBe(0);

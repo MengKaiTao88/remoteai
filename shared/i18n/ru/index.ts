@@ -12,6 +12,8 @@ import { reviewRussian } from '../taskReview';
 import { downloads } from './downloads';
 import { cliImportRussian } from '../cliImport';
 import { assistanceRussian } from '../remoteAssistance';
+import { guiSettingsRussian } from '../guiSettings';
+import { cozeRussian } from '../coze';
 
 export const russian = {
   '分辨率': 'Разрешение',
@@ -24,6 +26,8 @@ export const russian = {
   '外观已切换，但未能保存。下次打开应用后请重新选择。':
     'Оформление изменено, но не сохранено. Выберите его снова при следующем запуске.',
   ...assistanceRussian,
+  ...guiSettingsRussian,
+  ...cozeRussian,
   ...downloads,
   ...cliImportRussian,
   ...reliabilityRussian,
