@@ -43,6 +43,7 @@ jobs:
       - name: Check and build Coze UI
         run: |
           node node_modules/typescript/bin/tsc -p apps/coze/ui/tsconfig.json
+          node node_modules/vitest/vitest.mjs run --config apps/coze/ui/vite.config.ts
           node node_modules/vite/bin/vite.js build --config apps/coze/ui/vite.config.ts
       - uses: actions/cache@v4
         with:
@@ -112,7 +113,7 @@ jobs:
           cargo test --locked --manifest-path apps/coze/Cargo.toml --test local_embedding -- --ignored
           cargo clippy --locked --manifest-path apps/coze/Cargo.toml --all-targets -- -D warnings
       - name: Build standalone runtime
-        run: cargo build --release --locked --manifest-path apps/coze/Cargo.toml --target ${{ matrix.target }}
+        run: cargo build --bins --release --locked --manifest-path apps/coze/Cargo.toml --target ${{ matrix.target }}
       - run: npm ci
       - name: Stage independent package
         run: >-

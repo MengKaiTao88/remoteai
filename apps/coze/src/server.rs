@@ -79,6 +79,26 @@ impl Host {
 
     fn handle(&self, services: &Services, mut request: Request) {
         let path = request.url().split('?').next().unwrap_or("");
+        if path == "/backup" {
+            match self.authorize(services, &request).and_then(|scoped| {
+                if scoped.principal.is_owner() {
+                    Ok(scoped)
+                } else {
+                    Err(Error::Unauthorized)
+                }
+            }) {
+                Ok(scoped) => crate::backup::handle(&scoped, request),
+                Err(error) => respond(
+                    request,
+                    error.status(),
+                    serde_json::json!({"error":error.to_string()})
+                        .to_string()
+                        .into_bytes(),
+                    "application/json",
+                ),
+            }
+            return;
+        }
         if request.method() == &Method::Get && !matches!(path, "/api" | "/mcp") {
             let result = asset(&self.assets, path);
             match result {
@@ -87,7 +107,8 @@ impl Host {
             }
             return;
         }
-        let result = self.authorize(&request).and_then(|()| {
+        let result = self.authorize(services, &request).and_then(|scoped| {
+            let services = &scoped;
             let mcp = request.url() == "/mcp";
             if request.method() != &Method::Post || (!mcp && request.url() != "/api") {
                 return Err(Error::Invalid);
@@ -101,6 +122,7 @@ impl Host {
                 return Err(Error::Limit);
             }
             if mcp {
+                let _lease = services.maintenance.read().map_err(|_| Error::Conflict)?;
                 let value: Value = serde_json::from_slice(&bytes).map_err(|_| Error::Invalid)?;
                 Ok(mcp::dispatch(services, &value).unwrap_or(Value::Null))
             } else {
@@ -126,7 +148,7 @@ impl Host {
         }
     }
 
-    fn authorize(&self, request: &Request) -> Result<()> {
+    fn authorize(&self, services: &Services, request: &Request) -> Result<Services> {
         let header = |name: &'static str| {
             request
                 .headers()
@@ -137,23 +159,24 @@ impl Host {
         if header("Origin").is_some_and(|origin| origin != self.url) {
             return Err(Error::Unauthorized);
         }
-        let expected = format!("Bearer {}", self.token);
-        let actual = header("Authorization").unwrap_or_default().as_bytes();
-        if actual.len() != expected.len() {
-            return Err(Error::Unauthorized);
-        }
+        let token = header("Authorization")
+            .and_then(|value| value.strip_prefix("Bearer "))
+            .ok_or(Error::Unauthorized)?;
+        let actual = token.as_bytes();
         let different = actual
             .iter()
-            .zip(expected.bytes())
+            .zip(self.token.bytes())
             .fold(0_u8, |difference, (a, b)| difference | (a ^ b));
-        if different != 0 {
-            return Err(Error::Unauthorized);
-        }
-        Ok(())
+        let principal = if actual.len() == self.token.len() && different == 0 {
+            crate::collaboration_access::Principal::Owner
+        } else {
+            crate::collaboration_access::authenticate(&services.db, token)?
+        };
+        Ok(crate::collaboration_access::scoped(services, principal))
     }
 }
 
-fn respond(request: Request, status: u16, body: Vec<u8>, mime: &str) {
+pub(crate) fn respond(request: Request, status: u16, body: Vec<u8>, mime: &str) {
     let mut response = Response::from_data(body).with_status_code(StatusCode(status));
     for (key, value) in [("Content-Type", mime), ("X-Content-Type-Options", "nosniff"),
         ("Cache-Control", "no-store"), ("Referrer-Policy", "no-referrer"),

@@ -1,13 +1,16 @@
 use crate::error::{Error, Result};
 use rusqlite::Connection;
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
 #[derive(Clone)]
 pub struct Database {
     root: PathBuf,
+    revisions: Option<Arc<BTreeMap<String, u64>>>,
 }
 
 impl Database {
@@ -16,6 +19,7 @@ impl Database {
         std::fs::create_dir_all(root)?;
         let db = Self {
             root: root.to_owned(),
+            revisions: None,
         };
         let mut conn = db.connect()?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
@@ -29,6 +33,13 @@ impl Database {
             tx.pragma_update(None, "user_version", 1)?;
             tx.commit()?;
         }
+        crate::publications::initialize(&conn)?;
+        crate::catalog::initialize(&conn)?;
+        crate::collaboration_access::initialize(&conn)?;
+        conn.execute_batch(crate::knowledge::sources::SCHEMA)?;
+        conn.execute_batch(crate::tables::SCHEMA)?;
+        crate::agents::initialize(&conn)?;
+        crate::workflow::initialize(&db)?;
         Ok(db)
     }
 
@@ -41,5 +52,16 @@ impl Database {
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    pub fn pinned_revisions(&self) -> Option<&BTreeMap<String, u64>> {
+        self.revisions.as_deref()
+    }
+
+    pub fn with_revisions(&self, revisions: BTreeMap<String, u64>) -> Self {
+        Self {
+            root: self.root.clone(),
+            revisions: Some(Arc::new(revisions)),
+        }
     }
 }

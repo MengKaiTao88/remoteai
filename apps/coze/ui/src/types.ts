@@ -1,4 +1,4 @@
-export type Kind = "agent" | "workflow" | "knowledge" | "prompt" | "table" | "plugin";
+export type Kind = "app" | "agent" | "workflow" | "knowledge" | "prompt" | "table" | "plugin";
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Draft = Record<string, Json>;
 export interface Resource {
@@ -10,6 +10,7 @@ export interface Citation { chunkId: string; documentName: string; text: string;
 export interface Message { role: string; content: string; citations: Citation[] }
 export interface Model { id: string; name: string }
 export const labels: Record<Kind, string> = {
+  app: "应用",
   agent: "智能体", workflow: "工作流", knowledge: "知识库", prompt: "提示词", table: "数据表", plugin: "工具",
 };
 
@@ -32,6 +33,7 @@ export const defaultGraph: Graph = {
 
 export function defaultDraft(kind: Kind): Draft {
   switch (kind) {
+    case "app": return { entryId: "", resourceIds: [] };
     case "agent": return { model: "", prompt: "你是一位耐心、准确的助手。", knowledgeIds: [], temperature: 0.7 };
     case "workflow": return JSON.parse(JSON.stringify(defaultGraph)) as Draft;
     case "knowledge": return {};

@@ -55,7 +55,7 @@ pub fn save(db: &Database, input: ResourceInput) -> Result<Resource> {
     get(db, &id)
 }
 
-fn validate(input: &ResourceInput) -> Result<()> {
+pub(crate) fn validate(input: &ResourceInput) -> Result<()> {
     if input.name.trim().is_empty()
         || input.name.chars().count() > 100
         || input.description.chars().count() > 2000
@@ -81,11 +81,11 @@ pub fn publish(db: &Database, id: &str, revision: u64, mcp_enabled: bool) -> Res
         return get(db, id);
     }
     match resource.kind {
+        ResourceKind::App => crate::projects::validate(db, &resource.draft)?,
         ResourceKind::Workflow => crate::workflow::validate_value(&resource.draft)?,
         ResourceKind::Agent => crate::agents::validate(&resource.draft)?,
         ResourceKind::Plugin => crate::plugins::validate(&resource.draft)?,
-        ResourceKind::Knowledge => {}
-        _ => return Err(Error::Invalid),
+        ResourceKind::Knowledge | ResourceKind::Table | ResourceKind::Prompt => {}
     }
     let mut conn = db.connect()?;
     let tx = conn.transaction()?;
@@ -103,13 +103,18 @@ pub fn publish(db: &Database, id: &str, revision: u64, mcp_enabled: bool) -> Res
         "INSERT OR IGNORE INTO revisions VALUES (?1,?2,?3,?4)",
         params![id, revision, resource.draft.to_string(), now()],
     )?;
+    crate::publications::capture(&tx, id, revision, &resource.draft)?;
     tx.commit()?;
     get(db, id)
 }
 
 pub fn published(db: &Database, id: &str) -> Result<(Resource, Value)> {
-    let resource = get(db, id)?;
-    let revision = resource.published_revision.ok_or(Error::Unpublished)?;
+    let mut resource = get(db, id)?;
+    let revision = match db.pinned_revisions() {
+        Some(pinned) => *pinned.get(id).ok_or(Error::Dependency)?,
+        None => resource.published_revision.ok_or(Error::Unpublished)?,
+    };
+    resource.published_revision = Some(revision);
     let body: String = db.connect()?.query_row(
         "SELECT body FROM revisions WHERE resource_id=?1 AND revision=?2",
         params![id, revision],
@@ -121,13 +126,17 @@ pub fn published(db: &Database, id: &str) -> Result<(Resource, Value)> {
 
 pub fn delete(db: &Database, id: &str, revision: u64) -> Result<()> {
     validate_id(id)?;
-    if db.connect()?.execute(
+    let mut conn = db.connect()?;
+    let tx = conn.transaction()?;
+    crate::publications::check_delete(&tx, id)?;
+    if tx.execute(
         "DELETE FROM resources WHERE id=?1 AND revision=?2",
         params![id, revision],
     )? != 1
     {
         return Err(Error::Conflict);
     }
+    tx.commit()?;
     Ok(())
 }
 

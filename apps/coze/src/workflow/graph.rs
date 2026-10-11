@@ -28,6 +28,32 @@ pub struct Node {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NodeAction {
+    /// Wait for a typed user response and persist the continuation before returning.
+    Input {
+        prompt: String,
+        #[serde(default)]
+        fields: Vec<super::InputField>,
+        #[serde(default)]
+        choices: Vec<String>,
+    },
+    Output {
+        value: Value,
+    },
+    Variable {
+        variable_name: String,
+        value: Value,
+    },
+    Aggregate {
+        values: Vec<Value>,
+    },
+    AggregateGroups {
+        groups: std::collections::BTreeMap<String, Vec<Value>>,
+    },
+    Conversation {
+        operation: super::conversations::Operation,
+        #[serde(default)]
+        input: Value,
+    },
     Plugin {
         plugin_id: String,
         input: Value,
@@ -44,9 +70,47 @@ pub enum NodeAction {
         table_id: String,
         row_id: String,
     },
+    Sql {
+        table_ids: Vec<String>,
+        sql: String,
+    },
+    Nl2sql {
+        table_ids: Vec<String>,
+        model: String,
+        question: String,
+    },
+    TableUpdate {
+        table_id: String,
+        row_id: String,
+        value: Value,
+    },
+    KnowledgeWrite {
+        knowledge_id: String,
+        document_name: String,
+        text: String,
+    },
+    KnowledgeDelete {
+        knowledge_id: String,
+        document_ids: Value,
+    },
+    Intent {
+        model: String,
+        query: String,
+        intents: Vec<String>,
+    },
+    Break,
+    Continue,
+    Repeat {
+        workflow_id: String,
+        count: Value,
+    },
     Code {
         code: String,
         input: Value,
+        #[serde(default)]
+        language: crate::code_runtime::Language,
+        #[serde(default)]
+        entrypoint: bool,
     },
     Start,
     End {
@@ -60,6 +124,8 @@ pub enum NodeAction {
         prompt: String,
         #[serde(default)]
         system: String,
+        #[serde(default = "default_temperature")]
+        temperature: f32,
     },
     Knowledge {
         knowledge_ids: Vec<String>,
@@ -131,6 +197,10 @@ fn default_limit() -> usize {
     6
 }
 
+fn default_temperature() -> f32 {
+    0.7
+}
+
 pub fn validate_value(value: &Value) -> Result<()> {
     let graph: Graph = serde_json::from_value(value.clone()).map_err(|_| Error::Workflow)?;
     graph.order()?;
@@ -198,7 +268,10 @@ impl Graph {
             let source = nodes.get(edge.source.as_str()).ok_or(Error::Workflow)?;
             let target = nodes.get(edge.target.as_str()).ok_or(Error::Workflow)?;
             if edge.port.is_some() != matches!(source.action, NodeAction::Condition { .. })
-                || matches!(source.action, NodeAction::End { .. })
+                || matches!(
+                    source.action,
+                    NodeAction::End { .. } | NodeAction::Break | NodeAction::Continue
+                )
                 || matches!(target.action, NodeAction::Start)
                 || !unique.insert((&edge.source, &edge.target, edge.port))
             {
@@ -241,6 +314,7 @@ fn valid_node(node: &Node) -> bool {
     !node.id.is_empty()
         && node.id.len() < 100
         && node.id != "input"
+        && node.id != "variables"
         && node
             .id
             .bytes()

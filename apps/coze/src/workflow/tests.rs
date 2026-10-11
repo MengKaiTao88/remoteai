@@ -22,7 +22,7 @@ impl Embedder for NoEmbedding {
     }
 }
 
-fn fixture() -> (tempfile::TempDir, Services) {
+pub(super) fn fixture() -> (tempfile::TempDir, Services) {
     let directory = tempfile::tempdir().unwrap();
     let db = Database::open(directory.path()).unwrap();
     let services = Services::new(

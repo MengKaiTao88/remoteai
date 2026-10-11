@@ -17,6 +17,18 @@ const PROTOCOL: &str = "2024-11-05";
 
 pub fn dispatch(services: &Services, request: &Value) -> Option<Value> {
     let id = request.get("id")?;
+    let result = crate::collaboration_access::authorize_mcp(services, request).and_then(|permit| {
+        let response = dispatch_inner(services, request).unwrap_or(Value::Null);
+        permit.finish_mcp(services, response)
+    });
+    Some(result.unwrap_or_else(|error| {
+        json!({"jsonrpc":"2.0","id":id,
+        "error":{"code":-32001,"message":error.to_string()}})
+    }))
+}
+
+fn dispatch_inner(services: &Services, request: &Value) -> Option<Value> {
+    let id = request.get("id")?;
     let result = match request["method"].as_str() {
         Some("initialize") => Ok(
             json!({"protocolVersion":PROTOCOL,"capabilities":{"tools":{}},
@@ -54,8 +66,14 @@ fn tools(_services: &Services) -> Result<Value> {
             Workflows take input, agents take message, knowledge bases take query. \
             This can execute user-defined workflows with external effects; inspect the description before calling.",
             "inputSchema":{"type":"object","properties":{"resource_id":{"type":"string"},
-                "input":{"type":"object"},"message":{"type":"string"},"query":{"type":"string"}},
-                "required":["resource_id"],"additionalProperties":false}}
+                "input":{"type":"object"},"message":{"type":"string"},"query":{"type":"string"},
+                "conversation_id":{"type":"string"}},
+                "required":["resource_id"],"additionalProperties":false}},
+        {"name":"coze_resume","description":"Resume a paused published Coze Chatflow with the user's answer. \
+            Use run_id and interaction.id from a paused coze_call result and provide its requested input fields.",
+            "inputSchema":{"type":"object","properties":{"run_id":{"type":"string"},
+                "interaction_id":{"type":"string"},"input":{"type":"object"}},
+                "required":["run_id","interaction_id","input"],"additionalProperties":false}}
     ]}))
 }
 
@@ -63,6 +81,13 @@ fn call(services: &Services, params: &Value) -> Result<Value> {
     let name = params["name"].as_str().ok_or(Error::Invalid)?;
     if name == "coze_list" {
         return list_published(services);
+    }
+    if name == "coze_resume" {
+        let args = &params["arguments"];
+        let request = serde_json::from_value(json!({"runId":args["run_id"],"input":args["input"],
+            "interactionId":args["interaction_id"]}))
+        .map_err(|_| Error::Invalid)?;
+        return workflow::resume_published(services, request);
     }
     if name != "coze_call" {
         return Err(Error::Invalid);
@@ -77,6 +102,16 @@ fn call(services: &Services, params: &Value) -> Result<Value> {
         return Err(Error::Unpublished);
     }
     match resource.kind {
+        ResourceKind::App => crate::projects::run(
+            services,
+            crate::projects::AppRun {
+                app_id: id,
+                input: args.get("input").cloned().unwrap_or_else(|| json!({})),
+                message: args["message"].as_str().unwrap_or_default().to_owned(),
+                conversation_id: args["conversation_id"].as_str().map(str::to_owned),
+                published: true,
+            },
+        ),
         ResourceKind::Plugin => crate::plugins::invoke(
             &services.db,
             &id,
@@ -99,7 +134,7 @@ fn call(services: &Services, params: &Value) -> Result<Value> {
             },
         )
         .and_then(|run| {
-            if run["status"] == "completed" {
+            if run["status"] == "completed" || run["status"] == "paused" {
                 Ok(run)
             } else {
                 Err(Error::Workflow)
@@ -109,7 +144,7 @@ fn call(services: &Services, params: &Value) -> Result<Value> {
             services,
             agents::ChatRequest {
                 agent_id: id,
-                conversation_id: None,
+                conversation_id: args["conversation_id"].as_str().map(str::to_owned),
                 message: args["message"].as_str().ok_or(Error::Invalid)?.to_owned(),
                 published: true,
             },
@@ -123,14 +158,30 @@ fn call(services: &Services, params: &Value) -> Result<Value> {
                 limit: 6
             }
         )?)),
-        _ => Err(Error::Invalid),
+        ResourceKind::Table => crate::tables::query(
+            &services.db,
+            &id,
+            args.get("input")
+                .and_then(|input| input.get("filter"))
+                .unwrap_or(&json!({})),
+        ),
+        ResourceKind::Prompt => {
+            let (_, body) = resources::published(&services.db, &id)?;
+            let context = json!({"input":args.get("input").cloned().unwrap_or_else(|| json!({}))});
+            Ok(
+                json!({"text":workflow::bindings::render(body["text"].as_str().ok_or(Error::Invalid)?, &context)?}),
+            )
+        }
     }
 }
 
 fn list_published(services: &Services) -> Result<Value> {
     let mut entries = Vec::new();
     for resource in resources::list(&services.db)? {
-        if !resource.mcp_enabled || resource.published_revision.is_none() {
+        if !services.principal.allows(&resource.id)
+            || !resource.mcp_enabled
+            || resource.published_revision.is_none()
+        {
             continue;
         }
         let mut entry = json!({"id":resource.id,"name":resource.name,"kind":resource.kind,

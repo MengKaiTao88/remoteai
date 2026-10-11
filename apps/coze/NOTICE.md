@@ -16,6 +16,11 @@ Knowledge embeddings: intfloat/multilingual-e5-small, revision
 See models/LICENSE in the release archive. Model card:
 https://huggingface.co/intfloat/multilingual-e5-small
 
-The package contains only the Rust executable, frontend assets, model files and
-licenses. No Go server, Python environment, container images or external database
-service is installed.
+The package includes Rust executables (the runtime and an isolated Python-subset
+interpreter worker), frontend assets, model files and licenses. It does not install
+CPython, Node, a Go server, container images or external database services.
+
+Python code execution: Monty 1.0.0, https://github.com/pydantic/monty (MIT).
+TypeScript transformation: Oxc 0.75, https://github.com/oxc-project/oxc (MIT).
+PDF page rendering: Hayro 0.7, https://github.com/LaurenzV/hayro (MIT / Apache-2.0).
+Their license notices are included in licenses/ in the release archive.

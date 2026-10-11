@@ -77,6 +77,7 @@ pub(super) fn install(root: &Path, state: &CozeState) -> Result<()> {
     extract(&archive, &extracted)?;
     validate_package(&extracted, &registry.version)?;
     platform::make_executable(&extracted.join(platform::executable()))?;
+    platform::make_executable(&extracted.join(platform::python_worker()))?;
     fs::write(
         extracted.join("complete.json"),
         serde_json::json!({"version":registry.version}).to_string(),
@@ -237,6 +238,7 @@ fn validate_package(root: &Path, version: &str) -> Result<()> {
     }
     for name in [
         platform::executable(),
+        platform::python_worker(),
         "ui/index.html",
         "models/config.json",
         "models/tokenizer.json",

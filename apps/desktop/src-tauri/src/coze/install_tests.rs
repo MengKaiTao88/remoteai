@@ -53,6 +53,37 @@ fn incomplete_packages_are_not_marked_installed() {
 }
 
 #[test]
+fn package_requires_the_bundled_code_worker() {
+    let root = tempfile::tempdir().unwrap();
+    let version = registry().unwrap().version;
+    fs::write(
+        root.path().join("package.json"),
+        serde_json::json!({"version":version,"protocol":1}).to_string(),
+    )
+    .unwrap();
+    for name in [
+        platform::executable(),
+        "ui/index.html",
+        "models/config.json",
+        "models/tokenizer.json",
+        "models/model.safetensors",
+        "NOTICE.md",
+        "LICENSE-APACHE",
+    ] {
+        let file = root.path().join(name);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, b"fixture").unwrap();
+    }
+    assert!(validate_package(root.path(), &version).is_err());
+    fs::write(
+        root.path().join(platform::python_worker()),
+        b"worker fixture",
+    )
+    .unwrap();
+    validate_package(root.path(), &version).unwrap();
+}
+
+#[test]
 fn replacement_rolls_back_on_failure_and_preserves_user_data() {
     let root = tempfile::tempdir().unwrap();
     let destination = root.path().join("packages/current");

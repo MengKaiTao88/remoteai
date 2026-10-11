@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { randomBytes } from "node:crypto";
+import { advancedSmoke } from "./smoke-coze-advanced.mjs";
 
 const binary = resolve(process.argv[2]);
 const preview = process.argv.includes("--preview");
@@ -89,6 +90,7 @@ try {
   assert.equal(JSON.parse(frames[1].result.content[0].text).output, "你好，Remote AI");
   assert.equal((await command("runs", { id: workflow.id }))[0].status, "completed");
   console.log("PASS: local auth, assets, knowledge ingestion/retrieval, RAG chat, persistent history, workflow MCP STDIO.");
+  await advancedSmoke({ command, url, token, create });
   if (preview) {
     writeFileSync(join(temporaryRoot, "coze-preview.json"), JSON.stringify({ url: `${url}/#token=${token}`, data }));
     console.log(`Preview ready: ${url}`);

@@ -4,6 +4,7 @@ use serde_json::Value;
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ResourceKind {
+    App,
     Agent,
     Workflow,
     Knowledge,
@@ -15,6 +16,7 @@ pub enum ResourceKind {
 impl ResourceKind {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::App => "app",
             Self::Agent => "agent",
             Self::Workflow => "workflow",
             Self::Knowledge => "knowledge",

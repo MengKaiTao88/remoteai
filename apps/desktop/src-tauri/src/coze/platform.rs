@@ -26,6 +26,14 @@ pub(super) fn executable() -> &'static str {
     }
 }
 
+pub(super) fn python_worker() -> &'static str {
+    if cfg!(windows) {
+        "remoteai-coze-python.exe"
+    } else {
+        "remoteai-coze-python"
+    }
+}
+
 pub(super) fn spawn(command: &mut Command) -> Result<Child> {
     #[cfg(windows)]
     {

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Drawer, Dropdown, Input, List, Space, Tag } from "antd";
-import { History, Play, Plus } from "lucide-react";
+import { Alert, Button, Drawer, Dropdown, Input, List, Space, Upload } from "antd";
+import { FileUp, History, Play, Plus, Square } from "lucide-react";
 import { api, errorText } from "../api";
 import type { Draft, Graph, Json, Model, Resource } from "../types";
 import { Canvas } from "./Canvas";
 import { NodeInspector } from "./NodeInspector";
 import { newNode, nodeLabels } from "./nodes";
+import { RunResult } from "./RunResult";
+import { useWorkflowExecution, type Run } from "./useWorkflowExecution";
 
-interface Run { id: string; status: string; output: Json; error?: string; trace: Json[]; createdAt?: string }
 interface Props {
   resource: Resource; resources: Resource[]; draft: Draft; onChange: (draft: Draft) => void;
   save?: () => Promise<Resource>;
@@ -18,24 +19,37 @@ export function WorkflowEditor({ resource, resources, draft, onChange, save }: P
   const [selected, setSelected] = useState<string>();
   const [models, setModels] = useState<Model[]>([]);
   const [input, setInput] = useState('{"text":"你好"}');
-  const [run, setRun] = useState<Run>();
   const [runs, setRuns] = useState<Run[]>([]);
   const [panel, setPanel] = useState<"run" | "history">();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const execution = useWorkflowExecution();
+  const { run, busy, error, setError } = execution;
+  const [saving, setSaving] = useState(false);
+  const [imported, setImported] = useState(false);
   const [modelError, setModelError] = useState("");
   useEffect(() => {
     void api<Model[]>("models").then(setModels).catch((error: unknown) => setModelError(errorText(error)));
   }, []);
   const change = (graph: Graph) => onChange(graph as unknown as Draft);
   const execute = async () => {
-    setBusy(true); setError("");
+    setSaving(true); setError("");
     try {
       const value: unknown = JSON.parse(input);
       if (save) await save();
-      setRun(await api<Run>("run", { resourceId: resource.id, input: value, published: false }));
+      await execution.start("run_start", { resourceId: resource.id, input: value, published: false });
     } catch (error) { setError(error instanceof SyntaxError ? "请填写有效的 JSON 输入。" : errorText(error)); }
-    finally { setBusy(false); }
+    finally { setSaving(false); }
+  };
+  const resume = (runId: string, interactionId: string, input: Json) => {
+    setPanel("run"); void execution.start("resume_run_start", { runId, interactionId, input });
+  };
+  const importCanvas = async (file: File) => {
+    try {
+      if (file.size > 8 * 1024 * 1024) throw new Error("文件过大，请选择较小的工作流。");
+      const canvas: unknown = JSON.parse(await file.text());
+      const graph = await api<Graph>("import_workflow", { canvas });
+      change(graph); setSelected(undefined); setImported(true); setError("");
+    } catch (error) { setError(error instanceof SyntaxError ? "文件内容无法读取，请检查后重试。" : errorText(error)); }
+    return false;
   };
   const node = graph.nodes.find((node) => node.id === selected);
   return <div className="workflow-editor">
@@ -45,7 +59,8 @@ export function WorkflowEditor({ resource, resources, draft, onChange, save }: P
           const node = newNode(key, graph.nodes.length); change({ ...graph, nodes: [...graph.nodes, node] });
           setSelected(node.id);
         } }}><Button icon={<Plus size={15} />}>添加节点</Button></Dropdown>
-      <small>拖动节点调整位置，在右侧设置连线。</small>
+      <Upload accept=".json" showUploadList={false} beforeUpload={importCanvas}>
+        <Button icon={<FileUp size={15} />}>导入画布</Button></Upload>
     </Space><Space>
       <Button icon={<History size={15} />} onClick={() => {
         setPanel("history"); void api<Run[]>("runs", { id: resource.id }).then(setRuns)
@@ -54,6 +69,9 @@ export function WorkflowEditor({ resource, resources, draft, onChange, save }: P
       <Button type="primary" icon={<Play size={15} />} onClick={() => setPanel("run")}>试运行</Button>
     </Space></div>
     {modelError && <Alert type="info" message={modelError} closable onClose={() => setModelError("")} />}
+    {imported && <Alert type="info" message="画布已导入，请检查所用模型和输入内容后保存。"
+      closable onClose={() => setImported(false)} />}
+    {error && !panel && <Alert type="error" message={error} closable onClose={() => setError("")} />}
     <div className="workflow-workspace"><Canvas graph={graph} selected={selected} onSelect={setSelected} onChange={change} />
       {node && <NodeInspector key={node.id} node={node} graph={graph} resources={resources} models={models} onChange={change} />}
     </div>
@@ -61,18 +79,14 @@ export function WorkflowEditor({ resource, resources, draft, onChange, save }: P
       {error && <Alert type="error" message={error} />}
       {panel === "run" ? <><p>填写工作流的输入内容。</p><Input.TextArea aria-label="工作流输入" rows={5} value={input}
         onChange={(event) => setInput(event.target.value)} />
-        <Button className="run-button" type="primary" loading={busy} onClick={() => void execute()}>开始运行</Button>
-        {run && <RunResult run={run} />}</> : <List dataSource={runs} renderItem={(item) =>
-          <List.Item><details><summary>{item.createdAt} <Tag>{item.status === "completed" ? "成功" : "未完成"}</Tag></summary>
-            <RunResult run={item} /></details></List.Item>} />}
+        <Space className="run-button"><Button type="primary" loading={busy || saving}
+          onClick={() => void execute()}>开始运行</Button>
+          {busy && <Button icon={<Square size={14} />} onClick={() => void execution.cancel()}>停止</Button>}</Space>
+        {busy && <><pre aria-live="polite">{execution.text || "正在运行…"}</pre>
+          {execution.trace.map((trace, index) => <pre key={index}>{JSON.stringify(trace, null, 2)}</pre>)}</>}
+        {run && <RunResult run={run} busy={busy} onResume={resume} />}</> : <List dataSource={runs} renderItem={(item) =>
+          <List.Item><details><summary>{item.createdAt}</summary>
+            <RunResult run={item} busy={busy} onResume={resume} /></details></List.Item>} />}
     </Drawer>
-  </div>;
-}
-
-function RunResult({ run }: { run: Run }) {
-  return <div className="run-result"><h3>运行结果</h3>
-    {run.error && <Alert type="error" message={run.error} />}
-    <pre>{typeof run.output === "string" ? run.output : JSON.stringify(run.output, null, 2)}</pre>
-    <h3>节点详情</h3>{run.trace.map((trace, index) => <pre key={index}>{JSON.stringify(trace, null, 2)}</pre>)}
   </div>;
 }

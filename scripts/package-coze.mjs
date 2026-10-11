@@ -14,13 +14,17 @@ const version = cargo.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
 if (version !== registry.version || registry.releaseTag !== `coze-v${version}` || registry.protocol !== 1) {
   throw new Error("Coze Cargo version, release registry and supported protocol must agree");
 }
-for (const path of [binary, join(source, "dist/ui/index.html"), join(source, "dist/models/model.safetensors")]) {
+const pythonWorker = join(dirname(resolve(binary)), binary.endsWith(".exe")
+  ? "remoteai-coze-python.exe" : "remoteai-coze-python");
+for (const path of [binary, pythonWorker, join(source, "dist/ui/index.html"), join(source, "dist/models/model.safetensors")]) {
   if (!existsSync(path)) throw new Error(`Missing package input: ${path}`);
 }
 mkdirSync(destination, { recursive: true });
 cpSync(resolve(binary), join(destination, binary.endsWith(".exe") ? "remoteai-coze.exe" : "remoteai-coze"));
+cpSync(pythonWorker, join(destination, binary.endsWith(".exe") ? "remoteai-coze-python.exe" : "remoteai-coze-python"));
 for (const directory of ["ui", "models"]) cpSync(join(source, "dist", directory), join(destination, directory), { recursive: true });
 for (const name of ["LICENSE-APACHE", "NOTICE.md"]) cpSync(join(source, name), join(destination, name));
+cpSync(join(source, "licenses"), join(destination, "licenses"), { recursive: true });
 writeFileSync(join(destination, "package.json"), JSON.stringify({ version: registry.version, protocol: registry.protocol }));
 mkdirSync(dirname(join(destination, "models/LICENSE")), { recursive: true });
 cpSync(join(source, "licenses/e5-MIT.txt"), join(destination, "models/LICENSE"));

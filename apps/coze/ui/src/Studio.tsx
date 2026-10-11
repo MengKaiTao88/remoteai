@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, Dropdown, Empty, Input, Modal, Spin, Upload } from "antd";
-import { Bot, BookOpen, Database, FileText, GitBranch, Plus, Search, Wrench } from "lucide-react";
+import { Bot, BookOpen, Database, FileText, GitBranch, Plus, Search, Wrench, Boxes } from "lucide-react";
 import { api, errorText } from "./api";
 import { defaultDraft, labels, type Kind, type Resource } from "./types";
 import { ResourceEditor } from "./ResourceEditor";
+import { BackupButton } from "./projects/BackupButton";
+import { TemplateLibrary } from "./projects/TemplateLibrary";
+import { SharedAppView } from "./projects/SharedAppView";
 
-const icons = { agent: Bot, workflow: GitBranch, knowledge: BookOpen, prompt: FileText, table: Database, plugin: Wrench };
-const kinds: Kind[] = ["agent", "workflow", "knowledge", "prompt", "table", "plugin"];
+const icons = { app: Boxes, agent: Bot, workflow: GitBranch, knowledge: BookOpen,
+  prompt: FileText, table: Database, plugin: Wrench };
+const kinds: Kind[] = ["app", "agent", "workflow", "knowledge", "prompt", "table", "plugin"];
 
 export function Studio() {
   const [resources, setResources] = useState<Resource[]>([]);
@@ -19,12 +23,20 @@ export function Studio() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [access, setAccess] = useState<{ role: string; appId?: string }>();
   const refresh = useCallback(async () => {
     try { setResources(await api<Resource[]>("list_resources")); setError(""); }
     catch (error) { setError(errorText(error)); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    let active = true;
+    void api<{ role: string; appId?: string }>("access_info")
+      .then((value) => { if (active) setAccess(value); })
+      .catch((error: unknown) => { if (active) setError(errorText(error)); });
+    return () => { active = false; };
+  }, []);
   const saved = (resource: Resource) => {
     setSelected(resource);
     setResources((previous) => [resource, ...previous.filter((item) => item.id !== resource.id)]);
@@ -49,8 +61,15 @@ export function Studio() {
   };
   const importResource = async (file: File) => {
     try {
-      if (file.size > 2 * 1024 * 1024) throw new Error("请选择不超过 2 MB 的导出文件。");
+      if (file.size > 4 * 1024 * 1024) throw new Error("请选择不超过 4 MB 的导出文件。");
       const value: unknown = JSON.parse(await file.text());
+      if (value && typeof value === "object" && "format" in value && value.format === "remoteai-coze-template") {
+        const template = await api<{id: string}>("save_template",value);
+        const installed = await api<{entryId: string}>("install_template",{id:template.id});
+        await refresh();
+        const imported = await api<Resource>("get_resource",{id:installed.entryId});
+        setKind(imported.kind); saved(imported); return;
+      }
       if (!value || typeof value !== "object" || !("format" in value) || value.format !== "remoteai-coze"
         || !("resource" in value)) throw new Error("请选择从 Remote AI Coze 导出的文件。");
       const resource = value.resource as Resource;
@@ -60,6 +79,11 @@ export function Studio() {
       setKind(imported.kind); saved(imported);
     } catch (error) { setError(errorText(error)); }
   };
+  if (!access) return <main className="studio-main">{error ? <Alert type="error" message={error} /> : <Spin />}</main>;
+  if (access.role !== "owner") return <main className="studio-main">
+    {error && <Alert type="error" message={error} />}
+    <SharedAppView access={access} resources={resources} onSaved={saved} />
+  </main>;
   return <div className="studio">
     <aside className="studio-nav"><div className="brand"><span>c</span><strong>coze</strong></div>
       <small>你的 AI 创作空间</small>
@@ -69,6 +93,10 @@ export function Studio() {
           onClick={() => navigate(item)}><Icon size={18} />{labels[item]}</button>;
       })}
       <div className="nav-note">保存在这台电脑<br />由 Remote AI 提供模型服务</div>
+      <BackupButton onRestored={() => { setSelected(undefined); void refresh(); }} />
+      <TemplateLibrary onInstalled={(id) => { void refresh();
+        void api<Resource>("get_resource", { id }).then((resource) => { setKind(resource.kind); saved(resource); })
+          .catch((error: unknown) => setError(errorText(error))); }} />
     </aside>
     <main className="studio-main">
       {error && <Alert type="error" message={error} closable onClose={() => setError("")} />}

@@ -6,6 +6,23 @@ use reqwest::blocking::Client;
 use serde_json::{json, Value};
 use std::{io::Read, time::Duration};
 
+mod stream;
+#[cfg(test)]
+mod tests;
+pub use stream::{Completion, CompletionRequest, ToolCall};
+
+#[derive(Clone)]
+pub struct VisionImage {
+    pub mime_type: String,
+    pub content_base64: String,
+}
+
+pub struct VisionRequest<'a> {
+    pub model: &'a str,
+    pub images: &'a [VisionImage],
+    pub prompt: &'a str,
+}
+
 const MAX_RESPONSE_BYTES: u64 = 8 * 1024 * 1024;
 
 /// The runtime receives only the local proxy credential, never a Provider's upstream key.
@@ -14,6 +31,7 @@ pub struct ModelProxy {
     base: String,
     token: String,
     client: Client,
+    stream_client: reqwest::Client,
 }
 
 impl ModelProxy {
@@ -34,10 +52,18 @@ impl ModelProxy {
             .timeout(Duration::from_secs(180))
             .build()
             .map_err(|_| Error::Proxy)?;
+        let stream_client = reqwest::Client::builder()
+            .no_proxy()
+            .pool_max_idle_per_host(0)
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(180))
+            .build()
+            .map_err(|_| Error::Proxy)?;
         Ok(Self {
             base: base.trim_end_matches('/').to_owned(),
             token,
             client,
+            stream_client,
         })
     }
 
@@ -82,6 +108,71 @@ impl ModelProxy {
             .and_then(Value::as_str)
             .map(str::to_owned)
             .ok_or(Error::Proxy)
+    }
+
+    /// Images are forwarded only to the Remote AI loopback proxy selected by the desktop.
+    pub fn vision(&self, model: &str, images: &[VisionImage], prompt: &str) -> Result<String> {
+        self.vision_controlled(
+            VisionRequest {
+                model,
+                images,
+                prompt,
+            },
+            &crate::jobs::JobControl::detached(),
+        )
+    }
+
+    pub fn vision_controlled(
+        &self,
+        request: VisionRequest<'_>,
+        control: &crate::jobs::JobControl,
+    ) -> Result<String> {
+        let VisionRequest {
+            model,
+            images,
+            prompt,
+        } = request;
+        if images.is_empty()
+            || images.len() > 16
+            || prompt.len() > 32_000
+            || model.trim().is_empty()
+            || model.len() > 200
+            || images
+                .iter()
+                .map(|image| image.content_base64.len())
+                .sum::<usize>()
+                > 24 * 1024 * 1024
+        {
+            return Err(Error::Invalid);
+        }
+        let mut content = vec![json!({"type":"text","text":prompt})];
+        for image in images {
+            if !matches!(
+                image.mime_type.as_str(),
+                "image/png" | "image/jpeg" | "image/webp"
+            ) || image.content_base64.is_empty()
+                || !image
+                    .content_base64
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"+/=".contains(&byte))
+            {
+                return Err(Error::Invalid);
+            }
+            content.push(json!({"type":"image_url","image_url":{
+                "url":format!("data:{};base64,{}",image.mime_type,image.content_base64)}}));
+        }
+        let messages = [json!({"role":"user","content":content})];
+        Ok(self
+            .complete(
+                CompletionRequest {
+                    model,
+                    messages: &messages,
+                    temperature: 0.1,
+                    tools: &[],
+                },
+                control,
+            )?
+            .content)
     }
 }
 
