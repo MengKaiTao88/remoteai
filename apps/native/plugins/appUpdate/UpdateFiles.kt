@@ -3,6 +3,7 @@ package com.codexswitch.update
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Environment
@@ -21,7 +22,8 @@ internal class UpdateFiles(private val context: Context) {
   fun createPath(version: String): String {
     require(version.length <= 80 && version.matches(Regex("[0-9A-Za-z.-]+")))
     check(root.mkdirs() || root.isDirectory)
-    root.listFiles()?.filter { it.isFile && it.name.startsWith("CodexSwitch-update-") && it.extension == "apk" }
+    root.listFiles()?.filter { it.isFile && it.name.startsWith("CodexSwitch-update-")
+      && !it.name.startsWith("CodexSwitch-update-partial-") && it.extension == "apk" }
       ?.sortedByDescending { it.lastModified() }?.drop(1)?.forEach { check(it.delete()) }
     return File(root, "CodexSwitch-update-$version-${UUID.randomUUID()}.apk").absolutePath
   }
@@ -33,19 +35,22 @@ internal class UpdateFiles(private val context: Context) {
     return file
   }
 
-  fun wifiAvailable(): Boolean {
+  fun wifiNetwork(): Network? {
     val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    val capabilities = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
-    return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    val network = manager.activeNetwork ?: return null
+    val capabilities = manager.getNetworkCapabilities(network) ?: return null
+    return network.takeIf { capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
       && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-      && !manager.isActiveNetworkMetered
+      && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) }
   }
 
+  fun wifiAvailable(): Boolean = wifiNetwork() != null
+
   fun wifiRoute(route: JSONObject): Boolean {
-    if (!wifiAvailable()) return false
+    val network = wifiNetwork() ?: return false
     val host = route.optJSONObject("localEndpoint")?.optString("host") ?: return false
     val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    val addresses = manager.getLinkProperties(manager.activeNetwork)?.linkAddresses ?: return false
+    val addresses = manager.getLinkProperties(network)?.linkAddresses ?: return false
     val endpoint = java.net.InetAddress.getByName(host.substringBefore('%')).address
     return addresses.any { it.address.address.contentEquals(endpoint) }
   }

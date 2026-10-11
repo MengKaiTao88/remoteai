@@ -1,12 +1,19 @@
 //! Optional cross-account distribution of packages selected by the GitHub updater.
 //! Signaling carries opaque identifiers only; each transfer gets an isolated direct-only network.
 mod android;
+mod block_download;
+mod block_protocol;
 mod cache;
+mod checkpoint;
 pub(crate) mod commands;
 mod dependency;
+mod network_cost;
+mod origin_blocks;
 pub(crate) mod packages;
 mod parallel;
+pub(crate) mod policy;
 mod signaling;
+mod snapshot;
 mod transfer;
 
 pub(crate) use signaling::{Bridge, Offer, Offers};
@@ -38,6 +45,7 @@ pub(crate) struct Service {
     broker: watch::Sender<Option<mpsc::Sender<signaling::Request>>>,
     uploads: Arc<Semaphore>,
     downloads: Semaphore,
+    policy: Arc<policy::Policy>,
 }
 
 pub(crate) fn setup<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
@@ -59,8 +67,10 @@ pub(crate) fn setup<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Resu
         broker: watch::channel(None).0,
         uploads: Arc::new(Semaphore::new(MAX_UPLOADS)),
         downloads: Semaphore::new(1),
+        policy: policy::Policy::new(app.path().app_config_dir()?.join("update-sharing.json")),
     });
     app.manage(service.clone());
+    tauri::async_runtime::spawn(service.policy.clone().run());
     tauri::async_runtime::spawn(android::run(service));
     tauri::async_runtime::spawn(async move {
         if let Err(error) = cache.restore().await {

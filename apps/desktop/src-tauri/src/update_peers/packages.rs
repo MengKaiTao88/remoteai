@@ -96,14 +96,39 @@ pub(super) async fn download_peer(
     artifact: &Artifact,
     progress: impl FnMut(usize, Option<u64>),
 ) -> Result<Arc<Vec<u8>>> {
-    let leases = service.find_peers(&artifact.id).await?;
-    let bytes = tokio::time::timeout(
-        TRANSFER_LIFETIME,
-        parallel::download(&leases, &artifact.id, progress),
-    )
+    if !service.policy.allows_download() {
+        return Err(Error::Unavailable);
+    }
+    let scope = service.policy.preferences().scope;
+    let leases = match service.find_peers(&artifact.id).await {
+        Ok(leases) => leases,
+        Err(_) if service.cache.has_partial(&artifact.id).await => Vec::new(),
+        Err(error) => return Err(error),
+    };
+    let transfer = async {
+        if leases.iter().all(|lease| lease.protocol >= 2) {
+            super::block_download::download(&leases, artifact, service, progress).await
+        } else {
+            parallel::download(&leases, &artifact.id, progress).await
+        }
+    };
+    let bytes = tokio::time::timeout(TRANSFER_LIFETIME, async {
+        tokio::select! {
+            result = transfer => result,
+            _ = service.policy.scope_changed(scope) => Err(Error::Unavailable),
+        }
+    })
     .await
     .map_err(|_| Error::Unavailable)??;
-    verify(service, artifact, bytes).await
+    match verify(service, artifact, bytes).await {
+        Ok(bytes) => Ok(bytes),
+        Err(error) => {
+            for lease in &leases {
+                lease.failed();
+            }
+            Err(error)
+        }
+    }
 }
 
 async fn verify(service: &Service, artifact: &Artifact, bytes: Vec<u8>) -> Result<Arc<Vec<u8>>> {

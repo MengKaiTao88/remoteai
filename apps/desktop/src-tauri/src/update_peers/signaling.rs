@@ -10,19 +10,35 @@ use serde_json::{json, Value};
 use tauri::{Manager, Runtime};
 use tokio::sync::{mpsc, oneshot};
 
-use super::{
-    cache, transfer, Error, Result, Service, MAX_DOWNLOAD_PEERS, MAX_UPLOADS, TRANSFER_LIFETIME,
-};
+use super::{cache, transfer, Error, Result, Service, MAX_DOWNLOAD_PEERS, TRANSFER_LIFETIME};
 
 const LOOKUP_TIMEOUT: Duration = Duration::from_secs(6);
 const ADVERTISE_INTERVAL: Duration = Duration::from_secs(20);
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GrantedConfig {
+    #[serde(flatten)]
+    network: Config,
+    #[serde(default)]
+    package_protocol: u8,
+    #[serde(default)]
+    same_account: bool,
+}
+
+impl std::ops::Deref for GrantedConfig {
+    type Target = Config;
+    fn deref(&self) -> &Config {
+        &self.network
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Offer {
     request_id: Option<String>,
     artifact: String,
-    config: Config,
+    config: GrantedConfig,
 }
 
 #[derive(Deserialize)]
@@ -30,7 +46,7 @@ pub(crate) struct Offer {
 pub(crate) struct Offers {
     request_id: String,
     artifact: String,
-    configs: Vec<Config>,
+    configs: Vec<GrantedConfig>,
 }
 
 pub(super) enum Request {
@@ -39,6 +55,7 @@ pub(super) enum Request {
         reply: oneshot::Sender<Result<Vec<Lease>>>,
     },
     Finish(String),
+    Failed(String),
 }
 
 struct Pending {
@@ -52,16 +69,53 @@ pub(super) struct Lease {
     pub connection: Arc<Connection>,
     id: String,
     sender: mpsc::Sender<Request>,
+    pub protocol: u8,
 }
 
 impl Lease {
+    #[cfg(test)]
     pub(super) fn new(config: Config, sender: mpsc::Sender<Request>) -> Result<Self> {
+        Self::granted(
+            GrantedConfig {
+                network: config,
+                package_protocol: 0,
+                same_account: true,
+            },
+            sender,
+        )
+    }
+
+    #[cfg(test)]
+    pub(super) fn binary(config: Config, sender: mpsc::Sender<Request>) -> Result<Self> {
+        Self::granted(
+            GrantedConfig {
+                network: config,
+                package_protocol: 2,
+                same_account: true,
+            },
+            sender,
+        )
+    }
+
+    fn granted(config: GrantedConfig, sender: mpsc::Sender<Request>) -> Result<Self> {
         let id = config.session_id.clone();
+        let protocol = config.package_protocol;
+        let connection = if protocol >= 2 {
+            Connection::start_with_packets(config.network)?
+        } else {
+            Connection::start(config.network)?
+        };
         Ok(Self {
-            connection: Connection::start(config)?,
+            connection,
             id,
             sender,
+            protocol,
         })
+    }
+
+    pub fn failed(&self) {
+        self.connection.close();
+        let _queued = self.sender.try_send(Request::Failed(self.id.clone()));
     }
 }
 
@@ -75,6 +129,9 @@ impl Drop for Lease {
 
 impl Service {
     pub(super) async fn find_peers(&self, artifact: &str) -> Result<Vec<Lease>> {
+        if !self.policy.allows_download() {
+            return Err(Error::Unavailable);
+        }
         let sender = self.broker.borrow().clone().ok_or(Error::Unavailable)?;
         let (reply, response) = oneshot::channel();
         sender
@@ -99,14 +156,15 @@ pub(crate) struct Bridge {
     workers: HashMap<String, tauri::async_runtime::JoinHandle<()>>,
     last_advertise: Option<Instant>,
     last_artifacts: Vec<String>,
+    last_scope: super::policy::SharingScope,
 }
 
 impl Bridge {
     pub fn new<R: Runtime>(app: &tauri::AppHandle<R>) -> Self {
         let service = app.state::<Arc<Service>>().inner().clone();
         let (sender, receiver) = mpsc::channel(32);
-        service.broker.send_replace(Some(sender.clone()));
         Self {
+            last_scope: service.policy.preferences().scope,
             service,
             sender,
             receiver,
@@ -120,6 +178,12 @@ impl Bridge {
 
     pub fn responses(&mut self) -> Vec<Value> {
         let mut messages = Vec::new();
+        let scope = self.service.policy.preferences().scope;
+        if scope != self.last_scope {
+            self.shutdown();
+            self.last_scope = scope;
+            self.last_advertise = None;
+        }
         self.pending.retain(|_, pending| {
             !pending.reply.is_closed() && pending.started.elapsed() < LOOKUP_TIMEOUT
         });
@@ -136,20 +200,30 @@ impl Bridge {
                 messages.push(message);
             }
         }
-        let artifacts: Vec<_> = self
+        let mut artifacts: Vec<_> = self
             .service
             .cache
             .artifacts()
             .into_iter()
             .map(|artifact| artifact.id)
             .collect();
+        if !self.service.policy.allows_upload() {
+            artifacts.clear();
+        }
+        if self.service.policy.preferences().scope == super::policy::SharingScope::Off {
+            self.shutdown();
+        } else if self.service.broker.borrow().is_none() {
+            self.connected();
+        }
         if artifacts != self.last_artifacts
             || self
                 .last_advertise
                 .is_none_or(|last| last.elapsed() >= ADVERTISE_INTERVAL)
         {
             messages.push(
-                json!({"type":"update-peer-advertise", "artifacts":artifacts, "ranges":true}),
+                json!({"type":"update-peer-advertise", "artifacts":artifacts, "ranges":true,
+                    "packageProtocol":2,
+                    "ownOnly":self.service.policy.preferences().scope == super::policy::SharingScope::Own}),
             );
             self.last_artifacts = artifacts;
             self.last_advertise = Some(Instant::now());
@@ -162,7 +236,8 @@ impl Bridge {
             Request::Find { artifact, reply } if !reply.is_closed() && self.pending.is_empty() => {
                 let id = uuid::Uuid::new_v4().to_string();
                 let message = json!({"type":"update-peer-find", "requestId":id,
-                    "artifact":artifact, "maxPeers":MAX_DOWNLOAD_PEERS});
+                    "artifact":artifact, "maxPeers":MAX_DOWNLOAD_PEERS, "packageProtocol":2,
+                    "ownOnly":self.service.policy.preferences().scope == super::policy::SharingScope::Own});
                 self.pending.insert(
                     id,
                     Pending {
@@ -176,6 +251,10 @@ impl Bridge {
             Request::Finish(id) => {
                 self.cancel(&id);
                 Some(json!({"type":"update-peer-done", "sessionId":id}))
+            }
+            Request::Failed(id) => {
+                self.cancel(&id);
+                Some(json!({"type":"update-peer-done", "sessionId":id, "failed":true}))
             }
             _ => None,
         }
@@ -206,7 +285,9 @@ impl Bridge {
         let result = tauri::async_runtime::block_on(async { self.accept_many(&offers) });
         if result.is_err() {
             for config in offers.configs {
-                let _queued = self.sender.try_send(Request::Finish(config.session_id));
+                let _queued = self
+                    .sender
+                    .try_send(Request::Finish(config.session_id.clone()));
             }
         }
     }
@@ -226,13 +307,18 @@ impl Bridge {
         let mut leases = Vec::new();
         for config in &offers.configs {
             config.validate()?;
+            if self.service.policy.preferences().scope == super::policy::SharingScope::Own
+                && !config.same_account
+            {
+                return Err(Error::Unavailable);
+            }
             if config.desktop
                 || !config.session_id.starts_with("update-")
                 || self.active.contains_key(&config.session_id)
             {
                 return Err(Error::Invalid);
             }
-            let lease = Lease::new(config.clone(), self.sender.clone())?;
+            let lease = Lease::granted(config.clone(), self.sender.clone())?;
             self.active
                 .insert(config.session_id.clone(), lease.connection.clone());
             leases.push(lease);
@@ -244,10 +330,14 @@ impl Bridge {
     }
 
     fn accept(&mut self, offer: Offer) -> Result<()> {
+        if self.service.policy.preferences().scope == super::policy::SharingScope::Own
+            && !offer.config.same_account
+        {
+            return Err(Error::Unavailable);
+        }
         if !cache::valid_id(&offer.artifact)
             || !offer.config.session_id.starts_with("update-")
             || self.active.contains_key(&offer.config.session_id)
-            || self.active.len() > MAX_UPLOADS
         {
             return Err(Error::Invalid);
         }
@@ -263,7 +353,7 @@ impl Bridge {
             return Err(Error::Invalid);
         }
         let id = offer.config.session_id.clone();
-        let lease = Lease::new(offer.config, self.sender.clone())?;
+        let lease = Lease::granted(offer.config, self.sender.clone())?;
         self.active.insert(id, lease.connection.clone());
         pending
             .reply
@@ -272,6 +362,9 @@ impl Bridge {
     }
 
     fn seed(&mut self, offer: Offer) -> Result<()> {
+        if !self.service.policy.allows_upload() {
+            return Err(Error::Unavailable);
+        }
         if !self
             .service
             .cache
@@ -288,10 +381,17 @@ impl Bridge {
             .try_acquire_owned()
             .map_err(|_| Error::Unavailable)?;
         let id = offer.config.session_id.clone();
-        let connection = Connection::start(offer.config)?;
+        let protocol = offer.config.package_protocol;
+        let connection = if protocol >= 2 {
+            Connection::start_with_packets(offer.config.network)?
+        } else {
+            Connection::start(offer.config.network)?
+        };
         self.active.insert(id.clone(), connection.clone());
         let cache = self.service.cache.clone();
         let sender = self.sender.clone();
+        let policy = self.service.policy.clone();
+        let scope = policy.preferences().scope;
         self.workers.insert(
             id.clone(),
             tauri::async_runtime::spawn(async move {
@@ -300,27 +400,63 @@ impl Bridge {
                     connection,
                     id,
                     sender,
+                    protocol,
                 };
                 // Failure is an expected fallback condition; never expose peer endpoints or grants in logs.
-                let _result = tokio::time::timeout(
-                    TRANSFER_LIFETIME,
-                    transfer::seed(&lease.connection, &cache, &offer.artifact),
-                )
-                .await;
+                let transfer = async {
+                    if protocol >= 2 {
+                        let snapshot = cache.snapshot(&offer.artifact)?;
+                        super::block_protocol::seed(
+                            &lease.connection,
+                            snapshot,
+                            &offer.artifact,
+                            &policy,
+                        )
+                        .await
+                    } else {
+                        transfer::seed_with_policy(
+                            &lease.connection,
+                            &cache,
+                            &offer.artifact,
+                            &policy,
+                        )
+                        .await
+                    }
+                };
+                let _result = tokio::select! {
+                    result = tokio::time::timeout(TRANSFER_LIFETIME, transfer) => result,
+                    _ = policy.scope_changed(scope) => Ok(Err(Error::Unavailable)),
+                };
             }),
         );
         Ok(())
+    }
+
+    pub fn connected(&mut self) {
+        self.service.broker.send_replace(Some(self.sender.clone()));
+        self.last_advertise = None;
+    }
+
+    pub fn disconnected(&mut self) {
+        self.service.broker.send_replace(None);
+        self.pending.clear();
+        // Native transfers keep their original short-lived grants through signaling reconnects.
+    }
+
+    pub fn shutdown(&mut self) {
+        self.disconnected();
+        for connection in self.active.values() {
+            connection.close();
+        }
+        for (_, worker) in self.workers.drain() {
+            worker.abort();
+        }
+        self.active.clear();
     }
 }
 
 impl Drop for Bridge {
     fn drop(&mut self) {
-        self.service.broker.send_replace(None);
-        for connection in self.active.values() {
-            connection.close();
-        }
-        for worker in self.workers.values() {
-            worker.abort();
-        }
+        self.shutdown();
     }
 }

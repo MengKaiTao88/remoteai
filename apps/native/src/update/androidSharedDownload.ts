@@ -1,8 +1,9 @@
-import { NativeModules } from 'react-native';
+import { DeviceEventEmitter, NativeModules } from 'react-native';
 import type { AppRelease } from './appUpdate';
 import { findUpdatePeers } from '../../../../shared/app-update/peerLookup';
 
 interface UpdateModule {
+  sharingProtocol?: number;
   canAutoDownload(): Promise<boolean>;
   updatePath(version: string): Promise<string>;
   artifactId(metadata: string): Promise<string>;
@@ -28,18 +29,21 @@ export async function downloadSharedAndroidUpdate(options: {
   if (!native?.downloadPeers || !asset?.sha256) return null;
   const metadata = { version: options.release.version, url: asset.downloadUrl, size: asset.size, sha256: asset.sha256 };
   let lease: Awaited<ReturnType<typeof findUpdatePeers>> | undefined;
+  const listener = DeviceEventEmitter?.addListener('updateSharingFailure', (sessionId: unknown) => {
+    if (typeof sessionId === 'string') lease?.failed(sessionId);
+  });
   try {
     const { loadSession } = await import('../api/client');
     const session = await loadSession();
-    if (!session) return null;
     const artifact = await native.artifactId(JSON.stringify(metadata));
-    lease = await findUpdatePeers(session, artifact);
+    if (session) lease = await findUpdatePeers(session, artifact, { protocol: native.sharingProtocol === 2 ? 2 : 0 })
+      .catch(() => undefined);
     return await native.downloadPeers(JSON.stringify({ ...metadata, path: options.path,
-      wifiOnly: options.wifiOnly, artifact, configs: lease.configs }));
+      wifiOnly: options.wifiOnly, artifact, configs: lease?.configs ?? [] }));
   } catch {
     // Peer lookup, transport, file and integrity failures all return to the original GitHub URL.
     return null;
-  } finally { lease?.close(); }
+  } finally { listener?.remove(); lease?.close(); }
 }
 
 export function downloadOfficialAndroidUpdate(options: {

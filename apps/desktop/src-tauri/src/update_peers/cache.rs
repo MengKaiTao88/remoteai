@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     io::Write,
     path::PathBuf,
@@ -15,6 +16,7 @@ use super::{dependency, Error, Result, MAX_PACKAGE_BYTES};
 
 const MAX_CACHED_PACKAGES: usize = 2;
 const MAX_CACHED_ARTIFACTS: usize = 6;
+const MAX_CACHE_BYTES: usize = 1024 * 1024 * 1024;
 const CACHE_LIFETIME: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 const MAX_INDEX_BYTES: u64 = 32 * 1024;
 
@@ -28,7 +30,7 @@ pub(super) struct Artifact {
     signature: String,
     version: String,
     target: String,
-    url: String,
+    pub url: String,
     pub size: usize,
     saved_at: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -165,6 +167,7 @@ impl Artifact {
 /// Reserve independent slots so GUI setup cannot evict desktop or Android updates.
 fn retain_packages(records: &mut Vec<Artifact>) {
     let (mut desktop, mut android, mut codex, mut driver) = (0, 0, 0, 0);
+    let mut bytes = 0usize;
     records.retain(|record| {
         let (count, limit) = match record.dependency {
             Some(dependency::Kind::Codex) => (&mut codex, 2),
@@ -172,8 +175,12 @@ fn retain_packages(records: &mut Vec<Artifact>) {
             None if record.target == "android" => (&mut android, 1),
             _ => (&mut desktop, MAX_CACHED_PACKAGES),
         };
+        if *count >= limit || bytes.saturating_add(record.size) > MAX_CACHE_BYTES {
+            return false;
+        }
         *count += 1;
-        *count <= limit
+        bytes += record.size;
+        true
     });
 }
 
@@ -195,16 +202,33 @@ pub(super) struct Cache {
     root: PathBuf,
     pub key: String,
     index: watch::Sender<Vec<Artifact>>,
+    snapshots: watch::Sender<HashMap<String, Arc<super::snapshot::Snapshot>>>,
     // Serialize complete disk operations, including restore, eviction and publication.
     gate: Mutex<()>,
 }
 
 impl Cache {
+    pub async fn has_partial(&self, id: &str) -> bool {
+        if !valid_id(id) {
+            return false;
+        }
+        let path = self.partial_directory().join(format!("{id}.json"));
+        tokio::task::spawn_blocking(move || {
+            fs::symlink_metadata(path)
+                .is_ok_and(|metadata| metadata.is_file() && metadata.len() <= 128 * 1024)
+        })
+        .await
+        .unwrap_or(false)
+    }
+    pub fn partial_directory(&self) -> PathBuf {
+        self.root.join("partial")
+    }
     pub fn new(root: PathBuf, key: String) -> Self {
         Self {
             root,
             key,
             index: watch::channel(Vec::new()).0,
+            snapshots: watch::channel(HashMap::new()).0,
             gate: Mutex::new(()),
         }
     }
@@ -233,7 +257,7 @@ impl Cache {
             let mut records: Vec<_> = records
                 .into_iter()
                 .filter(|record| record.valid())
-                .filter(|record| cache.read_verified(record).is_ok())
+                .filter(|record| cache.restore_snapshot(record).is_ok())
                 .take(MAX_CACHED_ARTIFACTS)
                 .collect();
             retain_packages(&mut records);
@@ -269,6 +293,31 @@ impl Cache {
         .map_err(|_| Error::Unavailable)?
     }
 
+    pub fn snapshot(&self, id: &str) -> Result<Arc<super::snapshot::Snapshot>> {
+        if !self.artifacts().iter().any(|record| record.id == id) {
+            return Err(Error::Unavailable);
+        }
+        self.snapshots
+            .borrow()
+            .get(id)
+            .cloned()
+            .ok_or(Error::Unavailable)
+    }
+
+    fn restore_snapshot(&self, artifact: &Artifact) -> Result<()> {
+        let bytes = self.read_verified(artifact)?;
+        self.publish_snapshot(artifact, &bytes)
+    }
+
+    fn publish_snapshot(&self, artifact: &Artifact, bytes: &[u8]) -> Result<()> {
+        let snapshot =
+            super::snapshot::Snapshot::new(&self.root.join(format!("{}.pkg", artifact.id)), bytes)?;
+        self.snapshots.send_modify(|records| {
+            records.insert(artifact.id.clone(), snapshot);
+        });
+        Ok(())
+    }
+
     fn read_verified(&self, artifact: &Artifact) -> Result<Vec<u8>> {
         if !artifact.valid() {
             return Err(Error::Invalid);
@@ -298,6 +347,7 @@ impl Cache {
             // Evict older releases before publishing a replacement; temporary writes are never advertised.
             cache.remove_unused(&records)?;
             cache.atomic_write(&format!("{}.pkg", artifact.id), &bytes)?;
+            cache.publish_snapshot(&artifact, &bytes)?;
             let index = serde_json::to_vec(&records).map_err(|_| Error::Invalid)?;
             cache.atomic_write("index.json", &index)?;
             cache.index.send_replace(records);
@@ -318,6 +368,9 @@ impl Cache {
     }
 
     fn remove_unused(&self, records: &[Artifact]) -> Result<()> {
+        self.snapshots.send_modify(|snapshots| {
+            snapshots.retain(|id, _| records.iter().any(|record| &record.id == id));
+        });
         for entry in fs::read_dir(&self.root)? {
             let entry = entry?;
             let name = entry.file_name();

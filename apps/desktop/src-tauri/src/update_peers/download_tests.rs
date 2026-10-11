@@ -4,6 +4,8 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::{mpsc, watch, Semaphore};
 
+#[path = "block_download_tests.rs"]
+mod block_tests;
 #[path = "parallel_tests.rs"]
 mod parallel_tests;
 #[path = "peer_download_tests.rs"]
@@ -45,9 +47,8 @@ impl Origin {
                     count.fetch_add(1, Ordering::Relaxed);
                     bytes.as_slice()
                 };
-                request
-                    .respond(tiny_http::Response::from_data(body))
-                    .unwrap();
+                let response = range_response(&request, body);
+                request.respond(response).unwrap();
             }
         });
         Self {
@@ -84,6 +85,37 @@ impl Origin {
     }
 }
 
+fn range_response(
+    request: &tiny_http::Request,
+    bytes: &[u8],
+) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
+    let range = request
+        .headers()
+        .iter()
+        .find(|header| header.field.equiv("Range"));
+    if let Some(header) = range {
+        let (start, end) = header
+            .value
+            .as_str()
+            .strip_prefix("bytes=")
+            .unwrap()
+            .split_once('-')
+            .unwrap();
+        let start = start.parse::<usize>().unwrap();
+        let end = end.parse::<usize>().unwrap();
+        return tiny_http::Response::from_data(bytes[start..=end].to_vec())
+            .with_status_code(206)
+            .with_header(
+                tiny_http::Header::from_bytes(
+                    "Content-Range",
+                    format!("bytes {start}-{end}/{}", bytes.len()),
+                )
+                .unwrap(),
+            );
+    }
+    tiny_http::Response::from_data(bytes.to_vec())
+}
+
 impl Drop for Origin {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
@@ -97,6 +129,7 @@ fn service(path: &std::path::Path, key: &str) -> Arc<Service> {
         broker: watch::channel(None).0,
         uploads: Arc::new(Semaphore::new(2)),
         downloads: Semaphore::new(1),
+        policy: super::super::policy::Policy::testing(),
     })
 }
 

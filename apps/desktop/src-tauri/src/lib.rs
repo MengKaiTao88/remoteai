@@ -284,6 +284,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             update_peers::commands::download_shared_app_update,
+            update_peers::policy::update_sharing_status,
+            update_peers::policy::set_update_sharing_preferences,
             update_peers::commands::install_shared_app_update,
             remote_desktop::remote_desktop_open,
             remote_desktop::remote_desktop_renew,

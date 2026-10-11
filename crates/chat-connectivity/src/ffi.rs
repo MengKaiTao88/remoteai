@@ -70,6 +70,8 @@ enum Operation {
         config: Config,
         #[serde(default)]
         bulk: bool,
+        #[serde(default)]
+        packets: bool,
     },
     Send {
         id: String,
@@ -108,7 +110,11 @@ fn dispatch(request: Request) -> Result<Value> {
     }
     let hub = hub()?;
     match request.operation {
-        Operation::Open { config, bulk } => open(hub, request.owner, (config, bulk)),
+        Operation::Open {
+            config,
+            bulk,
+            packets,
+        } => open(hub, request.owner, (config, bulk, packets)),
         Operation::Close { id } => {
             if let Some(entry) = hub.handles.lock().map_err(|_| Error::Closed)?.remove(&id) {
                 entry.connection.close();
@@ -152,8 +158,11 @@ fn dispatch(request: Request) -> Result<Value> {
     }
 }
 
-fn open(hub: &Hub, owner: String, input: (Config, bool)) -> Result<Value> {
-    let (config, bulk) = input;
+fn open(hub: &Hub, owner: String, input: (Config, bool, bool)) -> Result<Value> {
+    let (config, bulk, packets) = input;
+    if packets && (bulk || !config.session_id.starts_with("update-")) {
+        return Err(Error::Invalid);
+    }
     let mut handles = hub.handles.lock().map_err(|_| Error::Closed)?;
     handles.retain(|_, entry| !entry.connection.is_closed());
     if handles.len() >= MAX_HANDLES
@@ -169,7 +178,11 @@ fn open(hub: &Hub, owner: String, input: (Config, bool)) -> Result<Value> {
     let entry = OwnedConnection {
         owner,
         session: config.session_id.clone(),
-        connection: Connection::start_with_bulk(config, bulk)?,
+        connection: if packets {
+            Connection::start_with_packets(config)?
+        } else {
+            Connection::start_with_bulk(config, bulk)?
+        },
     };
     handles.insert(id.clone(), entry);
     Ok(json!(id))
@@ -217,6 +230,17 @@ pub(crate) fn receive_bulk(owner: &str, id: &str) -> Result<Option<Vec<u8>>> {
     let connection = owned_connection(hub, id, owner)?;
     Ok(hub.runtime.block_on(async {
         tokio::time::timeout(Duration::from_millis(250), connection.receive_bulk())
+            .await
+            .unwrap_or_else(|_| Some(Vec::new()))
+    }))
+}
+
+#[cfg(target_os = "android")]
+pub(crate) fn receive_packet(owner: &str, id: &str) -> Result<Option<Vec<u8>>> {
+    let hub = hub()?;
+    let connection = owned_connection(hub, id, owner)?;
+    Ok(hub.runtime.block_on(async {
+        tokio::time::timeout(Duration::from_millis(250), connection.receive_packet())
             .await
             .unwrap_or_else(|_| Some(Vec::new()))
     }))

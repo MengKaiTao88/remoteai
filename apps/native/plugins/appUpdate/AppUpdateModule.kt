@@ -17,6 +17,7 @@ class AppUpdateModule(private val context: ReactApplicationContext) : ReactConte
   private val downloading = AtomicBoolean(false)
   private val files = UpdateFiles(context)
   override fun getName() = "AppUpdate"
+  override fun getConstants(): MutableMap<String, Any> = hashMapOf("sharingProtocol" to 2)
 
   @ReactMethod
   fun canAutoDownload(promise: Promise) = task(promise) { files.wifiAvailable() }
@@ -32,7 +33,11 @@ class AppUpdateModule(private val context: ReactApplicationContext) : ReactConte
 
   @ReactMethod
   fun downloadPeers(options: String, promise: Promise) = download(promise) {
-    UpdatePeerDownload(files, JSONObject(options)).download()
+    val input = JSONObject(options)
+    val configs = input.getJSONArray("configs")
+    if ((0 until configs.length()).all { configs.getJSONObject(it).optInt("packageProtocol") >= 2 }) {
+      UpdateBlockDownload(context, files, input).download()
+    } else { UpdatePeerDownload(files, input).download() }
   }
 
   @ReactMethod

@@ -3,8 +3,9 @@ import { downloadSharedAndroidUpdate, downloadOfficialAndroidUpdate } from './an
 import type { AppRelease } from './appUpdate';
 
 const state = vi.hoisted(() => ({ artifact: vi.fn(), peers: vi.fn(), official: vi.fn(),
-  find: vi.fn(), close: vi.fn(), load: vi.fn(), profile: vi.fn() }));
-vi.mock('react-native', () => ({ NativeModules: { AppUpdate: {
+  find: vi.fn(), close: vi.fn(), load: vi.fn(), profile: vi.fn(),
+  listen: vi.fn(), remove: vi.fn(), failed: vi.fn() }));
+vi.mock('react-native', () => ({ DeviceEventEmitter: { addListener: state.listen }, NativeModules: { AppUpdate: {
   artifactId: state.artifact, downloadPeers: state.peers, downloadOfficial: state.official,
 } } }));
 vi.mock('../api/client', () => ({ loadSession: state.load, fetchUserProfile: state.profile }));
@@ -18,7 +19,9 @@ beforeEach(() => {
   state.load.mockResolvedValue({ baseUrl: 'https://example.test', accessToken: 'secret' });
   state.profile.mockResolvedValue({});
   state.artifact.mockResolvedValue('b'.repeat(64));
-  state.find.mockResolvedValue({ configs: [{ sessionId: 'one' }, { sessionId: 'two' }], close: state.close });
+  state.find.mockResolvedValue({ configs: [{ sessionId: 'one' }, { sessionId: 'two' }], close: state.close,
+    failed: state.failed });
+  state.listen.mockReturnValue({ remove: state.remove });
   state.peers.mockResolvedValue('/update.apk');
 });
 
@@ -29,6 +32,7 @@ it('passes all independent sources and the Wi-Fi policy to the native downloader
   expect(options.sha256).toBe(release.androidAsset?.sha256);
   expect(options.wifiOnly).toBe(true);
   expect(state.close).toHaveBeenCalledOnce();
+  expect(state.remove).toHaveBeenCalledOnce();
 });
 
 it.each(['unavailable', 'tampered', 'disconnected'])('allows GitHub fallback after %s', async failure => {

@@ -34,7 +34,10 @@ async fn exercise(behavior: &'static str) {
         assert!(reply
             .send(Lease::new(config, sender).map(|lease| vec![lease]))
             .is_ok());
-        assert!(matches!(receiver.recv().await, Some(Request::Finish(_))));
+        assert!(matches!(
+            receiver.recv().await,
+            Some(Request::Finish(_) | Request::Failed(_))
+        ));
     });
     let seed = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.unwrap();

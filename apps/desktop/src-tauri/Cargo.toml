@@ -132,6 +132,7 @@ windows = { version = "0.61", features = [
   "ApplicationModel_Core",
   "Foundation",
   "Management_Deployment",
+  "Networking_Connectivity",
   "Storage",
   "Storage_Search",
   "Win32_System_Com",

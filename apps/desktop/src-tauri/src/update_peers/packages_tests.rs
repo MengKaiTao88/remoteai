@@ -29,6 +29,7 @@ fn service(path: &Path) -> Arc<Service> {
         broker: watch::channel(None).0,
         uploads: Arc::new(Semaphore::new(2)),
         downloads: Semaphore::new(1),
+        policy: super::super::policy::Policy::testing(),
     })
 }
 

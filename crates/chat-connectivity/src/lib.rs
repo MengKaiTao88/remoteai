@@ -10,6 +10,7 @@ mod connection;
 mod diagnostics;
 mod error;
 mod ffi;
+mod framing;
 mod lease;
 mod media;
 mod network;

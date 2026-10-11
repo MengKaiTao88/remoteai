@@ -37,3 +37,22 @@ pub extern "system" fn Java_com_codexswitch_connectivity_NativeConnectivity_rece
         .map(|array| array.into_raw())
         .unwrap_or(std::ptr::null_mut())
 }
+
+/// Binary package data stays on native workers and is scoped to the requesting module.
+#[no_mangle]
+pub extern "system" fn Java_com_codexswitch_connectivity_NativeConnectivity_receivePacket(
+    mut env: JNIEnv,
+    _class: JClass,
+    owner: JString,
+    id: JString,
+) -> jbyteArray {
+    let result = (|| {
+        let owner = env.get_string(&owner).ok()?.to_string_lossy().into_owned();
+        let id = env.get_string(&id).ok()?.to_string_lossy().into_owned();
+        let record = crate::ffi::receive_packet(&owner, &id).ok()??;
+        env.byte_array_from_slice(&record).ok()
+    })();
+    result
+        .map(|array| array.into_raw())
+        .unwrap_or(std::ptr::null_mut())
+}

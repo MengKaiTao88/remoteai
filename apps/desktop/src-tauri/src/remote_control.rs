@@ -90,23 +90,28 @@ enum ServerMessage {
 }
 
 pub(crate) fn start<R: Runtime>(app: tauri::AppHandle<R>) {
-    thread::spawn(move || loop {
-        match crate::cloud::remote_control_config(&app) {
-            Ok(Some(config)) => {
-                if let Err(error) = run_connection(&app, config) {
-                    eprintln!("remote account control disconnected: {error}");
+    thread::spawn(move || {
+        let mut update_peers = crate::update_peers::Bridge::new(&app);
+        loop {
+            match crate::cloud::remote_control_config(&app) {
+                Ok(Some(config)) => {
+                    if let Err(error) = run_connection(&app, config, &mut update_peers) {
+                        eprintln!("remote account control disconnected: {error}");
+                    }
                 }
+                Ok(None) => update_peers.shutdown(),
+                Err(error) => eprintln!("remote account control is unavailable: {error}"),
             }
-            Ok(None) => {}
-            Err(error) => eprintln!("remote account control is unavailable: {error}"),
+            update_peers.disconnected();
+            thread::sleep(Duration::from_secs(3));
         }
-        thread::sleep(Duration::from_secs(3));
     });
 }
 
 fn run_connection<R: Runtime>(
     app: &tauri::AppHandle<R>,
     config: RemoteControlConfig,
+    update_peers: &mut crate::update_peers::Bridge,
 ) -> Result<(), String> {
     let (mut socket, _) = connect_remote_websocket(&config.websocket_url)?;
     set_read_timeout(socket.get_mut(), Some(Duration::from_secs(2)))?;
@@ -151,7 +156,7 @@ fn run_connection<R: Runtime>(
     let mut last_ping = Instant::now();
     let mut updates = app_update::UpdateBridge::new(app);
     let mut commands = crate::remote_command::host::CommandHost::new();
-    let mut update_peers = crate::update_peers::Bridge::new(app);
+    update_peers.connected();
     loop {
         for response in updates
             .responses()

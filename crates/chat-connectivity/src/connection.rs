@@ -15,15 +15,17 @@ use tokio::{
 use crate::{
     config::CHAT_PORT,
     diagnostics::{self, Snapshot, Stage},
+    framing::{self, Frame, MAX_FRAME},
     route::{self, RouteStatus},
     Config, Error, Result,
 };
 
 const QUEUE_MESSAGES: usize = 8;
-const MAX_FRAME: usize = 128 * 1024;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_MEDIA_VIEWS: usize = 2;
 
+#[path = "connection_stream.rs"]
+mod stream;
 #[cfg(test)]
 #[path = "connection_tests.rs"]
 mod tests;
@@ -34,6 +36,7 @@ struct EngineControls {
     engine: watch::Sender<Option<Weak<NativeCoreInstance>>>,
     route: watch::Sender<RouteStatus>,
     bulk: Option<Arc<crate::bulk::Bulk>>,
+    packets: Option<mpsc::Sender<Vec<u8>>>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -61,7 +64,7 @@ pub enum Event {
 
 /// One bounded, authenticated stream. Dropping it cancels the engine and its mapping leases.
 pub struct Connection {
-    sender: mpsc::Sender<String>,
+    sender: mpsc::Sender<Frame>,
     events: Mutex<mpsc::Receiver<Event>>,
     cancel: watch::Sender<bool>,
     deadline: watch::Sender<u64>,
@@ -70,6 +73,7 @@ pub struct Connection {
     desktop: bool,
     media: Mutex<HashMap<String, Arc<crate::MediaProxy>>>,
     bulk: Option<Arc<crate::bulk::Bulk>>,
+    packets: Option<Mutex<mpsc::Receiver<Vec<u8>>>>,
 }
 
 impl Connection {
@@ -79,6 +83,15 @@ impl Connection {
 
     /// Opt in only when the platform can consume raw file records without a JSON bridge.
     pub fn start_with_bulk(config: Config, binary_bulk: bool) -> Result<Arc<Self>> {
+        Self::start_stream(config, binary_bulk, false)
+    }
+
+    /// Negotiated update sessions carry bounded raw packets without Base64 or a JavaScript bridge.
+    pub fn start_with_packets(config: Config) -> Result<Arc<Self>> {
+        Self::start_stream(config, false, true)
+    }
+
+    fn start_stream(config: Config, binary_bulk: bool, binary_packets: bool) -> Result<Arc<Self>> {
         config.validate()?;
         let (sender, incoming) = mpsc::channel(QUEUE_MESSAGES);
         let (events, receiver) = mpsc::channel(QUEUE_MESSAGES);
@@ -92,6 +105,7 @@ impl Connection {
         let terminated = cancel.clone();
         let bulk = binary_bulk.then(crate::bulk::Bulk::new);
         let running_bulk = bulk.clone();
+        let (packet_tx, packet_rx) = mpsc::channel(QUEUE_MESSAGES);
         tokio::spawn(async move {
             // All exit paths close the event stream, including engine initialization errors.
             if serve(
@@ -104,6 +118,7 @@ impl Connection {
                     engine: engine_tx,
                     route: route_tx,
                     bulk: running_bulk,
+                    packets: binary_packets.then_some(packet_tx),
                 },
             )
             .await
@@ -127,6 +142,7 @@ impl Connection {
             desktop,
             media: Mutex::default(),
             bulk,
+            packets: binary_packets.then_some(Mutex::new(packet_rx)),
         }))
     }
 
@@ -137,7 +153,7 @@ impl Connection {
         if text.is_empty() || text.len() > MAX_FRAME {
             return Err(Error::Invalid);
         }
-        tokio::time::timeout(CONNECT_TIMEOUT, self.sender.send(text))
+        tokio::time::timeout(CONNECT_TIMEOUT, self.sender.send(Frame::Text(text)))
             .await
             .map_err(|_| Error::Unavailable)?
             .map_err(|_| Error::Closed)
@@ -145,6 +161,28 @@ impl Connection {
 
     pub async fn receive(&self) -> Option<Event> {
         self.events.lock().await.recv().await
+    }
+
+    /// Only peers which negotiated binary package frames may call this method.
+    pub async fn send_packet(&self, bytes: Vec<u8>) -> Result<()> {
+        if self.packets.is_none() || bytes.is_empty() || bytes.len() > MAX_FRAME || self.is_closed()
+        {
+            return Err(Error::Invalid);
+        }
+        tokio::time::timeout(CONNECT_TIMEOUT, self.sender.send(Frame::Binary(bytes)))
+            .await
+            .map_err(|_| Error::Unavailable)?
+            .map_err(|_| Error::Closed)
+    }
+
+    /// Packet buffers are bounded independently of control and route events.
+    pub async fn receive_packet(&self) -> Option<Vec<u8>> {
+        let mut canceled = self.cancel.subscribe();
+        let receiver = self.packets.as_ref()?;
+        tokio::select! {
+            _ = canceled.changed() => None,
+            packet = async { receiver.lock().await.recv().await } => packet,
+        }
     }
 
     pub fn close(&self) {
@@ -257,7 +295,7 @@ impl Drop for Connection {
 
 async fn serve(
     mut config: Config,
-    incoming: mpsc::Receiver<String>,
+    incoming: mpsc::Receiver<Frame>,
     events: &mpsc::Sender<Event>,
     controls: EngineControls,
 ) -> Result<()> {
@@ -267,6 +305,7 @@ async fn serve(
         engine: engine_tx,
         route: route_tx,
         bulk,
+        packets,
     } = controls;
     let network = tokio::select! {
         result = crate::network::prepare(&mut config) => result?,
@@ -284,7 +323,7 @@ async fn serve(
     let result = tokio::select! {
         _ = canceled.changed() => Ok(()),
         _ = crate::lease::expired(expiry) => Ok(()),
-        result = run(&engine, &config, (incoming, events.clone()), (bulk.as_deref(), route_tx.subscribe())) => result,
+        result = run(&engine, &config, (incoming, events.clone(), packets), (bulk.as_deref(), route_tx.subscribe())) => result,
         _ = diagnostics::monitor(&engine, config.remote_name(), events, punch_events) => Err(Error::Closed),
         _ = monitor_route(&engine, config.remote_name(), (&route_tx, &network)) => Err(Error::Closed),
         _ = network.changed() => Err(Error::Unavailable),
@@ -314,29 +353,37 @@ async fn monitor_route(
 async fn run(
     instance: &Arc<NativeCoreInstance>,
     config: &Config,
-    queues: (mpsc::Receiver<String>, mpsc::Sender<Event>),
+    queues: (
+        mpsc::Receiver<Frame>,
+        mpsc::Sender<Event>,
+        Option<mpsc::Sender<Vec<u8>>>,
+    ),
     files: (Option<&crate::bulk::Bulk>, watch::Receiver<RouteStatus>),
 ) -> Result<()> {
-    let (incoming, events) = queues;
+    let (incoming, events, packets) = queues;
     diagnostics::report(&events, Stage::EngineStart, Snapshot::default());
     instance.start().await.map_err(|_| Error::Unavailable)?;
     if let Some(bulk) = files.0 {
         tokio::select! {
-            result = chat_streams(instance, config, (incoming, events.clone()), files.1.clone()) => result,
+            result = chat_streams(instance, config, (incoming, events.clone(), packets), files.1.clone()) => result,
             result = bulk.run(instance, config.desktop, (&files.1, &events)) => result,
         }
     } else {
-        chat_streams(instance, config, (incoming, events), files.1).await
+        chat_streams(instance, config, (incoming, events, packets), files.1).await
     }
 }
 
 async fn chat_streams(
     instance: &Arc<NativeCoreInstance>,
     config: &Config,
-    queues: (mpsc::Receiver<String>, mpsc::Sender<Event>),
+    queues: (
+        mpsc::Receiver<Frame>,
+        mpsc::Sender<Event>,
+        Option<mpsc::Sender<Vec<u8>>>,
+    ),
     route: watch::Receiver<RouteStatus>,
 ) -> Result<()> {
-    let (mut incoming, events) = queues;
+    let (mut incoming, events, packets) = queues;
     loop {
         diagnostics::report(&events, Stage::StreamConnect, Snapshot::default());
         let connected = connect(instance, config).await;
@@ -352,7 +399,12 @@ async fn chat_streams(
         }
         events.send(Event::Open).await.map_err(|_| Error::Closed)?;
         diagnostics::report(&events, Stage::StreamOpen, Snapshot::default());
-        let _disconnected = pump(stream, (&mut incoming, &events), route.clone()).await;
+        let _disconnected = stream::pump(
+            stream,
+            (&mut incoming, &events, packets.as_ref()),
+            route.clone(),
+        )
+        .await;
         events
             .send(Event::Status {
                 route: RouteStatus::default(),
@@ -399,77 +451,4 @@ async fn connect(
         .data_plane_tcp_connect(config.remote_address(), CONNECT_TIMEOUT)
         .await
         .map_err(|_| Error::Unavailable)
-}
-
-async fn pump(
-    stream: DataPlaneTcpStream,
-    queues: (&mut mpsc::Receiver<String>, &mpsc::Sender<Event>),
-    route: watch::Receiver<RouteStatus>,
-) -> Result<()> {
-    let (read, write) = tokio::io::split(stream);
-    let (incoming, events) = queues;
-    // Each I/O future stays alive across health ticks; canceling a partial frame would corrupt framing.
-    tokio::try_join!(
-        read_frames(read, events),
-        write_frames(write, incoming),
-        monitor(route, events)
-    )?;
-    Ok(())
-}
-
-async fn monitor(
-    mut route: watch::Receiver<RouteStatus>,
-    events: &mpsc::Sender<Event>,
-) -> Result<()> {
-    let mut previous = RouteStatus::default();
-    loop {
-        let status = route.borrow_and_update().clone();
-        if !status.direct {
-            return Err(Error::Unavailable);
-        }
-        if status != previous {
-            events
-                .send(Event::Status {
-                    route: status.clone(),
-                })
-                .await
-                .map_err(|_| Error::Closed)?;
-            previous = status;
-        }
-        route.changed().await.map_err(|_| Error::Closed)?;
-    }
-}
-
-async fn read_frames(
-    mut read: impl AsyncReadExt + Unpin,
-    events: &mpsc::Sender<Event>,
-) -> Result<()> {
-    loop {
-        let text = read_frame(&mut read).await?;
-        events
-            .send(Event::Data { text })
-            .await
-            .map_err(|_| Error::Closed)?;
-    }
-}
-
-async fn write_frames(
-    mut write: impl AsyncWriteExt + Unpin,
-    incoming: &mut mpsc::Receiver<String>,
-) -> Result<()> {
-    while let Some(text) = incoming.recv().await {
-        write.write_u32(text.len() as u32).await?;
-        write.write_all(text.as_bytes()).await?;
-    }
-    Err(Error::Closed)
-}
-
-async fn read_frame(read: &mut (impl AsyncReadExt + Unpin)) -> Result<String> {
-    let length = read.read_u32().await? as usize;
-    if length == 0 || length > MAX_FRAME {
-        return Err(Error::Invalid);
-    }
-    let mut bytes = vec![0; length];
-    read.read_exact(&mut bytes).await?;
-    String::from_utf8(bytes).map_err(|_| Error::Invalid)
 }

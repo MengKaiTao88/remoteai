@@ -41,15 +41,31 @@ pub(super) async fn run(service: Arc<Service>) {
         tokio::time::sleep(IDLE_DELAY).await;
         // Stay out of active update downloads/uploads and do not fetch while signed out.
         if service.broker.borrow().is_none()
+            || !service.policy.preferences().prepare_android
+            || !service.policy.allows_upload()
             || service.downloads.available_permits() == 0
             || service.uploads.available_permits() < super::MAX_UPLOADS
         {
             continue;
         }
-        if let Err(error) = cache_latest(&service).await {
+        if let Err(error) = cache_while_allowed(&service).await {
             eprintln!("Android update sharing cache unavailable: {error}");
         }
         tokio::time::sleep(POLL_INTERVAL).await;
+    }
+}
+
+async fn cache_while_allowed(service: &Arc<Service>) -> Result<()> {
+    tokio::select! {
+        result = cache_latest(service) => result,
+        _ = async {
+            while service.broker.borrow().is_some()
+                && service.policy.preferences().prepare_android
+                && service.policy.allows_upload()
+            {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        } => Err(Error::Unavailable),
     }
 }
 

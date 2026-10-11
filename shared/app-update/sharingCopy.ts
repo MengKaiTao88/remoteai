@@ -1,0 +1,32 @@
+export const sharingCopy = {
+  zh: {
+    title: '安装包共享', description: '从在线电脑获取安装包，也可帮助其他设备下载。',
+    scope: '共享范围', off: '关闭', own: '我的设备', everyone: '所有用户',
+    privacy: '与其他用户共享时，连接双方可获知彼此的网络地址。仅共享公开安装包。',
+    speed: '上传速度上限', unmetered: '仅在非计费网络上传',
+    android: '提前准备 Android 安装包', androidHint: '关闭后，不会为手机提前下载安装包。',
+    network: '当前网络不符合共享条件，已暂停上传。',
+    received: '已接收', uploaded: '已提供', retries: '重新分配', failures: '未完成的连接',
+    stats: '本次打开应用后', load: '暂时无法读取共享设置。', save: '设置未能保存，请重试。',
+  },
+  en: {
+    title: 'Package sharing', description: 'Download packages from online computers and help your other devices download.',
+    scope: 'Share with', off: 'Off', own: 'My devices', everyone: 'Everyone',
+    privacy: 'When sharing with other users, connected devices can see each other’s network address. Only public packages are shared.',
+    speed: 'Upload speed limit', unmetered: 'Upload on unmetered networks only',
+    android: 'Prepare Android packages in advance', androidHint: 'When off, packages are downloaded only when needed on this computer.',
+    network: 'Uploads are paused on this network.',
+    received: 'Received', uploaded: 'Provided', retries: 'Reassigned', failures: 'Unfinished connections',
+    stats: 'Since opening the app', load: 'Sharing settings are temporarily unavailable.', save: 'Could not save settings. Please try again.',
+  },
+  ru: {
+    title: 'Обмен установочными пакетами', description: 'Скачивайте пакеты с компьютеров в сети и помогайте другим устройствам.',
+    scope: 'С кем делиться', off: 'Выключено', own: 'Мои устройства', everyone: 'Все пользователи',
+    privacy: 'При обмене с другими пользователями устройства видят сетевые адреса друг друга. Передаются только общедоступные пакеты.',
+    speed: 'Ограничение скорости отдачи', unmetered: 'Отдавать только в безлимитных сетях',
+    android: 'Заранее скачивать пакеты Android', androidHint: 'Если выключено, пакеты для телефона заранее не скачиваются.',
+    network: 'Отдача в этой сети приостановлена.',
+    received: 'Получено', uploaded: 'Передано', retries: 'Переназначено', failures: 'Незавершённые подключения',
+    stats: 'С момента запуска приложения', load: 'Настройки обмена временно недоступны.', save: 'Не удалось сохранить настройки. Повторите попытку.',
+  },
+} as const;

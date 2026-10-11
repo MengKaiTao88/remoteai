@@ -9,7 +9,7 @@ use super::{cache::Cache, Error, Result, MAX_DOWNLOAD_PEERS, MAX_PACKAGE_BYTES};
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(12);
 const IDLE_TIMEOUT: Duration = Duration::from_secs(8);
 const CHUNK_BYTES: usize = 64 * 1024;
-// Two concurrent uploads are each capped at 1 MiB/s (2 MiB/s per desktop).
+#[cfg(test)]
 const UPLOAD_BYTES_PER_SECOND: usize = 1024 * 1024;
 const RATE_WINDOW: Duration = Duration::from_secs(15);
 const MIN_DOWNLOAD_BYTES_PER_SECOND: usize = 64 * 1024;
@@ -243,10 +243,26 @@ fn decode_chunk(received: usize, size: usize, offset: usize, data: &str) -> Resu
     Ok(bytes)
 }
 
+#[cfg(test)]
 pub(super) async fn seed(
     connection: &Connection,
     cache: &Arc<Cache>,
     artifact: &str,
+) -> Result<()> {
+    seed_with_policy(
+        connection,
+        cache,
+        artifact,
+        &super::policy::Policy::testing(),
+    )
+    .await
+}
+
+pub(super) async fn seed_with_policy(
+    connection: &Connection,
+    cache: &Arc<Cache>,
+    artifact: &str,
+    policy: &super::policy::Policy,
 ) -> Result<()> {
     let first = match opened(connection).await? {
         Some(frame) => frame,
@@ -262,14 +278,14 @@ pub(super) async fn seed(
     if requested != artifact {
         return Err(Error::Invalid);
     }
-    let bytes = cache.read(artifact).await?;
+    let snapshot = cache.snapshot(artifact)?;
     let range = part
         .unwrap_or(Part { index: 0, count: 1 })
-        .range(bytes.len())?;
+        .range(snapshot.manifest.size)?;
     send(
         connection,
         &Frame::Header {
-            size: bytes.len(),
+            size: snapshot.manifest.size,
             offset: range.start,
             length: Some(range.len()),
         },
@@ -277,27 +293,31 @@ pub(super) async fn seed(
     .await?;
     // Keep consuming route events while sending, so the bounded event queue cannot stall the engine.
     tokio::try_join!(
-        upload(connection, &bytes[range.clone()], range.start),
+        upload(connection, &snapshot, range, policy),
         wait_for_receipt(connection)
     )?;
     Ok(())
 }
 
-async fn upload(connection: &Connection, bytes: &[u8], start: usize) -> Result<()> {
-    let started = tokio::time::Instant::now();
-    for (index, chunk) in bytes.chunks(CHUNK_BYTES).enumerate() {
-        let offset = index * CHUNK_BYTES;
-        send(
-            connection,
-            &Frame::Chunk {
-                offset: start + offset,
-                data: STANDARD.encode(chunk),
-            },
-        )
-        .await?;
-        let elapsed =
-            Duration::from_secs_f64((offset + chunk.len()) as f64 / UPLOAD_BYTES_PER_SECOND as f64);
-        tokio::time::sleep_until(started + elapsed).await;
+async fn upload(
+    connection: &Connection,
+    snapshot: &Arc<super::snapshot::Snapshot>,
+    range: std::ops::Range<usize>,
+    policy: &super::policy::Policy,
+) -> Result<()> {
+    use super::snapshot::BLOCK_BYTES;
+    let mut offset = range.start;
+    while offset < range.end {
+        let index = offset / BLOCK_BYTES;
+        let bytes = snapshot.block(index).await?;
+        let start = offset % BLOCK_BYTES;
+        let end = bytes.len().min(range.end - index * BLOCK_BYTES);
+        for chunk in bytes[start..end].chunks(CHUNK_BYTES) {
+            let data = STANDARD.encode(chunk);
+            policy.throttle(data.len()).await?;
+            send(connection, &Frame::Chunk { offset, data }).await?;
+            offset += chunk.len();
+        }
     }
     send(connection, &Frame::Complete).await
 }

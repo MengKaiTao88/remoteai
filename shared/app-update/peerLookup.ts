@@ -1,7 +1,9 @@
 export interface UpdatePeerConfig {
   sessionId: string; secret: string; desktop: false; expiresAt: number; servers: string[]; stunServers: string[];
+  packageProtocol?: number;
+  sameAccount?: boolean;
 }
-export interface UpdatePeerLease { configs: UpdatePeerConfig[]; close(): void }
+export interface UpdatePeerLease { configs: UpdatePeerConfig[]; close(): void; failed(sessionId: string): void }
 interface Session { baseUrl: string; accessToken: string }
 const LOOKUP_TIMEOUT_MS = 6_000;
 
@@ -17,7 +19,8 @@ function validConfig(value: unknown): value is UpdatePeerConfig {
 }
 
 /** Metadata remains on GitHub; the authenticated broker only grants isolated package connections. */
-export function findUpdatePeers(session: Session, artifact: string): Promise<UpdatePeerLease> {
+export function findUpdatePeers(session: Session, artifact: string,
+  options: { protocol?: number; ownOnly?: boolean } = {}): Promise<UpdatePeerLease> {
   return new Promise((resolve, reject) => {
     const url = new URL(session.baseUrl);
     if (!['https:', 'http:'].includes(url.protocol) || !/^[\da-f]{64}$/.test(artifact)) {
@@ -30,7 +33,14 @@ export function findUpdatePeers(session: Session, artifact: string): Promise<Upd
     const requestId = 'android-update';
     let settled = false;
     let requested = false;
-    const close = () => { clearTimeout(timer); socket.close(); };
+    let sessions: string[] = [];
+    const close = () => {
+      clearTimeout(timer);
+      if (socket.readyState === WebSocket.OPEN) {
+        sessions.forEach(sessionId => socket.send(JSON.stringify({ type: 'update-peer-done', sessionId })));
+      }
+      sessions = []; socket.close();
+    };
     const fail = () => {
       if (settled) return;
       settled = true; close(); reject(new Error('Update sharing unavailable'));
@@ -44,16 +54,25 @@ export function findUpdatePeers(session: Session, artifact: string): Promise<Upd
         const message = JSON.parse(event.data) as Record<string, unknown>;
         if (message.type === 'devices-snapshot' && !requested) {
           requested = true;
-          socket.send(JSON.stringify({ type: 'update-peer-find', requestId, artifact, maxPeers: 3 }));
+          socket.send(JSON.stringify({ type: 'update-peer-find', requestId, artifact, maxPeers: 3,
+            packageProtocol: options.protocol ?? 2, ownOnly: options.ownOnly !== false }));
         }
         if (message.requestId !== requestId) return;
         if (message.type === 'update-peer-unavailable') { fail(); return; }
         const configs = message.type === 'update-peer-offers' ? message.configs : [message.config];
         if (message.artifact !== artifact || !Array.isArray(configs) || !configs.length || configs.length > 3
-          || !configs.every(validConfig) || new Set(configs.map(config => config.sessionId)).size !== configs.length) {
+          || !configs.every(validConfig)
+          || (options.ownOnly !== false && configs.some(config => !config.sameAccount))
+          || new Set(configs.map(config => config.sessionId)).size !== configs.length) {
           fail(); return;
         }
-        settled = true; clearTimeout(timer); resolve({ configs, close });
+        sessions = configs.map(config => config.sessionId);
+        const failed = (sessionId: string) => {
+          if (sessions.includes(sessionId) && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'update-peer-done', sessionId, failed: true }));
+          }
+        };
+        settled = true; clearTimeout(timer); resolve({ configs, close, failed });
       } catch { fail(); }
     };
   });
