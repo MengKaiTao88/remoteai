@@ -1,4 +1,6 @@
 export const gitMessages: Record<string, string> = {
+  '调整 Git 抽屉宽度': 'Resize Git panel', '展开 Git': 'Expand Git', '还原 Git 宽度': 'Restore Git width',
+  '最小化 Git': 'Minimize Git', '恢复 Git': 'Restore Git',
   '返回提交记录': 'Back to history', '返回文件列表': 'Back to files', '变更文件 {count}': 'Changed files {count}',
   '这次提交没有文件变更。': 'This commit has no file changes.',
   '显示相对第一个父提交的变更': 'Changes compared with the first parent',

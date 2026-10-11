@@ -6,7 +6,7 @@
 .chat-tools-menu button:hover:not(:disabled) { background: #eef4f1; }
 .chat-tools-menu button:disabled { cursor: default; opacity: .4; }
 /* Resolve the portal theme before exposing it to the shared file review styles. */
-.chat-git-drawer .ant-drawer-content {
+.chat-git-drawer .ant-drawer-content, .chat-git-drawer .git-drawer-surface {
   --ink: var(--git-ink); --muted: var(--git-muted); --line: var(--git-border);
   --panel: var(--git-surface); --bg: var(--git-subtle);
   --green-soft: var(--git-accent-bg); --green-dark: var(--git-accent);

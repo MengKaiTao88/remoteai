@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useMemo } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GitDiff } from '../../../web/src/chat/git/GitDiff';
@@ -15,10 +15,15 @@ const patch = 'diff --git a/src/app.ts b/src/app.ts\n--- a/src/app.ts\n+++ b/src
 const detail = (path: string) => ({ kind: 'diff' as const, path, title: path });
 const button = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
 const panel = () => host.querySelector<HTMLElement>('aside[aria-label="文件更改详情"]');
-function render(path = 'src/app.ts') {
-  return act(async () => root.render(<DetailsWorkspace active selected="/project">
-    <GitDiff key={path} client={client} cwd="/project" detail={detail(path)} enabled desktop onBack={() => {}} />
-  </DetailsWorkspace>));
+function Fixture({ path, version }: { path: string; version?: string }) {
+  const selected = useMemo(() => detail(path), [path]);
+  return <DetailsWorkspace active selected="/project">
+    <GitDiff key={path} client={client} cwd="/project" detail={selected} version={version}
+      enabled desktop onBack={() => {}} />
+  </DetailsWorkspace>;
+}
+function render(path = 'src/app.ts', version?: string) {
+  return act(async () => root.render(<Fixture path={path} version={version} />));
 }
 
 beforeEach(() => {
@@ -75,4 +80,16 @@ it('keeps truncation notices and handles files without text changes', async () =
   await render('empty.txt');
   expect(panel()?.textContent).toContain('empty.txt');
   expect(panel()?.textContent).toContain('此文件没有可显示的文本差异。');
+});
+
+it('updates changed files without reopening a minimized or closed review', async () => {
+  await render('src/app.ts', 'v1');
+  await act(async () => button('最小化详情抽屉').click());
+  vi.mocked(client.diff).mockResolvedValue({ text: patch.replace('value = 2', 'value = 3'), truncated: false });
+  await render('src/app.ts', 'v2');
+  expect(panel()?.hidden).toBe(true);
+  expect(panel()?.textContent).toContain('value = 3');
+  await act(async () => button('关闭详情抽屉').click());
+  await render('src/app.ts', 'v3');
+  expect(panel()).toBeNull();
 });

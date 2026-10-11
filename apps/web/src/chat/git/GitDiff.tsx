@@ -1,4 +1,4 @@
-import { useContext, useEffect, useId, useMemo } from 'react';
+import { useContext, useEffect, useId, useMemo, useRef } from 'react';
 import { Spin } from 'antd';
 import { ArrowLeft } from 'lucide-react';
 import { parseDiff, type DiffFile } from '../../../../../shared/chat/diff';
@@ -10,6 +10,7 @@ import { t } from '../../i18n';
 type DiffDetail = Extract<GitDetail, { kind: 'diff' }>;
 interface Props {
   client: GitClient; cwd: string; detail: DiffDetail; enabled: boolean; desktop: boolean; onBack: () => void;
+  version?: string;
 }
 
 /** Use the file review workspace so Git and conversation changes share every diff interaction. */
@@ -25,17 +26,23 @@ function GitDiffPreview({ value, detail }: { value: GitDiffValue; detail: DiffDe
   }, [id, detail.path, detail.commit?.hash, value]);
   const open = panel?.open;
   const close = panel?.close;
+  const update = panel?.update;
   const setConversationChanges = panel?.setConversationChanges;
+  const latest = useRef(entry);
+  latest.current = entry;
+  useEffect(() => {
+    open?.(latest.current);
+    return close;
+  }, [id, detail, open, close]);
   useEffect(() => {
     setConversationChanges?.(entry);
-    open?.(entry);
-    return close;
-  }, [entry, open, close, setConversationChanges]);
+    update?.(entry);
+  }, [entry, update, setConversationChanges]);
   return null;
 }
 
-export function GitDiff({ client, cwd, detail, enabled, desktop, onBack }: Props) {
-  const diff = useGitDiff(client, cwd, detail, enabled);
+export function GitDiff({ client, cwd, detail, enabled, desktop, onBack, version }: Props) {
+  const diff = useGitDiff(client, cwd, detail, { enabled, version });
   return <>
     {!desktop && <button type="button" className="git-detail-title" onClick={onBack}
       aria-label={detail.commit ? t('返回文件列表') : undefined}>

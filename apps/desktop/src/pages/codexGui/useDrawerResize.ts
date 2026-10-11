@@ -6,14 +6,14 @@ const MIN_DRAWER_WIDTH = 300;
 const EDGE_GAP = 24;
 const KEYBOARD_STEP = 24;
 
-function initialWidth() {
+function initialWidth(key: string) {
   try {
-    const value = Number(localStorage.getItem(WIDTH_KEY));
-    return Number.isFinite(value) && value >= MIN_DRAWER_WIDTH ? value : DEFAULT_DRAWER_WIDTH;
-  } catch { return DEFAULT_DRAWER_WIDTH; }
+    const value = Number(localStorage.getItem(key));
+    return Number.isFinite(value) && value >= MIN_DRAWER_WIDTH ? value : null;
+  } catch { return null; }
 }
-function rememberWidth(width: number) {
-  try { localStorage.setItem(WIDTH_KEY, String(width)); }
+function rememberWidth(key: string, width: number | null) {
+  try { if (width === null) localStorage.removeItem(key); else localStorage.setItem(key, String(width)); }
   catch { /* Resizing remains available when preferences cannot be saved. */ }
 }
 
@@ -22,14 +22,17 @@ export function drawerBounds(available: number) {
   return { minimum: Math.min(MIN_DRAWER_WIDTH, maximum), maximum };
 }
 
-export function useDrawerResize(host: RefObject<HTMLDivElement>) {
+export function useDrawerResize(host: RefObject<HTMLDivElement>, {
+  storageKey = WIDTH_KEY, defaultWidth = DEFAULT_DRAWER_WIDTH, defaultRatio = 1,
+}: { storageKey?: string; defaultWidth?: number; defaultRatio?: number } = {}) {
   const [available, setAvailable] = useState(window.innerWidth);
-  const [preferred, setPreferred] = useState(initialWidth);
+  const [viewport, setViewport] = useState(window.innerWidth);
+  const [preferred, setPreferred] = useState(() => initialWidth(storageKey));
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ pointer: number; x: number; width: number }>();
   const { minimum, maximum } = drawerBounds(available);
   const clamp = (value: number) => Math.min(maximum, Math.max(minimum, Math.round(value)));
-  const width = clamp(preferred);
+  const width = clamp(preferred ?? Math.min(defaultWidth, viewport * defaultRatio));
   const cancel = useCallback(() => { drag.current = undefined; setDragging(false); }, []);
   useEffect(() => {
     if (!host.current) return;
@@ -38,6 +41,11 @@ export function useDrawerResize(host: RefObject<HTMLDivElement>) {
     observer.observe(host.current);
     return () => observer.disconnect();
   }, [host]);
+  useEffect(() => {
+    const update = () => setViewport(window.innerWidth);
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
   useEffect(() => {
     if (!dragging) return;
     const { cursor, userSelect } = document.body.style;
@@ -48,7 +56,7 @@ export function useDrawerResize(host: RefObject<HTMLDivElement>) {
   const finish = (event: PointerEvent<HTMLDivElement>) => {
     if (!drag.current || drag.current.pointer !== event.pointerId) return;
     const next = clamp(drag.current.width + drag.current.x - event.clientX);
-    setPreferred(next); rememberWidth(next); cancel();
+    setPreferred(next); rememberWidth(storageKey, next); cancel();
   };
   const keyboard = (event: KeyboardEvent<HTMLDivElement>) => {
     const values: Record<string, number> = { ArrowLeft: width + KEYBOARD_STEP, ArrowRight: width - KEYBOARD_STEP,
@@ -56,7 +64,7 @@ export function useDrawerResize(host: RefObject<HTMLDivElement>) {
     if (!(event.key in values)) return;
     event.preventDefault();
     const next = clamp(values[event.key]);
-    setPreferred(next); rememberWidth(next);
+    setPreferred(next); rememberWidth(storageKey, next);
   };
   return { width, available, minimum, maximum, dragging, cancel, handle: {
     onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
@@ -75,6 +83,6 @@ export function useDrawerResize(host: RefObject<HTMLDivElement>) {
     onPointerCancel: cancel,
     onLostPointerCapture: cancel,
     onKeyDown: keyboard,
-    onDoubleClick: () => { setPreferred(DEFAULT_DRAWER_WIDTH); rememberWidth(DEFAULT_DRAWER_WIDTH); },
+    onDoubleClick: () => { setPreferred(null); rememberWidth(storageKey, null); },
   } };
 }

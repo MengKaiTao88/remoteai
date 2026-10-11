@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { WorkspaceDrawerContext } from "../../../../../shared/chat/workspaceDrawer";
 import { FileDiff, FileSearch, Maximize2, Minimize2, Minus, PanelRightOpen, X } from "lucide-react";
 import { DetailsContext } from "./detailsContext";
 import { DiffDocument } from "./DiffDocument";
@@ -19,6 +20,9 @@ export function DetailsWorkspace({ selected, active, children, enabled = true, c
   const t = useDiffText();
   const fontSize = useGuiFontSize();
   const host = useRef<HTMLDivElement>(null);
+  const [drawerHost, setDrawerHost] = useState<HTMLDivElement | null>(null);
+  const [reservedWidth, reserve] = useState(0);
+  const workspace = useMemo(() => ({ host: drawerHost, active, reserve }), [drawerHost, active]);
   const closeButton = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const panel = useDetailsPanel({ selected, active, enabled });
@@ -31,8 +35,11 @@ export function DetailsWorkspace({ selected, active, children, enabled = true, c
   return <DetailsContext.Provider value={enabled ? panel.context : null}>
     <div ref={host} className={`${styles.host} ${className}`} data-dragging={resize.dragging || undefined}
       style={guiFontStyle(fontSize)}>
-      <div className={`${styles.conversation} ${contentClassName}`} style={{ marginRight: docked ? width : 0 }}>
-        {children}</div>
+      <WorkspaceDrawerContext.Provider value={workspace}>
+        <div className={`${styles.conversation} ${contentClassName}`}
+          style={{ marginRight: Math.max(docked ? width : 0, reservedWidth) }}>{children}</div>
+      </WorkspaceDrawerContext.Provider>
+      <div ref={setDrawerHost} className={styles.drawerHost} data-workspace-drawers />
       {(entry || preview) && <aside hidden={!visible} id={panelId} data-details-panel
         data-website={preview?.kind === "website" || undefined}
         aria-label={t(showingChanges ? "文件更改详情" : "预览详情")} className={styles.drawer}

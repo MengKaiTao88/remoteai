@@ -1,18 +1,16 @@
-import { Drawer, Spin } from 'antd';
-import { GitBranch, X } from 'lucide-react';
+import { Spin } from 'antd';
+import { useState } from 'react';
 import type { GitClient } from '../../../../../shared/remote-chat/gitTypes';
-import { parentGitDetail, useRemoteGit } from '../../../../../shared/remote-chat/useRemoteGit';
+import { parentGitDetail, useRemoteGit, type RemoteGit } from '../../../../../shared/remote-chat/useRemoteGit';
 import { useGitCommitFiles } from '../../../../../shared/remote-chat/useGitCommitFiles';
 import { GitHistory } from './GitHistory';
 import { GitChanges } from './GitChanges';
 import { GitCommitFiles } from './GitCommitFiles';
 import { GitToolbar } from './GitToolbar';
 import { GitDiff } from './GitDiff';
-import { useGitTheme } from './gitTheme';
+import { GitDrawer } from './GitDrawer';
 import { ChatDetailsWorkspace } from '../ChatDetailsWorkspace';
-import { useDesktopLayout } from '../../useDesktopLayout';
 import { t } from '../../i18n';
-import './gitDrawer.less';
 
 interface Props {
   client: GitClient; cwd: string; connected: boolean; active: boolean; deviceName?: string; onClose: () => void;
@@ -20,18 +18,18 @@ interface Props {
 }
 
 export function ChatGit(props: Props) {
-  const themeStyle = useGitTheme(Boolean(props.desktopDiffs));
-  const panel = useRemoteGit(props);
+  const [visible, setVisible] = useState(false);
+  const panel = useRemoteGit({ ...props, active: props.active && visible, refreshInterval: 1000 });
+  return <GitDrawer {...props} onVisibilityChange={setVisible}>
+    {active => <GitContent {...props} active={active} panel={panel} />}</GitDrawer>;
+}
+
+function GitContent(props: Props & { panel: RemoteGit }) {
+  const { panel } = props;
+  const diffPath = panel.detail?.kind === 'diff' ? panel.detail.path : undefined;
   const detail = props.desktopDiffs && panel.detail?.kind === 'diff' ? parentGitDetail(panel.detail) : panel.detail;
   const commitFiles = useGitCommitFiles(props.client, props.cwd, detail?.commit?.hash, props.active && props.connected);
-  const desktop = useDesktopLayout();
-  const title = desktop ? <span className="git-drawer-title"><GitBranch size={16} />Git</span> : 'Git';
-  return <Drawer open={props.active} title={title} placement={desktop ? 'right' : 'bottom'}
-    height="90%" width={desktop ? 'min(800px, 80vw)' : undefined} onClose={props.onClose} rootStyle={themeStyle}
-    rootClassName="chat-terminal-drawer chat-git-drawer" closable={{ 'aria-label': t('关闭 Git'), placement: 'end' }}
-    closeIcon={desktop ? <X size={17} /> : undefined}
-    extra={<span className="chat-terminal-device">{props.deviceName}</span>}>
-    <ChatDetailsWorkspace selected={props.cwd} active={props.active} enabled={Boolean(props.desktopDiffs)}>
+  return <ChatDetailsWorkspace selected={props.cwd} active={props.active} enabled={Boolean(props.desktopDiffs)}>
     <div className="chat-git">
       <GitToolbar panel={panel} connected={props.connected} />
       <div className="git-project" title={panel.changes?.root ?? props.cwd}>{panel.changes?.root ?? props.cwd}</div>
@@ -46,6 +44,8 @@ export function ChatGit(props: Props) {
       {panel.detail?.kind === 'diff' && <GitDiff
         key={JSON.stringify([props.cwd, panel.detail.path, panel.detail.commit?.hash])}
         client={props.client} cwd={props.cwd} detail={panel.detail} enabled={props.active && props.connected}
+        version={panel.detail.commit ? undefined
+          : panel.changes?.files.find(file => file.path === diffPath)?.version}
         desktop={Boolean(props.desktopDiffs)} onBack={panel.backDetail} />}
       {detail?.kind === 'files' && <GitCommitFiles commit={detail.commit} state={commitFiles}
         connected={props.connected} onBack={() => panel.setDetail(parentGitDetail(detail))}
@@ -63,6 +63,5 @@ export function ChatGit(props: Props) {
           : <GitHistory panel={panel} connected={props.connected} />}
       </>}
     </div>
-    </ChatDetailsWorkspace>
-  </Drawer>;
+    </ChatDetailsWorkspace>;
 }

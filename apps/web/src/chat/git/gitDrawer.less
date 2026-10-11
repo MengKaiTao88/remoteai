@@ -1,5 +1,13 @@
 @import '../../../../../shared/chat/drawerAppearance.less';
 
+.git-workspace-drawer { position: absolute; inset: 0; pointer-events: none !important;
+  > aside, > button { pointer-events: auto; }
+  .git-drawer-title { .drawer-tab(); color: var(--ink); background: var(--green-soft); }
+  .chat-terminal-device { margin-left: auto; max-width: min(240px, 24vw); }
+  [data-dragging='true'] > [role='separator']::after { background: var(--green); }
+}
+.git-drawer-body { flex: 1; min-height: 0; overflow: hidden; }
+
 .chat-git-drawer.ant-drawer-right {
   .ant-drawer-content-wrapper { box-shadow: none; }
   .ant-drawer-content { .drawer-surface(); }

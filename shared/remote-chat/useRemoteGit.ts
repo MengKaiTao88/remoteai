@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { GitAction, GitChange, GitChanges, GitClient, GitCommit, GitDiff, GitRepository,
+import type { GitAction, GitChange, GitChanges, GitClient, GitCommit, GitDiff, GitHistory, GitRepository,
   GitStrategy } from './gitTypes';
 import { toggleFiles } from './gitFiles';
 import { GIT_ACTION_NOTICE } from './gitActions';
 import { useGitFileList } from './useGitFileList';
+import { gitErrorText, useGitRequests } from './useGitRequests';
+import { readGitSnapshot, refreshGitHistory } from './gitSnapshot';
 
-const errorText = (error: unknown) => typeof error === 'string' ? error
-  : error instanceof Error ? error.message : '无法读取 Git 信息，请稍后重试。';
 export type GitDetail = { kind: 'files'; commit: GitCommit }
   | { kind: 'diff'; path: string; commit?: GitCommit; title: string };
 
@@ -14,50 +14,38 @@ export function parentGitDetail(detail: GitDetail | null): GitDetail | null {
   return detail?.kind === 'diff' && detail.commit ? { kind: 'files', commit: detail.commit } : null;
 }
 
-export function useRemoteGit({ client, cwd, active, connected }: {
-  client: GitClient; cwd: string; active: boolean; connected: boolean;
+export function useRemoteGit({ client, cwd, active, connected, refreshInterval }: {
+  client: GitClient; cwd: string; active: boolean; connected: boolean; refreshInterval?: number;
 }) {
   const scope = useMemo(() => ({}), [client, cwd]);
   const current = useRef(scope);
   current.current = scope;
-  const pending = useRef(new Set<object>());
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [repository, setRepository] = useState<GitRepository | null>(null);
   const [strategy, setStrategy] = useState<GitStrategy>('merge');
   const [changes, setChanges] = useState<GitChanges | null>(null);
   const fileList = useGitFileList(changes?.files ?? []);
-  const [commits, setCommits] = useState<GitCommit[]>([]);
-  const [hasMore, setHasMore] = useState(false);
+  const [{ commits, hasMore }, setHistory] = useState<GitHistory>({ commits: [], hasMore: false });
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [tab, setTab] = useState<'changes' | 'history'>('changes');
   const [detail, setDetail] = useState<GitDetail | null>(null);
   const load = useCallback(async () => {
-    const [next, history, repository] = await Promise.all([
-      client.changes(cwd), client.history(cwd, 0), client.repository(cwd)]);
+    const { changes: next, history, repository } = await readGitSnapshot(client, cwd);
     if (current.current !== scope) return;
-    setChanges(next); setCommits(history.commits); setHasMore(history.hasMore);
+    setChanges(next); setHistory(previous => refreshGitHistory(previous, history));
     setRepository(repository);
     setSelected(previous => Object.fromEntries(next.files.filter(file =>
       !file.conflict && previous[file.path] === file.version).map(file => [file.path, file.version])));
   }, [client, cwd, scope]);
-  const run = useCallback(async (action: () => Promise<void>) => {
-    if (pending.current.has(scope) || !connected || !cwd || !active) return;
-    pending.current.add(scope); setBusy(true); setError(''); setNotice('');
-    try { await action(); }
-    catch (error) { if (current.current === scope) setError(errorText(error)); }
-    finally { pending.current.delete(scope); if (current.current === scope) setBusy(false); }
-  }, [connected, cwd, active, scope]);
-  const refresh = useCallback(() => run(load), [run, load]);
+  const { busy, error, notice, setNotice, run, refresh } = useGitRequests({
+    scope, enabled: active && connected && !!cwd, load, refreshInterval,
+  });
   useEffect(() => {
     current.current = scope;
-    setChanges(null); setCommits([]); setSelected({}); setMessage(''); setDetail(null); setNotice(''); setError('');
+    setChanges(null); setHistory({ commits: [], hasMore: false }); setSelected({}); setMessage(''); setDetail(null);
     setRepository(null);
     return () => { current.current = {}; };
   }, [scope]);
-  useEffect(() => { void refresh(); }, [refresh]);
   const selectFiles = (files: GitChange[]) => {
     if (busy) return;
     setSelected(previous => toggleFiles(previous, files));
@@ -89,9 +77,9 @@ export function useRemoteGit({ client, cwd, active, connected }: {
   const more = () => run(async () => {
     const page = await client.history(cwd, commits.length);
     if (current.current !== scope) return;
-    setCommits(previous => [...previous,
-      ...page.commits.filter(commit => !previous.some(row => row.hash === commit.hash))]);
-    setHasMore(page.hasMore);
+    setHistory(previous => ({ commits: [...previous.commits,
+      ...page.commits.filter(commit => !previous.commits.some(row => row.hash === commit.hash))],
+    hasMore: page.hasMore }));
   });
   return { busy, error, notice, changes, commits, hasMore, selected, message, setMessage, tab, setTab,
     detail, setDetail, backDetail: () => setDetail(parentGitDetail), refresh, toggle, selectAll, selectFiles, commit, more,
@@ -102,16 +90,33 @@ export function useRemoteGit({ client, cwd, active, connected }: {
 
 export type RemoteGit = ReturnType<typeof useRemoteGit>;
 
-export function useGitDiff(client: GitClient, cwd: string, detail: GitDetail | null, enabled: boolean) {
+export function useGitDiff(client: GitClient, cwd: string, detail: GitDetail | null,
+  options: boolean | { enabled: boolean; version?: string }) {
+  const { enabled, version } = typeof options === 'boolean' ? { enabled: options, version: undefined } : options;
+  const path = detail?.kind === 'diff' ? detail.path : undefined;
+  const commit = detail?.commit?.hash;
   const [value, setValue] = useState<GitDiff | null>(null);
   const [error, setError] = useState('');
+  const requests = useMemo(() => new Map<string, Promise<GitDiff>>(), [client]);
+  useEffect(() => { setValue(null); setError(''); }, [client, cwd, path, commit]);
   useEffect(() => {
     let alive = true;
-    setValue(null); setError('');
-    if (detail?.kind === 'diff' && enabled) void client.diff(cwd, detail.path, detail.commit?.hash).then(value => {
-      if (alive) setValue(value);
-    }).catch(error => { if (alive) setError(errorText(error)); });
+    const read = async () => {
+      if (!path || !enabled) return;
+      const key = JSON.stringify([cwd, path, commit]);
+      // Coalesce rapid file changes while a slower diff is still in flight.
+      await requests.get(key)?.catch(() => undefined);
+      if (!alive) return;
+      const request = client.diff(cwd, path, commit);
+      requests.set(key, request);
+      try {
+        const next = await request;
+        if (alive) { setValue(next); setError(''); }
+      } catch (error) { if (alive) setError(gitErrorText(error)); }
+      finally { if (requests.get(key) === request) requests.delete(key); }
+    };
+    void read();
     return () => { alive = false; };
-  }, [client, cwd, detail, enabled]);
+  }, [client, cwd, path, commit, enabled, version, requests]);
   return { value, error };
 }

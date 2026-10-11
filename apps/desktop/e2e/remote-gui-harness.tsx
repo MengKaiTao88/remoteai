@@ -9,6 +9,7 @@ import styles from '../src/pages/codexGui/styles.module.less';
 import { GuiToolbox } from '../src/pages/codexGui/GuiToolbox';
 import { GuiHostPicker } from '../src/pages/codexGui/GuiHostPicker';
 import { ProjectPicker } from '../src/pages/codexGui/ProjectPicker';
+import { DetailsWorkspace } from '../src/pages/codexGui/DetailsWorkspace';
 import { createAsyncGitFixture } from '../../../shared/remote-chat/testing/gitFixture';
 import 'antd/dist/reset.css';
 
@@ -20,8 +21,9 @@ function Harness() {
   const computers = useGuiComputers({ active: true, identity: { baseUrl: 'https://fixture.test', userId: 'owner' },
     login: () => {} });
   const device = computers.current;
-  return <ConfigProvider><main style={{ height: '100vh' }}>
+  return <ConfigProvider><header style={{ height: 48 }}>Codex GUI</header><main style={{ height: 'calc(100vh - 48px)' }}>
     <div hidden={Boolean(device)} style={{ height: '100%' }}>
+      <DetailsWorkspace active={!device} selected={project}>
       <div className={`${styles.page} local-workspace`}><aside className={styles.sidebar}>
         <h3>本机会话</h3><div style={{ flex: 1 }} />
         <ProxyAccountPicker active={!device} privacyMode={false} computers={computers}
@@ -36,7 +38,7 @@ function Harness() {
             hostPicker={<GuiHostPicker navigation={computers} active={!device} />} />
           <textarea aria-label="本机草稿" value={localDraft} onChange={event => setLocalDraft(event.target.value)} />
         </div>
-      </div></div></div>
+      </div></div></DetailsWorkspace></div>
     {computers.identity && <RemoteGuiWorkspaces active identity={computers.identity}
       current={device} computers={computers} privacyMode={false} focusMode={{ focused: false, onToggleFocus() {} }} />}
   </main></ConfigProvider>;

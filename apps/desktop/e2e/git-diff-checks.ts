@@ -1,6 +1,8 @@
 import { expect, type Page } from '@playwright/test';
+import { checkInternalGitDrawer } from './git-drawer-checks';
 
 export async function checkGitDiffReview(page: Page, screenshotName: string) {
+  await checkInternalGitDrawer(page);
   const git = page.getByRole('dialog', { name: 'Git', exact: true });
   const selected = git.getByRole('checkbox', { name: '选择 src/app.ts', exact: true });
   await selected.check();

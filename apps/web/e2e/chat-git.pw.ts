@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { connect, fixtureUrl, login, openChatList, screenshot, state } from './chat-helpers';
+import { checkInternalGitDrawer } from '../../desktop/e2e/git-drawer-checks';
 
 test('tools open Git changes, commit only checked files and draw merge history', async ({ page, request }, info) => {
   await request.post(`${fixtureUrl}/test/reset`);
@@ -13,6 +14,11 @@ test('tools open Git changes, commit only checked files and draw merge history',
   await expect(drawer).toBeVisible();
   const app = drawer.getByRole('checkbox', { name: '选择 src/app.ts', exact: true });
   await expect(app).toBeVisible();
+  if (info.project.name === 'desktop') await checkInternalGitDrawer(page);
+  const reads = () => state(request).then(value =>
+    value.operations.filter(op => op.operation === 'guiGitChanges').length);
+  const initialReads = await reads();
+  await expect.poll(reads).toBeGreaterThan(initialReads);
   const folder = drawer.getByRole('checkbox', { name: '选择 src/chat', exact: true });
   await folder.check();
   await expect(drawer.getByRole('checkbox', { name: '选择 src/chat/tools.ts', exact: true })).toBeChecked();
