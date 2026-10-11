@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Alert, Button, Modal, Space, Upload } from "antd";
+import { Alert, Button, Modal, Upload } from "antd";
+import { Download, FolderArchive, Upload as UploadIcon } from "lucide-react";
 import { errorText } from "../api";
 
 export function BackupButton({ onRestored }: { onRestored: () => void }) {
@@ -28,12 +29,21 @@ export function BackupButton({ onRestored }: { onRestored: () => void }) {
       okText: "恢复备份", cancelText: "取消", okButtonProps: { danger: true }, onOk: () => perform(file) });
     return false;
   };
-  return <><Button type="text" onClick={() => setOpen(true)}>备份与恢复</Button>
-    <Modal title="备份与恢复" open={open} width={400} footer={null} onCancel={() => setOpen(false)}>
-      <p>备份包含应用、原始文档、知识索引、对话、发布版本和运行记录。</p>
-      <Space><Button loading={busy} onClick={() => void perform()}>下载完整备份</Button>
-        <Upload accept=".coze" beforeUpload={restore} showUploadList={false} disabled={busy}>
-          <Button disabled={busy}>恢复备份</Button></Upload></Space>
+  return <><button className="studio-nav-button" aria-label="备份与恢复" onClick={() => setOpen(true)}>
+    <FolderArchive size={18} /><span>备份与恢复</span></button>
+    <Modal className="studio-dialog" title="备份与恢复" open={open} width={400} centered
+      footer={null} onCancel={() => setOpen(false)}>
+      <p>保存一份完整备份，随时恢复你的创作内容。</p>
+      <section className="backup-option"><h3><Download size={18} />下载备份</h3>
+        <p>包含应用、文档、对话、发布版本和运行记录。</p>
+        <Button block type="primary" loading={busy} onClick={() => void perform()}>下载完整备份</Button>
+      </section>
+      <section className="backup-option"><h3><UploadIcon size={18} />恢复备份</h3>
+        <p>选择备份文件，恢复后将替换当前内容。</p>
+        <Upload className="backup-upload" accept=".coze" beforeUpload={restore}
+          showUploadList={false} disabled={busy}>
+          <Button block disabled={busy}>选择备份文件</Button></Upload>
+      </section>
       {error && <Alert style={{ marginTop: 12 }} type="error" message={error} />}
     </Modal></>;
 }

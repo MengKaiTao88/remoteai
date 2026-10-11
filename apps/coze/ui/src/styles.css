@@ -8,18 +8,29 @@ button { cursor: pointer; } h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: 28px; margin-bottom: 8px; } h2 { font-size: 18px; } h3 { font-size: 16px; }
 p { color: var(--muted); } pre, code { font-family: Consolas, monospace; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
-.studio { display: flex; min-height: 100vh; }
-.studio-nav { width: 188px; flex-shrink: 0; padding: 26px 15px; border-right: 1px solid var(--border);
-  background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+.studio { display: flex; height: 100dvh; min-height: 0; overflow: hidden; }
+.studio-nav { width: 188px; flex-shrink: 0; min-height: 0; padding: 16px 12px 12px;
+  border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 16px; }
+.studio-brand { flex-shrink: 0; padding: 0 4px; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 25px; margin-bottom: 4px; }
 .brand > span { display: grid; place-items: center; background: #635bdb; width: 34px; height: 34px;
   border-radius: 11px; color: white; font-weight: 700; }
-.studio-nav > small { color: var(--muted); margin-bottom: 22px; }
-.studio-nav > button { display: flex; align-items: center; gap: 12px; border: 0; background: transparent;
-  color: inherit; padding: 12px; border-radius: 9px; text-align: left; }
-.studio-nav > button.selected, .studio-nav > button:hover { background: var(--hover); color: #7d71e8; }
-.nav-note { margin-top: auto; padding-top: 40px; color: var(--muted); font-size: 12px; }
+.studio-brand > small { color: var(--muted); font-size: 12px; }
+.studio-nav-items { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin;
+  display: flex; flex-direction: column; gap: 6px; }
+.studio-nav-button { display: flex; align-items: center; gap: 12px; flex-shrink: 0; width: 100%; min-height: 42px;
+  border: 0; background: transparent; color: inherit; padding: 10px 12px; border-radius: 9px; text-align: left;
+  line-height: 22px; transition: background .15s, color .15s; }
+.studio-nav-button > svg { flex-shrink: 0; }
+.studio-nav-button.selected, .studio-nav-button:hover { background: var(--hover); color: #7d71e8; }
+.studio-nav-button:focus-visible { outline: 2px solid #7d71e8; outline-offset: -2px; }
+.studio-nav-footer { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;
+  border-top: 1px solid var(--border); padding-top: 12px; color: var(--muted); }
 .studio-main { flex: 1; min-width: 0; padding: 28px; }
+.studio > .studio-main { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+/* Reserve room for the desktop stop control without pushing the sidebar down. */
+:root[data-embedded=true] .studio-main { padding-top: 44px; }
+:root[data-embedded=true] .studio-workflow > .studio-main { padding-top: 36px; }
 .collection-header, .editor-header, .workflow-toolbar { display: flex; justify-content: space-between; align-items: center;
   gap: 16px; margin-bottom: 20px; }
 .resource-search { max-width: 420px; margin: 8px 0 24px; }
@@ -51,9 +62,31 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
 .connection-controls { margin: 24px 0; }.connection-controls > * { margin-bottom: 10px; }
 .run-button { margin-top: 15px; }.run-result pre { background: var(--hover); padding: 14px; border-radius: 8px; }
 .settings-panel { max-width: 640px; padding: 20px; }.settings-panel h3:not(:first-child) { margin-top: 40px; }
+.studio-dialog .ant-modal-body { padding-top: 8px; max-height: calc(100dvh - 144px);
+  overflow-y: auto; scrollbar-width: thin; }
+.studio-dialog .ant-alert { margin-bottom: 16px; }
+.backup-option { padding: 16px; margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.backup-option h3 { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.backup-option h3 svg { color: #7d71e8; }
+.backup-option p { font-size: 13px; margin-bottom: 16px; }
+.backup-upload, .backup-upload .ant-upload, .backup-upload .ant-upload-select { display: block; width: 100%; }
+.template-library-intro { display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+.template-library-intro p { color: inherit; margin-bottom: 4px; }
+.template-library-intro small, .template-card small { color: var(--muted); }
+.template-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.template-card { display: flex; flex-direction: column; min-width: 0; padding: 20px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.template-card header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.template-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px;
+  color: #7d71e8; background: var(--hover); }
+.template-card h3 { margin-bottom: 8px; overflow-wrap: anywhere; }
+.template-card > p { flex: 1; margin-bottom: 20px; overflow-wrap: anywhere; }
 .ant-tooltip, .ant-popconfirm { max-width: 400px; }.ant-popconfirm-inner-content { max-width: 368px; overflow-wrap: anywhere; }
-@media (max-width: 1000px) { .studio-nav { width: 150px; }.studio-main { padding: 18px; }.two-columns { grid-template-columns: 1fr; }
+@media (max-width: 1000px) { .studio-nav { width: 160px; }.studio-main { padding: 18px; }.two-columns { grid-template-columns: 1fr; }
   .editor-header { flex-wrap: wrap; }.workflow-toolbar { flex-wrap: wrap; } }
-@media (max-width: 650px) { .studio-nav { width: 58px; padding: 15px 6px; }.studio-nav > button { font-size: 0; gap: 0; }
-  .studio-nav > small, .nav-note, .brand strong { display: none; }.studio-main { padding: 12px; }
+@media (max-width: 650px) { .studio-nav { width: 58px; padding: 16px 6px 12px; }
+  .studio-nav-button { justify-content: center; gap: 0; padding: 10px; }
+  .studio-nav-button > span, .studio-brand > small, .brand strong { display: none; }
+  .studio-brand { padding: 0; }.brand { justify-content: center; }.studio-main { padding: 12px; }
   .node-inspector { width: 240px; }.workflow-workspace { flex-direction: column; }.node-inspector { width: 100%; max-height: 400px; } }

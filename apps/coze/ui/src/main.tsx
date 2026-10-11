@@ -7,6 +7,7 @@ import "./styles.css";
 
 const dark = sessionStorage.getItem("coze-theme") === "dark";
 document.documentElement.dataset.theme = dark ? "dark" : "light";
+document.documentElement.dataset.embedded = String(window.parent !== window);
 createRoot(document.getElementById("root")!).render(<React.StrictMode>
   <ConfigProvider locale={zhCN} theme={{ algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
     token: { colorPrimary: "#635bdb", borderRadius: 9 } }}>

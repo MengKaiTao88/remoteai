@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Empty, Modal, Popconfirm, Space, Upload } from "antd";
+import { LayoutTemplate, Upload as UploadIcon } from "lucide-react";
 import { api, errorText } from "../api";
 
 interface Template { id: string; name: string; description: string; builtin: boolean }
@@ -34,22 +35,28 @@ export function TemplateLibrary({ onInstalled }: { onInstalled: (id: string) => 
     });
     return false;
   };
-  return <><Button type="text" onClick={() => setOpen(true)}>模板广场</Button>
-    <Modal title="模板广场" width={760} open={open} footer={null} onCancel={() => setOpen(false)}>
-      <p>使用现成模板，也可以导入别人分享的模板。模板包含配置，私有文档和对话会保留在原来的电脑上。</p>
-      <Upload accept=".json" beforeUpload={upload} showUploadList={false} disabled={busy}>
-        <Button disabled={busy}>导入分享的模板</Button></Upload>
+  return <><button className="studio-nav-button" aria-label="模板广场" onClick={() => setOpen(true)}>
+    <LayoutTemplate size={18} /><span>模板广场</span></button>
+    <Modal className="studio-dialog" title="模板广场" width={760} open={open} centered
+      footer={null} onCancel={() => setOpen(false)}>
+      <div className="template-library-intro"><div><p>从模板开始，让想法更快成形。</p>
+        <small>模板包含可复用的配置，不包含私有文档和对话。</small></div>
+        <Upload accept=".json" beforeUpload={upload} showUploadList={false} disabled={busy}>
+          <Button icon={<UploadIcon size={16} />} disabled={busy}>导入模板</Button></Upload>
+      </div>
       {error && <Alert type="error" message={error} />}
-      {items.length === 0 ? <Empty description="还没有模板" /> : <div className="resource-grid">
-        {items.map((item) => <div key={item.id} className="resource-card">
-          <strong>{item.name}</strong><p>{item.description}</p><Space wrap>
+      {items.length === 0 ? <Empty description="还没有模板" /> : <div className="template-grid">
+        {items.map((item) => <article key={item.id} className="template-card">
+          <header><span className="template-icon"><LayoutTemplate size={20} /></span>
+            <small>{item.builtin ? "内置模板" : "自定义模板"}</small></header>
+          <h3>{item.name}</h3><p>{item.description}</p><Space wrap>
             <Button type="primary" loading={busy} onClick={() => void install(item.id)}>使用模板</Button>
             <Button disabled={busy} onClick={() => void download(item.id)}>导出</Button>
             {!item.builtin && <Popconfirm title="从模板广场移除？已创建的内容会保留。"
               styles={{ root: { maxWidth: 400 } }} onConfirm={() => perform(async () => {
                 await api("delete_template", { id: item.id }); await refresh();
               })}><Button danger disabled={busy}>移除</Button></Popconfirm>}
-          </Space></div>)}
+          </Space></article>)}
       </div>}
     </Modal></>;
 }

@@ -86,19 +86,21 @@ export function Studio() {
     <SharedAppView access={access} resources={resources} onSaved={saved} />
   </main>;
   return <div className={`studio ${selected?.kind === "workflow" ? "studio-workflow" : ""}`}>
-    <aside className="studio-nav"><div className="brand"><span>C</span><strong>Coze</strong></div>
-      <small>你的 AI 创作空间</small>
-      {kinds.map((item) => {
+    <aside className="studio-nav" aria-label="Coze 导航">
+      <header className="studio-brand"><div className="brand"><span>C</span><strong>Coze</strong></div>
+        <small>你的 AI 创作空间</small></header>
+      <nav className="studio-nav-items" aria-label="创作空间">{kinds.map((item) => {
         const Icon = icons[item];
-        return <button key={item} className={kind === item ? "selected" : ""}
-          onClick={() => navigate(item)}><Icon size={18} />{labels[item]}</button>;
-      })}
-      <div className="nav-note">保存在这台电脑<br />由 Remote AI 提供模型服务</div>
-      <BackupButton onRestored={() => { setSelected(undefined); void refresh(); }} />
+        return <button key={item} className={`studio-nav-button ${kind === item ? "selected" : ""}`}
+          aria-label={labels[item]} aria-current={kind === item ? "page" : undefined}
+          onClick={() => navigate(item)}><Icon size={18} /><span>{labels[item]}</span></button>;
+      })}</nav>
+      <div className="studio-nav-footer"><BackupButton onRestored={() => { setSelected(undefined); void refresh(); }} />
       <TemplateLibrary onInstalled={(id) => { void refresh();
         if (dirty) { void message.success("模板已创建，当前修改已保留。"); return; }
         void api<Resource>("get_resource", { id }).then((resource) => { setKind(resource.kind); saved(resource); })
           .catch((error: unknown) => setError(errorText(error))); }} />
+      </div>
     </aside>
     <main className="studio-main">
       {error && <Alert type="error" message={error} closable onClose={() => setError("")} />}
