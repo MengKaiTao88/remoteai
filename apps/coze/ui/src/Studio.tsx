@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Button, Dropdown, Empty, Input, Modal, Spin, Upload } from "antd";
+import { Alert, App, Button, Dropdown, Empty, Input, Modal, Spin, Upload } from "antd";
 import { Bot, BookOpen, Database, FileText, GitBranch, Plus, Search, Wrench, Boxes } from "lucide-react";
 import { api, errorText } from "./api";
 import { defaultDraft, labels, type Kind, type Resource } from "./types";
@@ -13,6 +13,7 @@ const icons = { app: Boxes, agent: Bot, workflow: GitBranch, knowledge: BookOpen
 const kinds: Kind[] = ["app", "agent", "workflow", "knowledge", "prompt", "table", "plugin"];
 
 export function Studio() {
+  const { message } = App.useApp();
   const [resources, setResources] = useState<Resource[]>([]);
   const [selected, setSelected] = useState<Resource>();
   const [kind, setKind] = useState<Kind>("agent");
@@ -95,6 +96,7 @@ export function Studio() {
       <div className="nav-note">保存在这台电脑<br />由 Remote AI 提供模型服务</div>
       <BackupButton onRestored={() => { setSelected(undefined); void refresh(); }} />
       <TemplateLibrary onInstalled={(id) => { void refresh();
+        if (dirty) { void message.success("模板已创建，当前修改已保留。"); return; }
         void api<Resource>("get_resource", { id }).then((resource) => { setKind(resource.kind); saved(resource); })
           .catch((error: unknown) => setError(errorText(error))); }} />
     </aside>
