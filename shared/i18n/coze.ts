@@ -1,4 +1,6 @@
 export const cozeEnglish: Readonly<Record<string, string>> = {
+  '描述任务，# 调用 Coze，@ 引用对话，/ 选择技能…':
+    'Describe a task, # use Coze, @ reference a conversation, / choose a skill…',
   '请在这台电脑的 Remote AI 中打开 Coze。': 'Open Coze in Remote AI on this computer.',
   '停止 Coze？已保存的内容会保留。': 'Stop Coze? Your saved content will be kept.',
   '停止 Coze': 'Stop Coze',
@@ -18,6 +20,8 @@ export const cozeEnglish: Readonly<Record<string, string>> = {
 };
 
 export const cozeRussian: Readonly<Record<string, string>> = {
+  '描述任务，# 调用 Coze，@ 引用对话，/ 选择技能…':
+    'Опишите задачу, # используйте Coze, @ добавьте ссылку на диалог, / выберите навык…',
   '请在这台电脑的 Remote AI 中打开 Coze。': 'Откройте Coze в Remote AI на этом компьютере.',
   '停止 Coze？已保存的内容会保留。': 'Остановить Coze? Сохранённые данные останутся.',
   '停止 Coze': 'Остановить Coze',
