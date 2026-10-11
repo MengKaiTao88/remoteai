@@ -151,22 +151,18 @@ fn diagnostic_scalar_value(value: Option<&Value>) -> Value {
     }
 }
 
-fn diagnostic_response_body(bytes: &[u8], content_type: Option<&str>) -> Value {
-    let (text, utf8) = match std::str::from_utf8(bytes) {
-        Ok(text) => (text.to_string(), true),
-        Err(_) => (String::from_utf8_lossy(bytes).to_string(), false),
-    };
+fn diagnostic_response_body(bytes: &[u8], content_type: Option<&str>, status: u16) -> Value {
+    let mut capture = error_capture::ErrorCapture::new(is_event_stream(content_type), status);
+    capture.observe(bytes);
+    capture.finish();
     json!({
         "captured": true,
         "redacted": true,
         "bytes": bytes.len(),
         "hash": short_hash_bytes(bytes),
         "contentType": content_type,
-        "utf8": utf8,
-        "truncated": text.chars().count() > DIAGNOSTIC_RESPONSE_BODY_MAX_CHARS,
-        "text": crate::error_logs::sanitize_diagnostic_message(
-            &truncate_for_log(&text, DIAGNOSTIC_RESPONSE_BODY_MAX_CHARS)
-        )
+        "utf8": std::str::from_utf8(bytes).is_ok(),
+        "stream": capture.diagnostic_summary()
     })
 }
 

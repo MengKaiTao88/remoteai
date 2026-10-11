@@ -215,7 +215,7 @@ fn append_proxy_diagnostic_result<R: Runtime>(
             if !status_ok(payload.status) {
                 result["responseBody"] = match &payload.body {
                     UpstreamBody::Buffered(body) => {
-                        diagnostic_response_body(body, payload.content_type.as_deref())
+                        diagnostic_response_body(body, payload.content_type.as_deref(), payload.status)
                     }
                     UpstreamBody::Streaming(_) => json!({
                         "captured": false,

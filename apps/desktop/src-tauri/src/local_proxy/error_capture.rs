@@ -1,5 +1,7 @@
 use serde_json::Value;
 
+use super::error_capture_diagnostics::{CaptureDiagnostics, Observation};
+
 const MAX_CAPTURE_BYTES: usize = 64 * 1024;
 const MAX_ERROR_MESSAGE_CHARS: usize = 1000;
 const GENERIC_UPSTREAM_ERROR: &str = "The upstream service returned an error.";
@@ -17,11 +19,13 @@ pub(super) struct ErrorCapture {
     event_stream: bool,
     http_status: u16,
     buffer: Vec<u8>,
+    buffer_bytes: u64,
     line_length: usize,
     last_byte: Option<u8>,
     reported: bool,
     terminal: bool,
     finished: bool,
+    diagnostics: CaptureDiagnostics,
 }
 
 impl ErrorCapture {
@@ -30,11 +34,13 @@ impl ErrorCapture {
             event_stream,
             http_status,
             buffer: Vec::new(),
+            buffer_bytes: 0,
             line_length: 0,
             last_byte: None,
             reported: false,
             terminal: false,
             finished: false,
+            diagnostics: CaptureDiagnostics::default(),
         }
     }
 
@@ -46,6 +52,13 @@ impl ErrorCapture {
         self.reported
     }
 
+    pub(super) fn diagnostic_summary(&self) -> Value {
+        let mut summary = self.diagnostics.summary();
+        summary["pendingBytes"] = self.buffer_bytes.into();
+        summary["pendingCaptureTruncated"] = (self.buffer_bytes > self.buffer.len() as u64).into();
+        summary
+    }
+
     /// Returns at most one failure for this response, including across subsequent calls.
     pub(super) fn observe(&mut self, bytes: &[u8]) -> Vec<ProxyCapturedError> {
         let mut errors = Vec::new();
@@ -53,6 +66,7 @@ impl ErrorCapture {
             return errors;
         }
         if !self.event_stream {
+            self.buffer_bytes = self.buffer_bytes.saturating_add(bytes.len() as u64);
             let remaining = MAX_CAPTURE_BYTES.saturating_sub(self.buffer.len());
             self.buffer
                 .extend_from_slice(&bytes[..bytes.len().min(remaining)]);
@@ -94,6 +108,7 @@ impl ErrorCapture {
             self.finish_json(&mut errors);
         }
         self.buffer.clear();
+        self.buffer_bytes = 0;
         errors
     }
 
@@ -111,6 +126,13 @@ impl ErrorCapture {
                 .as_ref()
                 .and_then(|value| sse_error_message(json_event_type(value), Some(value)))
         };
+        self.diagnostics.observe(Observation {
+            event_type: value.as_ref().map(json_event_type).unwrap_or_default(),
+            value: value.as_ref(),
+            bytes: &self.buffer,
+            total_bytes: self.buffer_bytes,
+            failure: message.is_some(),
+        });
         if let Some(message) = message {
             self.report(
                 message,
@@ -121,6 +143,7 @@ impl ErrorCapture {
     }
 
     fn push_byte(&mut self, byte: u8) {
+        self.buffer_bytes = self.buffer_bytes.saturating_add(1);
         if self.buffer.len() < MAX_CAPTURE_BYTES {
             self.buffer.push(byte);
         }
@@ -163,7 +186,19 @@ impl ErrorCapture {
         let failure = sse_error_message(event_type, value.as_ref());
         let status = value.as_ref().and_then(structured_error_status);
         self.terminal |= terminal;
+        self.diagnostics.observe(Observation {
+            event_type: if data.trim() == "[DONE]" {
+                "[DONE]"
+            } else {
+                event_type
+            },
+            value: value.as_ref(),
+            bytes: &self.buffer,
+            total_bytes: self.buffer_bytes,
+            failure: failure.is_some(),
+        });
         self.buffer.clear();
+        self.buffer_bytes = 0;
         if let Some(message) = failure {
             self.report(message, status, errors);
         }
@@ -177,6 +212,7 @@ impl ErrorCapture {
     ) {
         self.reported = true;
         self.buffer.clear();
+        self.buffer_bytes = 0;
         errors.push(ProxyCapturedError {
             message: message.chars().take(MAX_ERROR_MESSAGE_CHARS).collect(),
             status_code: (self.http_status >= 400)
@@ -323,3 +359,7 @@ fn http_error_message(status: u16) -> String {
 #[cfg(test)]
 #[path = "error_capture_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "error_capture_diagnostic_tests.rs"]
+mod diagnostic_tests;

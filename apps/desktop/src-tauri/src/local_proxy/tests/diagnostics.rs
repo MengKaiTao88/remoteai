@@ -111,11 +111,17 @@ fn diagnostics_account_and_upstream_headers_exclude_secrets() {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert("x-request-id", "upstream-trace".parse().unwrap());
     headers.insert("retry-after", "30".parse().unwrap());
+    headers.insert("content-type", "application/json".parse().unwrap());
+    headers.insert("content-length", "143".parse().unwrap());
+    headers.insert("openai-processing-ms", "120".parse().unwrap());
     headers.insert("authorization", "Bearer secret".parse().unwrap());
     headers.insert("set-cookie", "secret-cookie".parse().unwrap());
     let summary = diagnostic_upstream_headers(&headers);
     assert_eq!(summary["x-request-id"], "upstream-trace");
     assert_eq!(summary["retry-after"], "30");
+    assert_eq!(summary["content-type"], "application/json");
+    assert_eq!(summary["content-length"], "143");
+    assert_eq!(summary["openai-processing-ms"], "120");
     assert!(!summary.to_string().contains("secret"));
 }
 

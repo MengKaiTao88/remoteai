@@ -16,6 +16,7 @@ pub(crate) mod auto_reset;
 pub(crate) mod concurrent_quota;
 pub(crate) mod endpoints;
 mod error_capture;
+mod error_capture_diagnostics;
 mod error_messages;
 mod first_token;
 mod gui_auto_switch;
@@ -106,6 +107,7 @@ include!("sse.rs");
 #[cfg(test)]
 mod tests {
     include!("tests/diagnostics.rs");
+    include!("tests/diagnostics_failures.rs");
     include!("tests/chat_protocol_conversion.rs");
     include!("tests/anthropic_protocol_conversion.rs");
     include!("tests/anthropic_protocol_http.rs");

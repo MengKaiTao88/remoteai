@@ -24,6 +24,7 @@ impl DiagnosticContext {
 
     fn annotate(&self, entry: &mut Value) {
         entry["ts"] = json!(unix_now());
+        entry["tsMs"] = json!(chrono::Utc::now().timestamp_millis());
         entry["requestId"] = json!(self.request_id);
         entry["elapsedMs"] = json!(self.started_at.elapsed().as_millis() as u64);
         entry["schemaVersion"] = json!(DIAGNOSTIC_SCHEMA_VERSION);
@@ -82,7 +83,7 @@ fn diagnostic_payload(payload: &UpstreamPayload) -> Value {
     if !status_ok(payload.status) {
         if let UpstreamBody::Buffered(body) = &payload.body {
             result["responseBody"] =
-                diagnostic_response_body(body, payload.content_type.as_deref());
+                diagnostic_response_body(body, payload.content_type.as_deref(), payload.status);
         }
     }
     result
@@ -122,10 +123,10 @@ fn diagnostic_http_result(result: &Result<ReqwestResponse, upstream_transport::E
     );
 }
 
-fn diagnostic_error_causes(error: &dyn std::error::Error) -> Vec<String> {
+fn diagnostic_error_causes(error: &(dyn std::error::Error + 'static)) -> Vec<String> {
     const MAX_ERROR_CAUSES: usize = 4;
     let mut causes = Vec::new();
-    let mut source = error.source();
+    let mut source = diagnostic_error_source(error);
     while let Some(error) = source {
         causes.push(crate::error_logs::sanitize_diagnostic_message(
             &error.to_string(),
@@ -133,9 +134,19 @@ fn diagnostic_error_causes(error: &dyn std::error::Error) -> Vec<String> {
         if causes.len() == MAX_ERROR_CAUSES {
             break;
         }
-        source = error.source();
+        source = diagnostic_error_source(error);
     }
     causes
+}
+
+fn diagnostic_error_source<'error>(
+    error: &'error (dyn std::error::Error + 'static),
+) -> Option<&'error (dyn std::error::Error + 'static)> {
+    error
+        .downcast_ref::<io::Error>()
+        .and_then(io::Error::get_ref)
+        .map(|inner| inner as &dyn std::error::Error)
+        .or_else(|| error.source())
 }
 
 fn diagnostic_upstream_headers(headers: &reqwest::header::HeaderMap) -> Value {
@@ -145,6 +156,14 @@ fn diagnostic_upstream_headers(headers: &reqwest::header::HeaderMap) -> Value {
         "request-id",
         "cf-ray",
         "retry-after",
+        "content-type",
+        "content-length",
+        "content-encoding",
+        "transfer-encoding",
+        "connection",
+        "server",
+        "openai-processing-ms",
+        "x-envoy-upstream-service-time",
         "x-codex-rate-limit-reached-type",
     ] {
         if let Some(value) = headers.get(name).and_then(|value| value.to_str().ok()) {
