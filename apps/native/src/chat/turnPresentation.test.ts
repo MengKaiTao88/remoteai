@@ -14,7 +14,7 @@ it('reuses historical rows while replacing the streamed turn', () => {
   expect(after[1]).toMatchObject({ item: { text: 'AB' } });
 });
 
-it('keeps retained activity and continuation modes separate in the row cache', () => {
+it.each(['interrupted', 'failed'])('keeps %s continuation and activity modes separate in the row cache', (status) => {
   const previous: Turn = { id: 'previous', status: 'completed', items: [] };
   const turn: Turn = { id: 'turn', status: 'completed', items: [
     { id: 'continue', type: 'userMessage', content: [{ type: 'text', text: CONTINUE_MESSAGE }] },
@@ -24,7 +24,7 @@ it('keeps retained activity and continuation modes separate in the row cache', (
   const expanded = conversationEntries([previous, turn], new Map([[turn.id, true]]));
   expect(expanded.some((entry) => entry.kind === 'process')).toBe(true);
   expect(collapsed.some((entry) => entry.kind === 'process')).toBe(false);
-  const continuation = conversationEntries([{ ...previous, status: 'interrupted' }, turn]);
+  const continuation = conversationEntries([{ ...previous, status }, turn]);
   expect(continuation.some((entry) => entry.id === 'turn:message:continue')).toBe(false);
   expect(conversationEntries([previous, turn])[0]).toBe(collapsed[0]);
 });

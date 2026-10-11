@@ -29,8 +29,9 @@ export function RequestErrorNotice({ turn, record, retry, onCancelRetry }: {
   const message = noticeMessage(turn, record);
   if (!details) return <div className={styles.notice}><span role="status">{message}</span>{action}</div>;
   return <div className={styles.notice}><DeferredDetails summary={<summary>
-    <span role="status">{message}</span><span className={styles.hint}>{guiText("查看报错详情")}</span>
+    <span role="status">{message}</span>{' '}<span className={styles.actions}>
+      <span className={styles.hint}>{guiText("查看报错详情")}</span>{action}</span>
   </summary>}>
     {() => <pre className={styles.details}>{details}</pre>}
-  </DeferredDetails>{action}</div>;
+  </DeferredDetails></div>;
 }

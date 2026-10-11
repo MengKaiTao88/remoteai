@@ -11,7 +11,7 @@ export function ChatRetryButton({ turnId }: { turnId: string }) {
   const action = useTurnRetry(turnId);
   if (!action) return null;
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled: action.disabled }}
-    disabled={action.disabled} onPress={() => { void action.retry(); }}
+    disabled={action.disabled} hitSlop={{ top: 8, bottom: 8 }} onPress={() => { void action.retry(); }}
     style={[styles.button, action.disabled && styles.disabled]}>
     <Ionicons name="refresh-outline" size={14} color={color("#c96c3d", 'warning')} />
     <Text style={styles.label}>{action.pending ? t('正在重试…') : t('重试')}</Text>
@@ -19,8 +19,8 @@ export function ChatRetryButton({ turnId }: { turnId: string }) {
 }
 
 const useStyles = createThemedStyles((color) => ({
-  button: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5,
-    minHeight: 44, marginTop: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: color('#c96c3d', 'warning'), borderRadius: 8 },
-  label: { color: color('#c96c3d', 'warning'), fontSize: 12 },
+  button: { flexDirection: 'row', alignItems: 'center', gap: 2, padding: 2,
+    borderWidth: 1, borderColor: color('#c96c3d', 'warning'), borderRadius: 4 },
+  label: { color: color('#c96c3d', 'warning'), fontSize: 12, lineHeight: 16 },
   disabled: { opacity: 0.5 },
 }));

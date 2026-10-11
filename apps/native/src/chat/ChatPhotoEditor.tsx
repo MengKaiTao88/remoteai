@@ -1,6 +1,7 @@
 import { createThemedStyles } from '../theme/styles';
+import { useThemeMode } from '../theme/store';
 import { t, useLanguage, getLocale } from '../i18n';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -12,7 +13,15 @@ interface Props { photo: ChatPhoto; save: (dataUrl: string) => void; close: () =
 export function ChatPhotoEditor({ photo, save, close }: Props) {
   const styles = useStyles();
   const language = useLanguage();
-  const source = useMemo(() => ({ html: imageEditorHtml(photo.dataUrl, t, getLocale()) }), [photo.dataUrl, language]);
+  const themeMode = useThemeMode();
+  const initialTheme = useRef(themeMode);
+  const webview = useRef<WebView>(null);
+  const source = useMemo(() => ({ html: imageEditorHtml(photo.dataUrl, t, getLocale(), {
+    themeMode: initialTheme.current,
+  }) }), [photo.dataUrl, language]);
+  const themeScript = `document.documentElement.dataset.theme = ${JSON.stringify(themeMode)}; true;`;
+  // Update only the page colors so an appearance change preserves unsaved annotations.
+  useEffect(() => { webview.current?.injectJavaScript(themeScript); }, [themeScript]);
   const [error, setError] = useState('');
   const receive = (raw: string) => {
     try {
@@ -26,7 +35,8 @@ export function ChatPhotoEditor({ photo, save, close }: Props) {
   return <Modal visible animationType="slide" onRequestClose={close}
     supportedOrientations={['portrait', 'landscape-left', 'landscape-right']}>
     <SafeAreaProvider><SafeAreaView style={styles.container}>
-      <WebView source={source} style={styles.container} originWhitelist={['about:blank']}
+      <WebView ref={webview} source={source} style={styles.container} originWhitelist={['about:blank']}
+        onLoadEnd={() => webview.current?.injectJavaScript(themeScript)}
         scrollEnabled={false} bounces={false} javaScriptEnabled
         allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false}
         setSupportMultipleWindows={false} javaScriptCanOpenWindowsAutomatically={false}

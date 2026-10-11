@@ -1,6 +1,6 @@
 import type { Item, Turn } from '../remote-chat/client/types';
 import { changedFiles, parseDiff } from './diff';
-import { visibleContinuationItems } from '../../apps/desktop/src/pages/codexGui/continuation';
+import { followsStoppedTurn, visibleContinuationItems } from '../../apps/desktop/src/pages/codexGui/continuation';
 import { turnElapsedMs } from '../../apps/desktop/src/pages/codexGui/turnTiming';
 import { groupTurnItems } from './turnGroups';
 import { hasVisibleProcessContent } from './processContent';
@@ -32,7 +32,7 @@ function hasSummary(turn: Turn) {
 export function conversationEntries(turns: Turn[], inlineTurns: ReadonlyMap<string, boolean> = new Map()): TurnEntry[] {
   return turns.flatMap((turn, index) => {
     const inline = inlineTurns.get(turn.id) ?? ['inProgress', 'interrupted', 'failed'].includes(turn.status);
-    const continuation = turns[index - 1]?.status === 'interrupted';
+    const continuation = followsStoppedTurn(turns[index - 1]);
     const key = `${inline}:${continuation}`;
     const cached = entryCache.get(turn)?.get(key);
     if (cached) return cached;

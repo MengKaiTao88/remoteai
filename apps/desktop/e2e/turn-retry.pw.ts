@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+const CONTINUE_MESSAGE = '请继续完成刚才中断的任务。';
+
 for (const remote of [false, true]) {
   for (const width of [390, 1280]) {
     test(`retries a failed conversation on ${remote ? 'remote' : 'local'} at ${width}px`, async ({ page }, info) => {
@@ -13,16 +15,25 @@ for (const remote of [false, true]) {
       await expect(retry).toBeDisabled();
       await page.getByLabel('暂不可用').uncheck();
       await expect(retry).toBeEnabled();
-      const error = page.getByText('本次回复遇到问题，已中断。', { exact: false }).first();
-      expect((await retry.boundingBox())!.y).toBeGreaterThanOrEqual((await error.boundingBox())!.y);
+      const details = page.getByText('查看报错详情', { exact: true });
+      const linkBounds = (await details.boundingBox())!;
+      const retryBounds = (await retry.boundingBox())!;
+      expect(retryBounds.x - linkBounds.x - linkBounds.width).toBeGreaterThanOrEqual(0);
+      expect(retryBounds.x - linkBounds.x - linkBounds.width).toBeLessThanOrEqual(6);
+      expect(Math.abs(retryBounds.y + retryBounds.height / 2 - linkBounds.y - linkBounds.height / 2)).toBeLessThan(3);
+      expect(retryBounds.height).toBeLessThanOrEqual(24);
+      await expect(retry).toHaveCSS('padding', '2px');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: info.outputPath('retry-button.png') });
       await retry.click();
-      await expect(page.getByRole('button', { name: '正在重试…', exact: true })).toBeDisabled();
+      const pending = page.getByRole('button', { name: '正在重试…', exact: true });
+      await expect(pending).toBeDisabled();
+      if (!remote) await expect(page.locator('details').filter({ has: pending })).not.toHaveAttribute('open');
       await expect(page.getByLabel('发送次数')).toHaveText('1');
       await expect(retry).toBeEnabled();
       await retry.click();
       await expect(page.getByText('已继续检查项目。')).toBeVisible();
+      await expect(page.getByText(CONTINUE_MESSAGE, { exact: true })).toHaveCount(0);
       await expect(page.getByLabel('发送次数')).toHaveText('2');
       await expect(retry).toHaveCount(0);
       await expect(page.getByLabel('消息草稿')).toHaveValue('保留这份草稿');

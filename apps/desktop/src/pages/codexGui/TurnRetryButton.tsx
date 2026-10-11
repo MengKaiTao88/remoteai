@@ -7,7 +7,12 @@ export function TurnRetryButton({ turnId }: { turnId: string }) {
   const action = useTurnRetry(turnId);
   if (!action) return null;
   return <button type="button" className={styles.retryButton} disabled={action.disabled}
-    onClick={() => { void action.retry(); }}>
+    onClick={event => {
+      // Retrying must not toggle the enclosing error details.
+      event.preventDefault();
+      event.stopPropagation();
+      void action.retry();
+    }}>
     <RotateCcw size={14} aria-hidden="true" />{action.pending ? guiText('正在重试…') : guiText('重试')}
   </button>;
 }

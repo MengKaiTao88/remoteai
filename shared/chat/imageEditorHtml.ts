@@ -7,16 +7,17 @@ import { imageEditorScript } from './imageEditorScript';
 import { imageEditorStyles } from './imageEditorStyles';
 import { imageEditorDesktop } from './imageEditorDesktop';
 import { imageEditorDesktopStyles } from './imageEditorDesktopStyles';
+import type { ThemeMode } from '../theme/mode';
 
 function escapeHtml(text: string) {
   return text.replace(/[&<>"']/g, character => `&#${character.charCodeAt(0)};`);
 }
 
-interface ImageEditorOptions { scriptUrl?: string; mode?: ConnectionMode }
+interface ImageEditorOptions { scriptUrl?: string; mode?: ConnectionMode; themeMode?: ThemeMode }
 
 /** A local canvas editor shared by desktop, phone WebView and browser. No remote images are loaded. */
 export function imageEditorHtml(dataUrl: string, translate = (text: string) => text, language = 'zh-CN',
-  { scriptUrl, mode }: ImageEditorOptions = {}) {
+  { scriptUrl, mode, themeMode = 'light' }: ImageEditorOptions = {}) {
   validateChatImages([dataUrl], mode);
   const policy = getChatPolicy(mode);
   const label = (text: string) => escapeHtml(translate(text));
@@ -32,7 +33,8 @@ export function imageEditorHtml(dataUrl: string, translate = (text: string) => t
       readFailed: translate('图片无法读取，请重新选择。'),
     } }).replace(/</g, '\\u003c');
   const locale = /^ru(?:-|$)/i.test(language) ? 'ru' : /^en(?:-|$)/i.test(language) ? 'en' : 'zh-CN';
-  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8">
+  return `<!doctype html><html lang="${locale}" data-theme="${themeMode === 'dark' ? 'dark' : 'light'}">
+<head><meta charset="utf-8">
 <meta name="viewport"
   content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:;

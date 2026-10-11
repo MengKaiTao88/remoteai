@@ -108,8 +108,8 @@
 .chat-plan-step span { flex: 1; }
 .chat-plan-step svg { flex-shrink: 0; margin-top: 3px; color: var(--app-accent, #14806f); }
 .chat-plan-step small { color: var(--app-muted, #74847b); }
-.chat-error-notice { max-width: 400px; border: 0; padding: 8px 0; background: transparent;
-  color: var(--app-danger, #b84f49); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.chat-error-notice { max-width: 400px; border: 0; padding: 0; background: transparent;
+  color: inherit; text-align: left; font: inherit; cursor: pointer; }
 .chat-diff { display: flex; flex-direction: column; gap: 12px; }
 .chat-diff h3 { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
 .chat-diff-folder { color: var(--app-muted, #74847b); font-size: 12px; margin: 6px 0; overflow-wrap: anywhere; }

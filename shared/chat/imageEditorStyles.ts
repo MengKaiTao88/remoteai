@@ -1,6 +1,17 @@
+import { darkColors } from '../theme/mode';
+
 export const imageEditorStyles = String.raw`
 :root { color-scheme: light; --surface: #f1f3f6; --panel: #fafbfd; --ink: #24292d;
   --muted: #858a92; --green: #168653; --selected: #e5f8ef; --outline: #54c99d; }
+:root[data-theme="dark"] { color-scheme: dark;
+  --surface: ${darkColors.canvas}; --panel: ${darkColors.surface}; --ink: ${darkColors.ink};
+  --muted: ${darkColors.muted}; --selected: ${darkColors.accentSoft}; --outline: ${darkColors.accent};
+  --secondary-ink: ${darkColors.muted}; --button-background: ${darkColors.elevated};
+  --selected-ink: ${darkColors.accent}; --selection-ring: ${darkColors.accent};
+  --width-ink: ${darkColors.ink}; --selected-width: ${darkColors.accentSoft};
+  --border: ${darkColors.border}; --input-background: ${darkColors.canvas};
+  --desktop-background: ${darkColors.canvas}; --stage-background: ${darkColors.elevated};
+  --slider-track: ${darkColors.border}; }
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 body { display: flex; flex-direction: column; background: var(--surface); color: var(--ink);
@@ -22,12 +33,12 @@ header { flex-shrink: 0; display: grid; grid-template-columns: auto minmax(0, 1f
 header button { font-size: 16px; }
 /* Leave room for the host close button, which works even if the editor cannot start. */
 body[data-browser-editor] header { padding-right: max(60px, env(safe-area-inset-right)); }
-#cancel { justify-self: start; color: #596068; background: #e9ecf0; }
+#cancel { justify-self: start; color: var(--secondary-ink, #596068); background: var(--button-background, #e9ecf0); }
 #done, .primary { color: #fff; background: var(--green); }
 #done { justify-self: end; }
 .heading { text-align: center; min-width: 0; }
 h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: .04em; }
-.heading p { margin: 2px 0 0; font-size: 12px; color: #737981; }
+.heading p { margin: 2px 0 0; font-size: 12px; color: var(--secondary-ink, #737981); }
 #stage { flex: 1; min-height: 0; min-width: 0; display: flex; align-items: center; justify-content: center;
   overflow: hidden; padding: 12px 24px 18px; }
 #canvas { display: block; touch-action: none; border-radius: 13px; box-shadow: 0 6px 15px #28313c12;
@@ -40,7 +51,8 @@ footer { flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; min-w
   background: var(--surface); border: 1px solid transparent; font-size: 12px; }
 .tool svg { width: 25px; height: 25px; }
 .tool span { max-width: 100%; overflow-wrap: anywhere; }
-.tool[aria-pressed="true"] { background: var(--selected); color: #197252; border-color: var(--outline);
+.tool[aria-pressed="true"] { background: var(--selected); color: var(--selected-ink, #197252);
+  border-color: var(--outline);
   box-shadow: inset 0 0 0 1px #54c99d22; }
 #colors { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px;
   background: var(--surface); padding: 3px 6px; border-radius: 30px; }
@@ -48,7 +60,8 @@ footer { flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; min-w
 .swatch { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; position: relative;
   box-shadow: 0 1px 4px #00000009; }
 .color[aria-pressed="true"] .swatch::after { content: ''; position: absolute; inset: -5px;
-  border: 1.5px solid #28a777; border-radius: 50%; }
+  border: 1.5px solid var(--selection-ring, #28a777); border-radius: 50%; }
+:root[data-theme="dark"] [data-color="#111111"] .swatch { border: 1px solid var(--muted); }
 .rainbow { background: conic-gradient(#ff5050, #ffdc33, #31cf65, #28b8f6, #8b4af4, #ff4abd, #ff5050); }
 .width-row { display: flex; align-items: center; gap: 10px; }
 .width-label { flex-shrink: 0; font-size: 13px; font-weight: 550; }
@@ -57,12 +70,14 @@ footer { flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; min-w
 .width { min-width: 0; padding: 4px; min-height: 44px; }
 .width span { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
   border: 1.5px solid transparent; border-radius: 50%; }
-.width i { display: block; width: var(--dot); height: var(--dot); border-radius: 50%; background: #50545a; }
-.width[aria-pressed="true"] span { border-color: #28a777; background: #f7fffb; }
-.bottom { display: flex; align-items: center; gap: 6px; margin-top: 8px; border-top: 1px solid #edf0f4;
+.width i { display: block; width: var(--dot); height: var(--dot); border-radius: 50%;
+  background: var(--width-ink, #50545a); }
+.width[aria-pressed="true"] span { border-color: var(--selection-ring, #28a777);
+  background: var(--selected-width, #f7fffb); }
+.bottom { display: flex; align-items: center; gap: 6px; margin-top: 8px; border-top: 1px solid var(--border, #edf0f4);
   padding-top: 10px; }
 .history { display: flex; flex-shrink: 0; }
-.bottom button { padding: 6px 3px; color: #757c84; font-size: 13px; }
+.bottom button { padding: 6px 3px; color: var(--secondary-ink, #757c84); font-size: 13px; }
 .bottom button svg { width: 20px; height: 20px; }
 #notice { flex: 1; max-width: 400px; min-width: 0; margin: 0 auto; font-size: 11px;
   text-align: center; color: var(--muted); overflow-wrap: anywhere; }
@@ -71,8 +86,9 @@ dialog { width: calc(100% - 32px); max-width: 400px; max-height: calc(100% - 24p
   box-shadow: 0 16px 64px #202a3833; }
 dialog::backdrop { background: #202a3844; }
 dialog h2 { margin: 0 0 14px; font-size: 18px; }
-dialog textarea, #color-value { width: 100%; padding: 10px; border: 1px solid #dce1e7; border-radius: 10px;
-  color: var(--ink); background: #fff; user-select: text; }
+dialog textarea, #color-value { width: 100%; padding: 10px; border: 1px solid var(--border, #dce1e7);
+  border-radius: 10px;
+  color: var(--ink); background: var(--input-background, #fff); user-select: text; }
 dialog textarea { resize: vertical; min-height: 88px; max-height: 180px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 .color-preview { height: 36px; border-radius: 10px; margin-bottom: 14px; background: #ef4444; }

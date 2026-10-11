@@ -4,7 +4,7 @@ import type { desktopTest } from './remote-desktop-fixture';
 declare global { interface Window { desktopTest: typeof desktopTest } }
 
 test('changes ordinary and private desktop resolution without reconnecting', async ({ page }, info) => {
-  await page.goto('e2e/remote-desktop-harness.html?privacy&displays&resolutions');
+  await page.goto('e2e/remote-desktop-harness.html?privacy&displays&resolutions&many-resolutions');
   await page.getByRole('button', { name: '打开工具' }).click();
   await page.getByRole('button', { name: '远程桌面', exact: true }).click();
   await expect.poll(() => page.locator('video').evaluate(video => video.videoWidth)).toBeGreaterThan(0);
@@ -13,10 +13,13 @@ test('changes ordinary and private desktop resolution without reconnecting', asy
     if (privateScreen) await page.getByRole('button', { name: '隐私屏', exact: true }).click();
     await page.getByRole('button', { name: '显示', exact: true }).click();
     const size = privateScreen ? '2560 × 1440' : '1920 × 1080';
-    const choice = page.getByRole('group', { name: '分辨率', exact: true }).getByRole('button', { name: size });
-    await choice.click();
-    await expect(choice).toHaveAttribute('aria-pressed', 'true');
+    const choice = page.getByRole('combobox', { name: '分辨率', exact: true });
+    await expect(choice.locator('option')).toHaveCount(25);
+    await choice.selectOption({ label: size });
+    await expect(choice).toHaveValue(size.replace(' × ', 'x'));
     await expect(choice).toBeEnabled();
+    await choice.scrollIntoViewIfNeeded();
+    expect((await choice.boundingBox())!.height).toBeLessThanOrEqual(48);
     expect(await page.locator('.rd-display-settings').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`resolution-${privateScreen ? 'private' : 'ordinary'}.png`) });
     await page.getByRole('button', { name: '关闭显示设置', exact: true }).click();

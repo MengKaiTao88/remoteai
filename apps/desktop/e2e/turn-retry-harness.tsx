@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { TurnRetryProvider } from '../../../shared/chat/TurnRetryContext';
 import { failedTurnTarget, type TurnRetryTarget } from '../../../shared/chat/turnRetry';
+import { CONTINUE_MESSAGE } from '../../../shared/remote-chat/composerAction';
 import { Messages } from '../src/pages/codexGui/Messages';
 import { conversation } from '../src/pages/codexGui/events';
 import type { Thread } from '../src/pages/codexGui/types';
@@ -28,6 +29,7 @@ function Harness() {
     await new Promise(resolve => setTimeout(resolve, ACK_DELAY_MS));
     if (attempts === 0) return false;
     setThread({ ...thread, turns: [...thread.turns!, { id: 'continued', status: 'inProgress', items: [
+      { id: 'continue', type: 'userMessage', content: [{ type: 'text', text: CONTINUE_MESSAGE }] },
       { id: 'reply', type: 'agentMessage', text: '已继续检查项目。' },
     ] }] });
     return true;

@@ -1,19 +1,25 @@
-import React, { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
+import React, { Children, isValidElement, useState, type ReactElement, type ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { DisplaySettings } from './DisplaySettings';
+import { DisplayResolutionSettings } from './DisplayResolutionSettings';
 import { DEFAULT_SETTINGS, type DesktopDisplay } from '../../../../../shared/remote-desktop/protocol';
 
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
-  useState: (value: unknown) => [value, vi.fn()] ,
+  useState: vi.fn((value: unknown) => [value, vi.fn()]),
+  useRef: () => ({ current: {
+    measureInWindow: (measure: (x: number, y: number, width: number, height: number) => void) => measure(20, 300, 300, 44),
+  } }),
   useEffect: vi.fn(),
   useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
 }));
-vi.mock('react-native', () => ({ View: 'View', Pressable: 'Pressable', Text: 'Text',
+vi.mock('react-native', () => ({ View: 'View', Pressable: 'Pressable', Text: 'Text', Modal: 'Modal',
+  useWindowDimensions: () => ({ width: 390, height: 844 }),
   ScrollView: 'ScrollView', TextInput: 'TextInput', StyleSheet: { create: <T,>(value: T) => value } }));
 vi.mock('@expo/vector-icons', () => ({ MaterialCommunityIcons: 'Icon' }));
 interface Props {
   children?: ReactNode; accessibilityRole?: string; accessibilityLabel?: string;
-  accessibilityState?: { checked?: boolean; disabled?: boolean }; onPress?: () => void; disabled?: boolean;
+  accessibilityState?: { checked?: boolean; disabled?: boolean; expanded?: boolean };
+  accessibilityValue?: { text: string }; onPress?: () => void; disabled?: boolean;
 }
 function nodes(tree: ReactNode): ReactElement<Props>[] {
   return Children.toArray(tree).flatMap(child => {
@@ -31,19 +37,54 @@ const displays: DesktopDisplay[] = [
 ];
 afterEach(() => vi.unstubAllGlobals());
 
-it.each([false, true])('selects supported resolutions and disables changes while saving=%s', saving => {
+it.each([false, true])('keeps resolutions collapsed and disables the dropdown while saving=%s', saving => {
   vi.stubGlobal('React', React);
   const change = vi.fn(async () => {});
   const size = { width: 2560, height: 1440 };
   const tree = nodes(DisplaySettings({ settings: { ...DEFAULT_SETTINGS, displayId: 'first' }, displays,
     update: vi.fn(), saving, close: vi.fn(), stats: { visible: true, toggle: vi.fn() },
     resolution: { options: [{ width: 1920, height: 1080 }, size], change } }));
-  const current = tree.find(node => node.props.accessibilityLabel === '1920 × 1080')!;
-  const option = tree.find(node => node.props.accessibilityLabel === '2560 × 1440')!;
-  expect(current.props.accessibilityState?.checked).toBe(true);
-  expect(option.props.accessibilityState).toEqual({ checked: false, disabled: saving });
-  expect(option.props.disabled).toBe(saving);
-  if (!saving) { option.props.onPress!(); expect(change).toHaveBeenCalledWith(size); }
+  const dropdown = tree.find(node => node.props.accessibilityRole === 'combobox')!;
+  expect(dropdown.props.accessibilityValue?.text).toBe('1920 × 1080');
+  expect(dropdown.props.accessibilityState).toEqual({ expanded: false, disabled: saving });
+  expect(dropdown.props.disabled).toBe(saving);
+  expect(tree.some(node => node.props.accessibilityLabel === '2560 × 1440')).toBe(false);
+  expect(change).not.toHaveBeenCalled();
+});
+
+it.each([false, true])('closes the resolution list and only changes a different resolution, current=%s', selected => {
+  vi.stubGlobal('React', React);
+  const setExpanded = vi.fn();
+  vi.mocked(useState).mockReturnValueOnce([{ x: 20, y: 300, width: 300, height: 44 }, setExpanded]);
+  const change = vi.fn(async () => {});
+  const size = { width: 2560, height: 1440 };
+  const tree = nodes(DisplayResolutionSettings({ settings: { ...DEFAULT_SETTINGS, displayId: 'first' }, displays,
+    update: vi.fn(), saving: false, close: vi.fn(), stats: { visible: true, toggle: vi.fn() },
+    resolution: { options: [{ width: 1920, height: 1080 }, size], change } }));
+  const option = tree.find(node => node.props.accessibilityLabel === (selected ? '1920 × 1080' : '2560 × 1440'))!;
+  expect(option.props.accessibilityState?.checked).toBe(selected);
+  option.props.onPress!();
+  expect(setExpanded).toHaveBeenCalledWith(null);
+  if (selected) expect(change).not.toHaveBeenCalled();
+  else expect(change).toHaveBeenCalledWith(size);
+});
+
+it('opens and closes the resolution dropdown without switching the remote desktop', () => {
+  vi.stubGlobal('React', React);
+  const change = vi.fn(async () => {});
+  for (const expanded of [false, true]) {
+    const setExpanded = vi.fn();
+    const anchor = { x: 20, y: 300, width: 300, height: 44 };
+    vi.mocked(useState).mockReturnValueOnce([expanded ? anchor : null, setExpanded]);
+    const tree = nodes(DisplayResolutionSettings({ settings: DEFAULT_SETTINGS, displays,
+      update: vi.fn(), saving: false, close: vi.fn(), stats: { visible: true, toggle: vi.fn() },
+      resolution: { options: [{ width: 1920, height: 1080 }], change } }));
+    const button = tree.find(node => expanded ? node.props.accessibilityLabel === '关闭分辨率列表'
+      : node.props.accessibilityRole === 'combobox')!;
+    button.props.onPress!();
+    expect(setExpanded).toHaveBeenCalledWith(expanded ? null : anchor);
+  }
+  expect(change).not.toHaveBeenCalled();
 });
 
 it.each([false, true])('shows selected display, wraps labels and prevents repeat switches while saving=%s', saving => {

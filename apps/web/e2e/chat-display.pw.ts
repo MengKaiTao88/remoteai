@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import type { Item, Thread } from '../src/chat/types';
 import { screenshot } from './chat-helpers';
 
+const CONTINUE_MESSAGE = '请继续完成刚才中断的任务。';
 const code = `const message = '${'长内容'.repeat(80)}';`;
 const reply: Item = { id: 'answer', type: 'agentMessage', phase: 'final_answer', status: 'completed',
   text: '## 展示测试\n\n包含**粗体**与`行内代码`。\n\n| 项目 | 状态 |\n|---|---|\n|文本|正常|'
@@ -22,7 +23,36 @@ async function update(page: Page, value: Thread) {
   await page.evaluate(detail => window.dispatchEvent(new CustomEvent('display-fixture', { detail })), value);
 }
 test.beforeEach(({}, info) => test.skip(info.project.name !== 'desktop'
-  && !info.title.startsWith('preserves reading and typing'), 'PC message presentation'));
+  && !info.title.startsWith('preserves reading and typing')
+  && !info.title.startsWith('hides automatic retry'), 'PC message presentation'));
+
+for (const status of ['interrupted', 'failed']) {
+  test(`hides automatic retry after ${status} during streaming and after reload`, async ({ page }, info) => {
+    const value = fixture([]);
+    value.turns![0].status = status;
+    value.turns![0].error = { message: 'HTTP 502' };
+    value.turns!.push({ id: 'retry', status: 'inProgress', items: [
+      { id: 'continue', type: 'userMessage', content: [{ type: 'text', text: CONTINUE_MESSAGE }] },
+      { id: 'retry-answer', type: 'agentMessage', phase: 'final_answer', text: '正在继续处理任务。' },
+    ] });
+    await open(page, value);
+    const instruction = page.getByText(CONTINUE_MESSAGE, { exact: true });
+    await expect(page.getByText('正在继续处理任务。', { exact: true })).toBeVisible();
+    await expect(instruction).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '查看报错详情' })).toBeVisible();
+    await screenshot(page, info, `retry-${status}`);
+    value.turns![1].status = 'completed';
+    await update(page, value);
+    await expect(instruction).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText('正在继续处理任务。', { exact: true })).toBeVisible();
+    await expect(instruction).toHaveCount(0);
+    value.turns![1].items.push({ id: 'steer', type: 'userMessage',
+      content: [{ type: 'text', text: CONTINUE_MESSAGE }] });
+    await update(page, value);
+    await expect(instruction).toHaveCount(1);
+  });
+}
 
 test('copies and expands tables, wraps long code and contains overflow', async ({ page }, info) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);

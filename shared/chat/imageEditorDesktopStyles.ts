@@ -1,31 +1,35 @@
 export const imageEditorDesktopStyles = String.raw`
 body[data-desktop-editor] #widths { display: none; }
 @media (min-width: 900px) {
-body[data-desktop-editor] {
+:root:not([data-theme="dark"]) {
   --surface: #f0f3f6; --panel: #fbfcfd; --ink: #18212a; --green: #08945c;
+}
+body[data-desktop-editor] {
   display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 30%, 410px);
   grid-template-rows: auto minmax(0, 1fr) 56px; gap: 18px;
-  padding: 26px; background: #f9fbfc;
+  padding: 26px; background: var(--desktop-background, #f9fbfc);
 }
 body[data-desktop-editor] header { grid-column: 1 / -1; padding: 0 40px 2px 12px; }
 body[data-desktop-editor] .heading { text-align: left; }
 body[data-desktop-editor] h1 { font-size: 28px; font-weight: 700; letter-spacing: 0; }
 body[data-desktop-editor] .heading p { margin-top: 4px; font-size: 16px; }
-body[data-desktop-editor] #stage { padding: 16px; border-radius: 18px; background: #edf3f6;
+body[data-desktop-editor] #stage { padding: 16px; border-radius: 18px; background: var(--stage-background, #edf3f6);
   position: relative; isolation: isolate; }
 body[data-desktop-editor] #canvas { flex-shrink: 0; border-radius: 10px; }
 .editor-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 38px;
-  padding: 24px; overflow-y: auto; border: 1px solid #eef0f2; border-radius: 18px; background: var(--panel); }
+  padding: 24px; overflow-y: auto; border: 1px solid var(--border, #eef0f2);
+  border-radius: 18px; background: var(--panel); }
 .editor-panel h2 { margin: 0 0 16px; font-size: 16px; font-weight: 650; }
 body[data-desktop-editor] #tools { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 body[data-desktop-editor] .tool { min-height: 78px; padding: 10px 3px; gap: 8px; font-size: 14px; }
 body[data-desktop-editor] .tool svg { width: 27px; height: 27px; }
 body[data-desktop-editor] #colors { padding: 0; gap: 2px; background: transparent; }
 body[data-desktop-editor] .swatch { width: 26px; height: 26px; }
-body[data-desktop-editor] [data-color="#ffffff"] .swatch { border: 1px solid #d8dde2; }
+body[data-desktop-editor] [data-color="#ffffff"] .swatch { border: 1px solid var(--border, #d8dde2); }
 .stroke-slider { display: flex; align-items: center; gap: 24px; min-height: 32px; }
 #stroke-width { flex: 1; min-width: 0; margin: 0; height: 6px; appearance: none; border-radius: 8px;
-  background: linear-gradient(to right, var(--green) var(--fill, 13.04%), #e7ebef var(--fill, 13.04%));
+  background: linear-gradient(to right,
+    var(--green) var(--fill, 13.04%), var(--slider-track, #e7ebef) var(--fill, 13.04%));
   cursor: pointer; }
 #stroke-width::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px;
   border: 0; border-radius: 50%; background: var(--green); }
@@ -38,16 +42,16 @@ body[data-desktop-editor] #notice { flex: none; order: initial; margin: auto 0 0
 .canvas-toolbar { min-width: 0; justify-content: space-between; }
 .canvas-toolbar button { width: 40px; min-height: 40px; padding: 8px; border-radius: 50%; }
 .canvas-toolbar button svg { width: 20px; height: 20px; }
-.viewport-controls > button, .zoom-controls { background: #f1f4f7; }
-.zoom-controls { gap: 0; border: 1px solid #e7ebef; border-radius: 24px; }
+.viewport-controls > button, .zoom-controls { background: var(--button-background, #f1f4f7); }
+.zoom-controls { gap: 0; border: 1px solid var(--border, #e7ebef); border-radius: 24px; }
 #zoom-value { min-width: 56px; text-align: center; font-variant-numeric: tabular-nums; }
 #pan[aria-pressed="true"] { background: var(--selected); color: var(--green); }
-body[data-desktop-editor] .history { align-items: center; gap: 4px; color: #727b84; }
+body[data-desktop-editor] .history { align-items: center; gap: 4px; color: var(--secondary-ink, #727b84); }
 body[data-desktop-editor] #reset { width: auto; margin-left: 10px; padding-inline: 24px;
-  border-radius: 12px; color: var(--ink); background: #edf1f5; font-size: 16px; }
+  border-radius: 12px; color: var(--ink); background: var(--button-background, #edf1f5); font-size: 16px; }
 .editor-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .editor-actions button { width: 100%; font-size: 18px; font-weight: 550; }
-body[data-desktop-editor] #cancel { color: var(--ink); background: #e9eef3; }
+body[data-desktop-editor] #cancel { color: var(--ink); background: var(--button-background, #e9eef3); }
 body[data-desktop-editor] #done { background: var(--green); }
 body[data-desktop-editor] button:not(:disabled):hover { filter: brightness(.97); }
 @media (max-width: 1000px), (max-height: 650px) {
@@ -103,7 +107,7 @@ body[data-desktop-editor] button:not(:disabled):hover { filter: brightness(.97);
   body[data-desktop-editor] #notice { order: initial; padding: 0; flex: none; }
   .canvas-toolbar { grid-column: 1 / -1; grid-row: 4; padding: 0 12px 8px; background: var(--panel); }
   body[data-desktop-editor] .history { justify-content: flex-end; align-items: center; gap: 6px; }
-  .canvas-toolbar button { min-height: 36px; padding: 6px; color: #757c84; }
+  .canvas-toolbar button { min-height: 36px; padding: 6px; color: var(--secondary-ink, #757c84); }
   body[data-desktop-editor] #reset { margin-right: auto; order: -1; }
 }
 @media (min-width: 560px) and (max-width: 899px) and (max-height: 500px) {

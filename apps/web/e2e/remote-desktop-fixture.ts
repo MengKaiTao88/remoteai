@@ -168,7 +168,9 @@ if (window.desktopRelayFixture) {
 // The privacy fixture substitutes display management only; media still uses the production peer.
 const privacyFixture = new URLSearchParams(location.search).has('privacy');
 const resolutionFixture = new URLSearchParams(location.search).has('resolutions');
-const resolutions = [{ width: 1600, height: 900 }, { width: 1920, height: 1080 }, { width: 2560, height: 1440 }];
+const resolutions = new URLSearchParams(location.search).has('many-resolutions')
+  ? Array.from({ length: 25 }, (_, index) => ({ width: 640 + index * 80, height: 360 + index * 45 }))
+  : [{ width: 1600, height: 900 }, { width: 1920, height: 1080 }, { width: 2560, height: 1440 }];
 const host = new RemoteDesktopHost(privacyFixture || resolutionFixture ? (settings, ice, expiry, diagnostic) => {
   const session = new HostSession(settings, ice, expiry, diagnostic);
   return {

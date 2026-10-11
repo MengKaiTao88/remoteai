@@ -121,11 +121,15 @@ export function ChatTurnSummary({ turn, onOpen }: Props) {
       onOpen={() => onOpen(turn.id, 'changes')}
       onResult={reviewAvailable ? () => onOpen(turn.id, 'result') : undefined} />}
     {turn.status === 'interrupted' && <Text style={styles.subtitle}>{t("已停止生成")}</Text>}
-    {(turn.error || turn.retryError || turn.status === 'failed') && <View><Pressable accessibilityRole="button"
-      accessibilityLabel={t("查看报错详情")} onPress={() => onOpen(turn.id, 'error')}>
-      <Text style={summaryStyles.notice}>{turnErrorNotice(turn)}
-        {' '}<Text style={summaryStyles.noticeLink}>{t("查看报错详情")}</Text></Text>
-    </Pressable><ChatRetryButton turnId={turn.id} /></View>}
+    {(turn.error || turn.retryError || turn.status === 'failed') && <View style={summaryStyles.error}>
+      <Text style={summaryStyles.notice}>{turnErrorNotice(turn)}{' '}</Text>
+      <View style={summaryStyles.errorActions}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("查看报错详情")}
+          onPress={() => onOpen(turn.id, 'error')}>
+          <Text style={[summaryStyles.notice, summaryStyles.noticeLink]}>{t("查看报错详情")}</Text>
+        </Pressable><ChatRetryButton turnId={turn.id} />
+      </View>
+    </View>}
   </View>;
 }
 
@@ -148,6 +152,8 @@ const useSummaryStyles = createThemedStyles((color) => ({
   counts: { flexDirection: 'row', gap: 5 },
   added: { color: color('#168348', 'accent'), fontSize: 13, lineHeight: 20 },
   removed: { color: color('#c24047', 'danger'), fontSize: 13, lineHeight: 20 },
+  error: { maxWidth: 400, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  errorActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   notice: { maxWidth: 400, fontSize: 12, lineHeight: 20, color: color('#c96c3d', 'warning') },
   noticeLink: { textDecorationLine: 'underline' },
 }));

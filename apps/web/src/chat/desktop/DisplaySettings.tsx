@@ -68,13 +68,19 @@ function FrameRate(props: DisplaySettingsProps) {
 
 function Resolution({ resolution, settings, displays, saving }: DisplaySettingsProps) {
   const current = displays.find(display => display.id === settings.displayId);
+  const value = current ? `${current.width}x${current.height}` : '';
+  const supported = resolution?.options.some(size => `${size.width}x${size.height}` === value);
   return <Section icon={Monitor} title="分辨率" description="调整远程电脑的桌面大小">
-    {resolution?.options.length ? <div className="rd-display-options rd-resolution-options"
-      role="group" aria-label={t('分辨率')}>
-      {resolution.options.map(size => <button key={`${size.width}x${size.height}`} disabled={saving}
-        aria-pressed={current?.width === size.width && current?.height === size.height}
-        onClick={() => { void resolution.change(size); }}>{size.width} × {size.height}</button>)}
-    </div> : <Hint>{t('这台电脑暂不支持切换分辨率。')}</Hint>}
+    {resolution?.options.length ? <select className="rd-resolution-select" aria-label={t('分辨率')}
+      value={value} disabled={saving} onChange={event => {
+        const size = resolution.options.find(option => `${option.width}x${option.height}` === event.target.value);
+        if (size && event.target.value !== value) void resolution.change(size);
+      }}>
+      {!supported && <option value={value} disabled>
+        {current ? `${current.width} × ${current.height}` : t('选择分辨率')}</option>}
+      {resolution.options.map(size => <option key={`${size.width}x${size.height}`} value={`${size.width}x${size.height}`}>
+        {size.width} × {size.height}</option>)}
+    </select> : <Hint>{t('这台电脑暂不支持切换分辨率。')}</Hint>}
   </Section>;
 }
 

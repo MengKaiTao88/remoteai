@@ -4,25 +4,27 @@
   margin: 12px 0;
   color: #c96c3d;
   font-size: calc(var(--gui-font-size, 14px) - 2px);
+  line-height: 20px;
   overflow-wrap: anywhere;
 
   summary { cursor: pointer; }
   summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 }
 
-.hint { margin-left: 8px; text-decoration: underline; }
+.actions { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; white-space: nowrap; }
+.hint { text-decoration: underline; }
 
-.retryButton {
+.notice .retryButton, .capacityNotice .retryButton {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 8px;
-  padding: 5px 10px;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid currentColor;
-  border-radius: 8px;
+  border-radius: 4px;
   background: transparent;
   color: inherit;
   font: inherit;
+  line-height: 16px;
   cursor: pointer;
   &:hover:not(:disabled) { background: var(--line); }
   &:disabled { opacity: 0.5; cursor: default; }

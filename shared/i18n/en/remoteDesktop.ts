@@ -1,5 +1,7 @@
 export const remoteDesktopMessages: Record<string, string> = {
   '分辨率': 'Resolution',
+  '选择分辨率': 'Choose a resolution',
+  '关闭分辨率列表': 'Close resolution list',
   '调整远程电脑的桌面大小': 'Change the remote desktop resolution',
   '这台电脑暂不支持切换分辨率。': 'Resolution changes are unavailable on this computer.',
   '请选择有效的分辨率。': 'Choose a valid resolution.',

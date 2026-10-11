@@ -4,6 +4,7 @@ import { ChatMessages } from './ChatMessages';
 import { conversationEntries } from './turnPresentation';
 import type { TimelineEntry } from './activityTimeline';
 import type { Item, Turn } from './types';
+import { CONTINUE_MESSAGE } from '../../../../shared/remote-chat/composerAction';
 import { useStyles } from './styles';
 const styles = useStyles();
 
@@ -80,6 +81,21 @@ const render = (turn: Turn) => ChatMessages({ thread: { id: 'thread', cwd: '', p
 it('passes the initial positioning event frequency through to the native list', () => {
   const tree = render({ id: 'turn', status: 'completed', items: [command('single')] });
   expect(element<ListProps>(tree, 'FlatList').props.scrollEventThrottle).toBe(16);
+});
+
+it.each(['interrupted', 'failed'])('hides the automatic retry message after %s while keeping replies', (status) => {
+  const stopped: Turn = { id: 'stopped', status, error: { message: 'HTTP 502' }, items: [] };
+  const continuation: Item = { id: 'continue', type: 'userMessage',
+    content: [{ type: 'text', text: CONTINUE_MESSAGE }] };
+  const reply: Item = { id: 'reply', type: 'agentMessage', phase: 'final_answer', text: '回复' };
+  for (const nextStatus of ['inProgress', 'completed']) {
+    const tree = ChatMessages({ thread: { id: 'thread', cwd: '', preview: '', updatedAt: 0, turns: [stopped,
+      { id: 'retry', status: nextStatus, items: [continuation, reply, { ...continuation, id: 'steer' }] },
+    ] } });
+    const entries = element<ListProps>(tree, 'FlatList').props.data;
+    expect(entries.flatMap(entry => entry.kind === 'message' ? [entry.item.id] : [])).toEqual(['reply', 'steer']);
+    expect(entries.some(entry => entry.kind === 'summary' && entry.turn.id === stopped.id)).toBe(true);
+  }
 });
 
 it('keeps progress in the scrolling footer and preserves the history spacer and layout measurement', () => {

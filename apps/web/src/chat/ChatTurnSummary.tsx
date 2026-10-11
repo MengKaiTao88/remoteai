@@ -35,9 +35,10 @@ export function ChatTurnSummary({ turn, onOpen, hideStopped = false }: {
     {!!files.length && <ChatTurnFiles files={files} running={running} onOpen={() => onOpen('changes')}
       onResult={reviewAvailable ? () => onOpen('result') : undefined} />}
     {turn.status === 'interrupted' && !hideStopped && <p className="chat-muted">{t("已停止生成")}</p>}
-    {(turn.error || turn.retryError || turn.status === 'failed') && <div className="chat-turn-error"><button type="button"
-      className="chat-error-notice" aria-label={t("查看报错详情")} onClick={() => onOpen('error')}>
-      {turnErrorNotice(turn)} <u>{t("查看报错详情")}</u></button>
-      <ChatRetryButton turnId={turn.id} /></div>}
+    {(turn.error || turn.retryError || turn.status === 'failed') && <div className="chat-turn-error">
+      <span>{turnErrorNotice(turn)} </span><span className="chat-error-actions">
+        <button type="button" className="chat-error-notice" onClick={() => onOpen('error')}>
+          <u>{t("查看报错详情")}</u></button><ChatRetryButton turnId={turn.id} />
+      </span></div>}
   </section>;
 }

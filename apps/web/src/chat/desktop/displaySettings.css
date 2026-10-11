@@ -58,7 +58,13 @@
 .rd-stats-toggle[aria-checked=true] .rd-display-switch > span { transform: translateX(14px); background: var(--app-surface, #fff); }
 .rd-display-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
 .rd-frame-options { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.rd-resolution-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rd-resolution-select {
+  display: block; width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px;
+  border: 1px solid var(--app-border, #3c4859); border-radius: 9px; background: #121923;
+  color: #eef3fc; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.rd-resolution-select:focus-visible { outline: 2px solid var(--app-info, #88b5ff); outline-offset: -2px; }
+.rd-resolution-select:disabled { opacity: .5; cursor: wait; }
 .rd-display-settings .rd-display-options button { padding: 10px 2px; min-height: 38px; font-size: 12px;
   overflow-wrap: anywhere; border: 1px solid var(--app-border, #3c4859); background: color-mix(in srgb, var(--app-surface, #fff) 2%, transparent); }
 .rd-display-settings .rd-display-options button[aria-pressed=true] { border-color: var(--app-info, #589cff);
