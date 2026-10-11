@@ -28,6 +28,8 @@ pub(super) enum GuiError {
     ProjectDirectories,
     #[error("图片暂时无法显示，请确认文件仍在当前任务目录中。")]
     ImagePreview,
+    #[error("图片过大，暂时无法预览。请缩小尺寸后重试。")]
+    ImagePreviewResources,
     #[error("这条对话或其子对话仍有任务未完成，请等待结束并处理待发送消息后再删除。")]
     Busy,
     #[error("未能删除对话，请稍后重试。")]

@@ -77,4 +77,5 @@ export const shared = {
   '图片无法编辑，请重新打开后再试。': 'Could not edit this image. Open it again to retry.',
   '在图片上拖动画标注，完成后即可发送。': 'Drag on the image to annotate, then select Done.',
   '图片无法读取，请重新选择。': 'Could not read the image. Please choose it again.',
+  '图片过大，暂时无法预览。请缩小尺寸后重试。': 'This image is too large to preview. Resize it and try again.',
 };

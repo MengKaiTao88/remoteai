@@ -115,3 +115,28 @@ fn file_picker_images_use_image_input_and_share_the_image_limit() {
     );
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn large_local_image_references_do_not_inherit_inline_upload_limits() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("large.jpg");
+    std::fs::File::create(&path)
+        .unwrap()
+        .set_len(24 * 1024 * 1024)
+        .unwrap();
+    let message = json!({"text": "", "images": [], "attachments": [
+        {"kind": "file", "name": "large.jpg", "path": path}
+    ]});
+    for operation in ["send", "steer", "sendBatch"] {
+        let mut request = message.clone();
+        request["operation"] = json!(operation);
+        request["threadId"] = json!("one");
+        request["turnId"] = json!("turn");
+        request["messages"] = json!([message]);
+        let (_, params) = rpc(request).unwrap();
+        assert_eq!(
+            params["input"][1],
+            json!({"type": "localImage", "path": path})
+        );
+    }
+}

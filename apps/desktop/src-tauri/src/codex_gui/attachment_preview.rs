@@ -3,11 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     error::{GuiError, Result},
-    image_preview::{encode_image, source_path},
-    image_thumbnail::{render, ImageVariant},
+    image_preview::{render_file, source_path, PreviewOptions},
+    image_thumbnail::{preview_task, ImageVariant},
 };
-
-const MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -26,8 +24,13 @@ fn preview(request: AttachmentPreviewRequest) -> Result<AttachmentPreviewRespons
     if !path.is_absolute() {
         return Err(GuiError::ImagePreview);
     }
-    super::images::input_limited(request.path, MAX_IMAGE_BYTES)?;
-    let url = render(encode_image(&path, MAX_IMAGE_BYTES)?, request.variant)?;
+    let url = render_file(
+        &path,
+        PreviewOptions {
+            variant: request.variant,
+            max_bytes: None,
+        },
+    )?;
     Ok(AttachmentPreviewResponse { url })
 }
 
@@ -36,10 +39,9 @@ fn preview(request: AttachmentPreviewRequest) -> Result<AttachmentPreviewRespons
 pub(crate) async fn codex_gui_attachment_preview(
     request: AttachmentPreviewRequest,
 ) -> std::result::Result<AttachmentPreviewResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || preview(request))
+    preview_task(move || preview(request))
         .await
-        .map_err(|_| GuiError::ImagePreview.to_string())?
-        .map_err(|_| GuiError::ImagePreview.to_string())
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

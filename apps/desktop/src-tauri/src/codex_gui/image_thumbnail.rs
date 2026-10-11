@@ -1,5 +1,8 @@
 //! Bounded thumbnails keep image synchronization independent of original image size.
-use std::io::Cursor;
+use std::{
+    fs::File,
+    io::{BufRead, BufReader, Cursor, Seek},
+};
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{codecs::jpeg::JpegEncoder, DynamicImage, GenericImageView, ImageFormat, ImageReader};
@@ -10,6 +13,8 @@ use super::error::{GuiError, Result};
 // Includes base64 overhead, so the complete thumbnail URL stays below 100 kB on the wire.
 pub(super) const MAX_THUMBNAIL_BYTES: usize = 74_000;
 const MAX_DECODE_BYTES: u64 = 128 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION: u32 = 16_384;
+const PREVIEW_WORKERS: usize = 2;
 const MAX_THUMBNAIL_EDGE: u32 = 1600;
 const MIN_THUMBNAIL_EDGE: u32 = 100;
 const JPEG_QUALITIES: [u8; 3] = [82, 65, 45];
@@ -22,11 +27,38 @@ pub(crate) enum ImageVariant {
     Thumbnail,
 }
 
+/// Keep concurrent large image decodes off the UI thread and within a small worker budget.
+pub(super) async fn preview_task<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T> + Send + 'static,
+) -> Result<T> {
+    static WORKERS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(PREVIEW_WORKERS);
+    let permit = WORKERS
+        .acquire()
+        .await
+        .map_err(|_| GuiError::ImagePreview)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        // Retain the permit even if the caller cancels while this blocking task is running.
+        let _permit = permit;
+        work()
+    })
+    .await
+    .map_err(|_| GuiError::ImagePreview)?
+}
+
+pub(super) fn render_file(file: File) -> Result<String> {
+    let bytes = file.metadata().map_err(|_| GuiError::ImagePreview)?.len();
+    let decoded = decode_reader(BufReader::new(file), bytes)?;
+    render_decoded(decoded)
+}
+
 pub(super) fn render(url: String, variant: ImageVariant) -> Result<String> {
     if matches!(variant, ImageVariant::Original) {
         return Ok(url);
     }
-    let decoded = decode(&url)?;
+    render_decoded(decode(&url)?)
+}
+
+fn render_decoded(decoded: DynamicImage) -> Result<String> {
     let transparent =
         decoded.color().has_alpha() && decoded.pixels().any(|(_, _, pixel)| pixel[3] < u8::MAX);
     let mut size = MAX_THUMBNAIL_EDGE.min(decoded.width().max(decoded.height()));
@@ -50,15 +82,33 @@ fn decode(url: &str) -> Result<DynamicImage> {
     let bytes = STANDARD
         .decode(encoded)
         .map_err(|_| GuiError::ImagePreview)?;
-    let mut reader = ImageReader::new(Cursor::new(bytes))
+    decode_reader(Cursor::new(&bytes), bytes.len() as u64)
+}
+
+fn decode_reader(reader: impl BufRead + Seek, encoded_bytes: u64) -> Result<DynamicImage> {
+    let mut reader = ImageReader::new(reader)
         .with_guessed_format()
         .map_err(|_| GuiError::ImagePreview)?;
+    // The JPEG decoder retains compressed input. Account for it before allocating pixel storage;
+    // PNG/GIF/WebP can read the file directly without an extra Base64 copy of the entire source.
+    let buffered_bytes = if reader.format() == Some(ImageFormat::Jpeg) {
+        encoded_bytes
+    } else {
+        0
+    };
+    let available = MAX_DECODE_BYTES
+        .checked_sub(buffered_bytes)
+        .filter(|available| *available > 0)
+        .ok_or(GuiError::ImagePreviewResources)?;
     let mut limits = image::Limits::default();
-    limits.max_alloc = Some(MAX_DECODE_BYTES);
-    limits.max_image_width = Some(16_384);
-    limits.max_image_height = Some(16_384);
+    limits.max_alloc = Some(available);
+    limits.max_image_width = Some(MAX_IMAGE_DIMENSION);
+    limits.max_image_height = Some(MAX_IMAGE_DIMENSION);
     reader.limits(limits);
-    reader.decode().map_err(|_| GuiError::ImagePreview)
+    reader.decode().map_err(|error| match error {
+        image::ImageError::Limits(_) => GuiError::ImagePreviewResources,
+        _ => GuiError::ImagePreview,
+    })
 }
 
 fn encode_thumbnail(image: &DynamicImage, transparent: bool) -> Result<(Vec<u8>, &'static str)> {
@@ -88,6 +138,39 @@ fn encode_thumbnail(image: &DynamicImage, transparent: bool) -> Result<(Vec<u8>,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_excessive_pixel_allocations_before_decoding_image_data() {
+        let mut bytes = Vec::new();
+        JpegEncoder::new(&mut bytes)
+            .encode_image(&image::RgbImage::new(1, 1))
+            .unwrap();
+        let frame = bytes
+            .windows(2)
+            .position(|marker| marker == [0xff, 0xc0])
+            .unwrap();
+        let dimension = 8_000_u16.to_be_bytes();
+        bytes[frame + 5..frame + 7].copy_from_slice(&dimension);
+        bytes[frame + 7..frame + 9].copy_from_slice(&dimension);
+        assert!(matches!(
+            decode_reader(Cursor::new(&bytes), bytes.len() as u64),
+            Err(GuiError::ImagePreviewResources)
+        ));
+    }
+
+    #[test]
+    fn accounts_for_jpeg_input_buffer_before_reading_large_files() {
+        let mut file = tempfile::tempfile().unwrap();
+        JpegEncoder::new(&mut file)
+            .encode_image(&image::RgbImage::new(1, 1))
+            .unwrap();
+        file.set_len(MAX_DECODE_BYTES).unwrap();
+        file.rewind().unwrap();
+        assert!(matches!(
+            render_file(file),
+            Err(GuiError::ImagePreviewResources)
+        ));
+    }
 
     fn png_url(image: &image::RgbaImage) -> String {
         let mut bytes = Cursor::new(Vec::new());

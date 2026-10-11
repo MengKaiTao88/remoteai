@@ -29,7 +29,8 @@ pub(super) fn input_limited(image: String, max_bytes: u64) -> Result<Value> {
         || !path.is_file()
         || path
             .metadata()
-            .map(|metadata| metadata.len() == 0 || metadata.len() > max_bytes)
+            // Local image inputs carry only a path. Byte limits apply to inline uploads, not this reference.
+            .map(|metadata| metadata.len() == 0)
             .unwrap_or(true)
         || !["png", "jpg", "jpeg", "webp", "gif"].contains(&extension.as_str())
     {

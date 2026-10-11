@@ -39,7 +39,10 @@ impl Fixture {
             ReadOptions {
                 generated: &self.0.join("generated"),
                 references,
-                max_bytes: DEFAULT_IMAGE_BYTES,
+                preview: PreviewOptions {
+                    variant: ImageVariant::Original,
+                    max_bytes: Some(DEFAULT_IMAGE_BYTES),
+                },
             },
         )
     }
@@ -183,6 +186,35 @@ fn configured_image_limit_can_exceed_the_previous_twenty_megabyte_cap() {
         max_bytes: Some(size),
     };
     assert_eq!(render_limited(original.clone(), options).unwrap(), original);
+}
+
+#[test]
+fn local_history_thumbnails_ignore_upload_limits_but_respect_explicit_preview_policy() {
+    let fixture = Fixture::new();
+    let path = fixture.write_image("workspace/large.png");
+    File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_len(DEFAULT_IMAGE_BYTES + 1)
+        .unwrap();
+    let read = |variant, max_bytes| {
+        read_image(
+            "large.png",
+            &fixture.0.join("workspace"),
+            ReadOptions {
+                generated: &fixture.0.join("generated"),
+                references: &[],
+                preview: PreviewOptions { variant, max_bytes },
+            },
+        )
+    };
+    let thumbnail = read(ImageVariant::Thumbnail, None).unwrap();
+    assert!(thumbnail.len() < 100_000);
+    assert!(read(ImageVariant::Original, None).is_ok());
+    for variant in [ImageVariant::Thumbnail, ImageVariant::Original] {
+        assert!(read(variant, Some(DEFAULT_IMAGE_BYTES)).is_err());
+    }
 }
 
 #[test]
