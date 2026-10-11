@@ -13,8 +13,9 @@ const LANGUAGE_LABELS: Record<string, string> = {
   diff: 'Diff', patch: 'Diff',
 };
 
-export function ChatCodeBlock({ text, language = '', label, copyLabel = t("复制代码"), desktop = false }: {
-  text: string; language?: string; label?: string; copyLabel?: string; desktop?: boolean;
+export function ChatCodeBlock({ text, language = '', label, copyLabel = t("复制代码"), copyText = text,
+  desktop = false }: {
+  text: string; language?: string; label?: string; copyLabel?: string; copyText?: string; desktop?: boolean;
 }) {
   useLanguage();
   const [limit, setLimit] = useState(PAGE_CHARACTERS);
@@ -28,7 +29,7 @@ export function ChatCodeBlock({ text, language = '', label, copyLabel = t("复�
       {label || (desktop ? LANGUAGE_LABELS[language] : '') || language || t("代码")}</span>
       {desktop && <button type="button" className="chat-code-wrap" aria-label={t("自动换行")} aria-pressed={wrapped}
         onClick={() => setWrapped(value => !value)}><WrapText size={15} /></button>}
-      <ChatCopyButton text={text} label={copyLabel} /></header>
+      <ChatCopyButton text={copyText} label={copyLabel} /></header>
     <pre className={desktop && !wrapped ? 'chat-code-unwrapped' : undefined} tabIndex={0} onScroll={event => {
       const node = event.currentTarget;
       if (more && node.scrollHeight - node.scrollTop - node.clientHeight < 100) {

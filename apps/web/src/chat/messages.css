@@ -130,5 +130,8 @@
 .chat-diff-line.add { background: var(--app-canvas, #e2f4e8); }
 .chat-diff-line.remove { background: var(--app-canvas, #fce8e6); }
 .chat-output-paging { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--app-muted, #74847b); }
+.chat-tool-text { display: flex; flex-direction: column; flex-shrink: 0; gap: 8px; min-width: 0; }
+.chat-tool-text-actions { display: flex; justify-content: flex-end; }
+.chat-tool-text-actions .chat-text-action { min-height: 44px; box-sizing: border-box; }
 .chat-output-paging button { border: 0; color: var(--app-accent, #14806f); background: transparent; cursor: pointer; }
 @media (min-width: 861px) { .chat-messages { padding-inline: 28px; } }

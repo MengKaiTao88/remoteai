@@ -6,6 +6,7 @@ import { ChatCodeBlock } from './ChatCodeBlock';
 import { ChatMarkdown } from './ChatMarkdown';
 import { ChatImage } from './ChatImage';
 import { ChatFileLink } from './ChatFileLink';
+import { ChatCopyButton } from './ChatCopyButton';
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -16,12 +17,16 @@ function ToolText({ text, markdown }: { text: string; markdown: boolean }) {
   useLanguage();
   const [index, setIndex] = useState(0);
   const { visible, page, pages } = toolOutputPage(text, index);
-  return <>{markdown ? <ChatMarkdown text={visible} />
-    : <ChatCodeBlock text={visible} label={t("输出")} copyLabel={t("复制输出")} />}
+  return <div className="chat-tool-text">{markdown ? <>
+    <div className="chat-tool-text-actions"><ChatCopyButton text={text} label={t("复制完整内容")} /></div>
+    <ChatMarkdown text={visible} />
+  </> : <ChatCodeBlock text={visible} label={t("输出")} copyText={text} copyLabel={t("复制完整内容")} />}
     {pages > 1 && <div className="chat-output-paging"><span>{t("内容较长，分段显示")}</span>
       <button type="button" disabled={!page} onClick={() => setIndex(page - 1)}>{t("上一段")}</button>
       <span>{page + 1}/{pages}</span>
-      <button type="button" disabled={page === pages - 1} onClick={() => setIndex(page + 1)}>{t("下一段")}</button></div>}</>;
+      <button type="button" disabled={page === pages - 1} onClick={() => setIndex(page + 1)}>{t("下一段")}</button>
+    </div>}
+  </div>;
 }
 
 function OutputPart({ value }: { value: unknown }) {

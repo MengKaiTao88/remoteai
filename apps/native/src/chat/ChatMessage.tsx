@@ -9,6 +9,7 @@ import { ChatImage } from './ChatImage';
 import { ChatActivityLabel } from './ChatActivityLabel';
 import { QuoteSourceContext } from './ChatQuotes';
 import { UserMessageText } from './UserMessageText';
+import { CopyTextButton } from './CopyTextButton';
 import { ChatMessageReferences } from './ChatMessageReferences';
 import { questionMessageText } from '../../../../shared/remote-chat/client/asyncQuestions';
 import { messageContent, messageLabel } from '../../../../shared/chat/messageDetails';
@@ -124,12 +125,15 @@ function MessageBody({ item, onOpen, running = false, process = false }: Message
   </View>;
   if (item.type !== 'agentMessage') return <ChatActivityRow item={item} onOpen={onOpen} running={running} />;
   return <View style={styles.assistantMessage}>
-    <ChatMarkdown text={text} tone={process ? 'process' : 'default'}
-      copy={!process && !running && text.trim() ? { text, label: t("复制回复") } : undefined} />
+    <ChatMarkdown text={text} tone={process ? 'process' : 'default'} />
+    {!process && !running && !!text.trim() && <View style={messageStyles.actions}>
+      <CopyTextButton text={text} label={t("复制回复")} variant="labeled" />
+    </View>}
   </View>;
 }
 
 const useMessageStyles = createThemedStyles(() => ({
+  actions: { alignSelf: 'flex-start', marginLeft: -8 },
   activity: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 5 },
   user: { alignItems: 'flex-end' },
   bubble: { borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 19, paddingVertical: 15, gap: 10 },
