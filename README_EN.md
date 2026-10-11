@@ -15,9 +15,9 @@ and mobile companion to manage accounts across devices.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/piperhex/remoteai)](https://github.com/piperhex/remoteai/releases)
 
-## Codex Web
+## RemoteAI Web
 
-Open [Codex Web](https://codex.onepiper.cloud/web/) to connect to your computer and use Codex in your browser.
+Open [RemoteAI Web](https://codex.onepiper.cloud/web/) to connect to your computer and use Codex in your browser.
 
 Before using it, install the [Remote AI desktop app](https://github.com/piperhex/remoteai/releases),
 then open **Home** and follow the prompts to install Codex.
