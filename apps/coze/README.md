@@ -2,7 +2,7 @@
 
 Remote AI 通过左侧「插件」下方的 `coze` 入口安装此可选组件。首次打开只检查状态，用户点击下载后才获取独立签名包。主安装包不包含运行程序、编辑器或向量模型。
 
-这是以 `F:/projects/coze-studio` 的 `fefb05ff27be1da939612fbf9faf5db62583b8ae` 为参考的 Rust 重实现。没有打包或启动上游 Go 后端，也不需要 Docker、MySQL、Redis、Elasticsearch、Milvus、Python 或 Node.js 运行环境。
+没有打包或启动上游 Go 后端，也不需要 Docker、MySQL、Redis、Elasticsearch、Milvus、Python 或 Node.js 运行环境。
 
 ## 当前实现与边界
 
