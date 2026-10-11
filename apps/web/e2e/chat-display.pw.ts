@@ -24,7 +24,44 @@ async function update(page: Page, value: Thread) {
 }
 test.beforeEach(({}, info) => test.skip(info.project.name !== 'desktop'
   && !info.title.startsWith('preserves reading and typing')
+  && !info.title.startsWith('shows conversation references')
   && !info.title.startsWith('hides automatic retry'), 'PC message presentation'));
+
+test('shows conversation references during send, after reload and without message text', async ({ page }, info) => {
+  const name = '代理日志排查与历史记录恢复'.repeat(8);
+  const mention = { type: 'mention', name, path: 'codex-thread://logs' };
+  const value = fixture([], true);
+  const user = value.turns![0].items[0];
+  user.text = '';
+  user.localEcho = true;
+  user.content = [{ type: 'text', text: '继续这个任务' }, mention];
+  await open(page, value);
+  const bubble = page.locator('.chat-user-message');
+  const reference = bubble.locator('.chat-message-reference');
+  await expect(reference).toHaveText(`引用对话：${name}`);
+  await expect(bubble).toContainText('继续这个任务');
+  const bounds = (await reference.boundingBox())!;
+  expect(bounds.width).toBeLessThanOrEqual(400);
+  expect(bounds.height).toBeGreaterThan(40);
+  expect(await page.getByLabel('聊天记录').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await screenshot(page, info, 'sent-conversation-reference');
+  user.localEcho = false;
+  user.content = ['继续这个任务\n<codex_gui_conversation_context>' + JSON.stringify({
+    kind: 'reference', id: 'logs', name, messages: ['PRIVATE CONTEXT'],
+  }) + '</codex_gui_conversation_context>'];
+  value.turns![0].status = 'completed';
+  await update(page, value);
+  await expect(reference).toHaveCount(1);
+  await expect(bubble).not.toContainText('PRIVATE CONTEXT');
+  await page.reload();
+  await expect(reference).toHaveText(`引用对话：${name}`);
+  await expect(bubble).not.toContainText('codex_gui_conversation_context');
+  user.content = [mention, { ...mention, name: '第二个对话', path: 'codex-thread://other' }];
+  await update(page, value);
+  await expect(reference).toHaveCount(2);
+  await expect(reference.last()).toHaveText('引用对话：第二个对话');
+  await expect(bubble).not.toContainText('继续这个任务');
+});
 
 for (const status of ['interrupted', 'failed']) {
   test(`hides automatic retry after ${status} during streaming and after reload`, async ({ page }, info) => {

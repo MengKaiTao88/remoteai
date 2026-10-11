@@ -1,5 +1,6 @@
 import type { Item, Turn } from '../remote-chat/client/types';
 import { changedFiles, parseDiff } from './diff';
+import { visibleUserContent } from './conversationContext';
 
 const LABELS: Record<string, string> = {
   userMessage: '消息内容', agentMessage: '回复内容', commandExecution: '执行命令', fileChange: '文件修改',
@@ -11,6 +12,10 @@ const LABELS: Record<string, string> = {
 export const messageLabel = (item: Item) => LABELS[item.type] ?? '任务活动';
 
 export function messageContent(item: Item) {
+  if (item.type === 'userMessage') {
+    return visibleUserContent(item.text ? [item.text] : item.content)
+      .filter(part => part.type === 'text').map(part => part.text ?? '').filter(Boolean).join('\n');
+  }
   return item.text || (item.content ?? [])
     .map((entry) => typeof entry === 'string' ? entry : entry.text ?? '').filter(Boolean).join('\n');
 }

@@ -10,6 +10,8 @@ import { ChatMarkdown } from './ChatMarkdown';
 import { ChatImage } from './ChatImage';
 import { ChatCopyButton } from './ChatCopyButton';
 import { ChatQuoteButton } from './ChatQuotes';
+import { messageReferences } from '../../../../shared/chat/messageReferences';
+import { ChatMessageReferences } from './ChatMessageReferences';
 
 export const ChatMessage = memo(function ChatMessage({ item, onOpen, process = false, running = false, onQuote,
   desktop = false, onInspect }: {
@@ -25,12 +27,15 @@ export const ChatMessage = memo(function ChatMessage({ item, onOpen, process = f
   const user = item.type === 'userMessage';
   const content = quotedMessage(text);
   const images = itemImageSources(item);
+  const references = messageReferences(item);
   return <article className={user ? 'chat-user-message-wrap' : 'chat-assistant-message'}
     data-quote-source={desktop && !user ? item.id : undefined}>
     {user && desktop && images.length > 0 && <div className="chat-sent-images">
       {images.map((source, index) => <ChatImage key={index} source={source} />)}
     </div>}
-    {user ? (!desktop || content.text || content.quotes.length > 0) && <div className="chat-user-message">
+    {user ? (!desktop || content.text || content.quotes.length > 0 || references.length > 0)
+      && <div className="chat-user-message">
+      <ChatMessageReferences references={references} />
       {content.quotes.map((quote, index) => <details className="chat-message-quote" key={index}>
         <summary><Quote size={14} /><span>{quote}</span></summary><blockquote>{quote}</blockquote>
       </details>)}

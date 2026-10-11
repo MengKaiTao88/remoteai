@@ -9,6 +9,7 @@ import { ChatImage } from './ChatImage';
 import { ChatActivityLabel } from './ChatActivityLabel';
 import { QuoteSourceContext } from './ChatQuotes';
 import { UserMessageText } from './UserMessageText';
+import { ChatMessageReferences } from './ChatMessageReferences';
 import { questionMessageText } from '../../../../shared/remote-chat/client/asyncQuestions';
 import { messageContent, messageLabel } from '../../../../shared/chat/messageDetails';
 import { itemImageSources } from '../../../../shared/chat/imageSources';
@@ -116,6 +117,7 @@ function MessageBody({ item, onOpen, running = false, process = false }: Message
   if (item.type === 'userMessage') return <View style={messageStyles.user}>
     <View
       style={[styles.userMessage, messageStyles.bubble, images.length > 0 && messageStyles.imageBubble]}>
+      <ChatMessageReferences item={item} />
       {!!text && <UserMessageText text={text} />}
       {images.map((source, index) => <ChatImage key={index} source={source} />)}
     </View>
@@ -130,6 +132,6 @@ function MessageBody({ item, onOpen, running = false, process = false }: Message
 const useMessageStyles = createThemedStyles(() => ({
   activity: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 5 },
   user: { alignItems: 'flex-end' },
-  bubble: { borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 19, paddingVertical: 15 },
+  bubble: { borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 19, paddingVertical: 15, gap: 10 },
   imageBubble: { width: '92%' },
 }));

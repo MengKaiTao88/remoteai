@@ -3,6 +3,7 @@ import { t, useLanguage } from '../i18n';
 import { Linking, Pressable, Text, View } from 'react-native';
 import { SelectableChatText } from './SelectableChatText';
 import { UserMessageText } from './UserMessageText';
+import { ChatMessageReferences } from './ChatMessageReferences';
 import { messageContent, messageSections } from '../../../../shared/chat/messageDetails';
 import { changedFiles } from '../../../../shared/chat/diff';
 import {
@@ -66,6 +67,7 @@ function UserMessageDetails({ item }: { item: Item }) {
   useLanguage();
   const text = messageContent(item);
   return <View style={{ gap: 12 }}>
+    <ChatMessageReferences item={item} />
     {!!text && <UserMessageText text={text} copy />}
     {itemImageSources(item).map((source, index) => <ChatImage key={index} source={source} />)}
   </View>;
