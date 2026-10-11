@@ -1,8 +1,14 @@
+:global(main).main {
+  display: flex; flex-direction: column; padding: 0; overflow: hidden; min-height: 0;
+  scrollbar-gutter: auto;
+}
+.panel { display: flex; flex: 1; min-height: 0; min-width: 0; background: var(--panel); }
+.panel[hidden] { display: none; }
 .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 40px 24px; text-align: center; gap: 12px;
+  padding: 40px 24px; text-align: center; gap: 12px; min-height: 0; overflow: auto;
   h1 { font-size: 34px; margin: 0; } h2 { margin: 6px 0; font-size: 22px; }
-  p { max-width: 520px; color: var(--gui-muted); margin: 0; line-height: 1.8; }
-  :global(.ant-alert) { max-width: 520px; } > :global(.ant-btn) { margin-top: 12px; }
+  p { max-width: 520px; color: var(--muted); margin: 0; line-height: 1.8; }
+  :global(.ant-alert) { max-width: 400px; } > :global(.ant-btn) { margin-top: 12px; }
 }
 .logo { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 18px;
   color: white; background: #635bdb; font-size: 42px; font-weight: 700; }
@@ -10,4 +16,4 @@
 .progress { width: 320px; max-width: 100%; }
 .toolbar { display: flex; justify-content: flex-end; padding: 6px 12px; }
 .workspace { flex: 1; display: flex; flex-direction: column; min-height: 0;
-  iframe { flex: 1; width: 100%; border: 0; min-height: 600px; background: transparent; } }
+  iframe { flex: 1; width: 100%; border: 0; min-height: 0; background: transparent; } }

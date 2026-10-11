@@ -112,6 +112,8 @@ import { SkillsMarketPage } from "../../pages/SkillsMarketPage";
 import { CodexThreadsPage } from "../../pages/CodexThreadsPage";
 import { WindowControls } from "../WindowControls";
 import { GuiWorkspace } from "../../pages/codexGui/GuiWorkspace";
+import { CozeTab } from "../../pages/coze/CozeTab";
+import cozeStyles from "../../pages/coze/CozePage.module.less";
 import { useNotificationNavigation } from "../../pages/codexGui/useNotificationNavigation";
 import { useGuiTheme } from "../../pages/codexGui/guiTheme";
 import { RemoteAssistance } from '../../remoteAssistance/RemoteAssistance';
@@ -187,6 +189,7 @@ type SystemMenuAction =
   | "token-usage"
   | "dream-skin"
   | "skills"
+  | "coze"
   | "sessions"
   | "proxy-sessions"
   | "log-diagnostics"
@@ -998,6 +1001,9 @@ export function DashboardApp() {
       case "skills":
         setPage("skills");
         break;
+      case "coze":
+        setPage("coze");
+        break;
       case "sessions":
         setPage("sessions");
         break;
@@ -1279,7 +1285,7 @@ export function DashboardApp() {
               onPageChange={setPage} page={page} t={t} variant="sidebar" />
           </aside>
         )}
-        <header className="app-menu" hidden={sidebarNavigationEnabled && page === "codexGui"}>
+        <header className="app-menu" hidden={sidebarNavigationEnabled && (page === "codexGui" || page === "coze")}>
           {!sidebarNavigationEnabled && (
             <button type="button" className="brand" onClick={openRepository}
               aria-label={t("help.github")} title={t("help.github")}>
@@ -1287,7 +1293,8 @@ export function DashboardApp() {
               <span className="brand-name">Remote AI</span>
             </button>
           )}
-          {page !== "codexGui" && <AnnouncementBanner link={announcementLink} onOpenLink={openAnnouncementLink}
+          {page !== "codexGui" && page !== "coze" && <AnnouncementBanner link={announcementLink}
+            onOpenLink={openAnnouncementLink}
             scrollDurationSeconds={announcement?.scrollDurationSeconds ?? 22}
             style={announcementStyle} text={announcementText}
             trackKey={`${language}:${announcementText}`} />}
@@ -1299,6 +1306,7 @@ export function DashboardApp() {
 
         <main className={page === "accounts" ? "accounts-main"
           : page === "codexGui" ? codexGuiStyles.main
+          : page === "coze" ? cozeStyles.main
           : page === "providers" ? "providers-main"
           : page === "logDiagnostics" ? logDiagnosticsStyles.main
           : page === "claudeCode" ? "claude-code-main"
@@ -1306,7 +1314,7 @@ export function DashboardApp() {
             : page === "dreamSkin" ? "dream-skin-main"
               : page === "sessions" ? "sessions-main"
               : page === "codexConfig" ? codexConfigStyles.main : undefined}>
-          {!['tokens', 'dreamSkin', 'codexGui', 'logDiagnostics', 'downloads'].includes(page) && (
+          {!['tokens', 'dreamSkin', 'codexGui', 'coze', 'logDiagnostics', 'downloads'].includes(page) && (
           <>
           {isAccountManagementPage(page) ? (
             <AccountManagementToolbar section={page} onSectionChange={setPage} t={t}
@@ -1506,6 +1514,7 @@ export function DashboardApp() {
           <section className="page-panel sessions-page-panel" hidden={page !== "sessions"}>
             {page === "sessions" && <MemoCodexThreadsPage language={language} notify={notify} />}
           </section>
+          <CozeTab active={page === "coze"} />
           <section className={codexGuiStyles.panel} hidden={page !== "codexGui"}>
             <GuiWorkspace active={page === "codexGui"} notificationTarget={notificationTarget}
               plugins={{ baseUrl: cloud.state.baseUrl, authenticated: cloud.state.authenticated,

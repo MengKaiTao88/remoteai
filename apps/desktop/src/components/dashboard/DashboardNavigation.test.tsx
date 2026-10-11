@@ -7,8 +7,11 @@ import { DashboardNavigation, isToolboxPage } from "./DashboardNavigation";
 
 const t: Translate = (key, params) => translate("en", key, params);
 
-describe("authenticator navigation", () => {
-  it.each(["sidebar", "toolbox"] as const)("selects the 2FA page from the %s menu", async (variant) => {
+describe.each([
+  { page: "totp", label: "2FA" },
+  { page: "coze", label: "coze" },
+] as const)("$label navigation", ({ page, label }) => {
+  it.each(["sidebar", "toolbox"] as const)("selects the independent page from the %s menu", async (variant) => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const container = document.createElement("div");
     const root = createRoot(container);
@@ -18,16 +21,21 @@ describe("authenticator navigation", () => {
       await act(async () => root.render(
         <DashboardNavigation page="accounts" onPageChange={onPageChange} t={t} variant={variant} />,
       ));
-      const button = Array.from(container.querySelectorAll("button")).find((item) => item.textContent === "2FA");
+      const buttons = Array.from(container.querySelectorAll("button"));
+      const button = buttons.find((item) => item.textContent === label);
       expect(button).toBeDefined();
+      if (page === "coze") {
+        const pluginsIndex = buttons.findIndex((item) => item.textContent === t("nav.skills"));
+        expect(buttons[pluginsIndex + 1]).toBe(button);
+      }
       await act(async () => button?.click());
-      expect(onPageChange).toHaveBeenCalledWith("totp");
+      expect(onPageChange).toHaveBeenCalledWith(page);
       expect(open).not.toHaveBeenCalled();
       await act(async () => root.render(
-        <DashboardNavigation page="totp" onPageChange={onPageChange} t={t} variant={variant} />,
+        <DashboardNavigation page={page} onPageChange={onPageChange} t={t} variant={variant} collapsed />,
       ));
-      expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("2FA");
-      expect(isToolboxPage("totp")).toBe(true);
+      expect(container.querySelector('[aria-current="page"]')?.getAttribute("aria-label")).toBe(label);
+      expect(isToolboxPage(page)).toBe(true);
     } finally {
       await act(async () => root.unmount());
       open.mockRestore();

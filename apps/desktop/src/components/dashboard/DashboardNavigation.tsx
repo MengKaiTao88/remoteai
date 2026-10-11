@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Bot,
   ClipboardList,
   Download,
   FolderOpen,
@@ -20,6 +21,7 @@ export type DashboardPage =
   | "tokens"
   | "dreamSkin"
   | "skills"
+  | "coze"
   | "sessions"
   | "systemPrompts"
   | "settings"
@@ -60,6 +62,7 @@ const TOOLBOX_NAVIGATION_ITEMS = [
   { page: "tokens", icon: BarChart3, labelKey: "nav.tokenUsage" },
   { page: "dreamSkin", icon: Palette, labelKey: "nav.dreamSkin" },
   { page: "skills", icon: PackageOpen, labelKey: "nav.skills" },
+  { page: "coze", icon: Bot, label: "coze" },
 ] as const;
 
 export function isToolboxPage(page: DashboardPage) {
@@ -80,7 +83,7 @@ export function DashboardNavigation({
     labelKey: "nav.settings" | "nav.codexConfig" | "logDiagnostics.title" | "downloads.title" | "totp.action";
   }) => {
     const Icon = item.icon;
-    const label = t(item.labelKey);
+    const label = "label" in item ? item.label : t(item.labelKey);
     const selected = page === item.page || (isAccountManagementPage(page) && item.page === "accounts");
     return (
       <button key={item.page} type="button" className={selected ? "selected" : ""}
