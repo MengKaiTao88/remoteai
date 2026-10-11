@@ -74,7 +74,7 @@ pub(crate) async fn computer_use_action(
         automatic::remember(&root, &home)?;
         match action {
             ComputerUseAction::Install | ComputerUseAction::Enable => {
-                install::install(&root, &home)?
+                install::install(&app, &root, &home)?
             }
             ComputerUseAction::Disable => install::disable(&root, &home, false)?,
             ComputerUseAction::Remove => install::disable(&root, &home, true)?,

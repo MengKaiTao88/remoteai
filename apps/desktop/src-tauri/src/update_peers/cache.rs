@@ -11,9 +11,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::{watch, Mutex};
 
-use super::{Error, Result, MAX_PACKAGE_BYTES};
+use super::{dependency, Error, Result, MAX_PACKAGE_BYTES};
 
 const MAX_CACHED_PACKAGES: usize = 2;
+const MAX_CACHED_ARTIFACTS: usize = 6;
 const CACHE_LIFETIME: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 const MAX_INDEX_BYTES: u64 = 32 * 1024;
 
@@ -30,9 +31,29 @@ pub(super) struct Artifact {
     url: String,
     pub size: usize,
     saved_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dependency: Option<dependency::Kind>,
 }
 
 impl Artifact {
+    pub(super) fn dependency(kind: &str, version: &str, url: &str, digest: &str) -> Result<Self> {
+        if !valid_id(digest) || !dependency::valid_url(kind, version, url) {
+            return Err(Error::Invalid);
+        }
+        let mut artifact = Self {
+            id: String::new(),
+            signature: format!("sha256:{digest}"),
+            version: version.into(),
+            target: kind.into(),
+            url: url.into(),
+            size: 0,
+            saved_at: 0,
+            dependency: Some(dependency::Kind::from_target(kind).ok_or(Error::Invalid)?),
+        };
+        artifact.id = artifact.identity();
+        Ok(artifact)
+    }
+
     pub(super) fn android(
         version: String,
         url: String,
@@ -55,6 +76,7 @@ impl Artifact {
             url,
             size,
             saved_at: 0,
+            dependency: None,
         };
         artifact.id = artifact.identity();
         Ok(artifact)
@@ -69,6 +91,7 @@ impl Artifact {
             url: update.download_url.to_string(),
             size: 0,
             saved_at: 0,
+            dependency: None,
         };
         artifact.id = artifact.identity();
         artifact
@@ -76,6 +99,12 @@ impl Artifact {
 
     fn identity(&self) -> String {
         let mut digest = Sha256::new();
+        // A custom updater target must never reuse a dependency's digest-only verification.
+        // Leave existing signed-update and Android identities unchanged for older clients.
+        if let Some(kind) = self.dependency {
+            digest.update(b"gui-dependency-v1:");
+            digest.update(kind.target().as_bytes());
+        }
         for value in [&self.signature, &self.version, &self.target, &self.url] {
             digest.update((value.len() as u64).to_be_bytes());
             digest.update(value.as_bytes());
@@ -96,13 +125,15 @@ impl Artifact {
         if bytes.is_empty() || bytes.len() > MAX_PACKAGE_BYTES {
             return Err(Error::Invalid);
         }
-        if self.target == "android" {
+        if self.target == "android" || self.dependency.is_some() {
             let hash = self
                 .signature
                 .strip_prefix("sha256:")
                 .ok_or(Error::Invalid)?;
-            if !super::android::official_url(&self.url)
-                || bytes.len() != self.size
+            if !self.valid_digest_source()
+                || (self.size != 0 && bytes.len() != self.size)
+                || (self.target == dependency::COMPUTER_USE
+                    && bytes.len() > dependency::MAX_DRIVER_BYTES)
                 || !valid_id(hash)
                 || format!("{:x}", Sha256::digest(bytes)) != hash
             {
@@ -120,6 +151,30 @@ impl Artifact {
         key.verify(bytes, &signature, true)
             .map_err(|_| Error::Invalid)
     }
+
+    fn valid_digest_source(&self) -> bool {
+        if let Some(kind) = self.dependency {
+            return kind.target() == self.target
+                && (kind != dependency::Kind::Codex || self.size > 0)
+                && dependency::valid_url(&self.target, &self.version, &self.url);
+        }
+        self.target == "android" && self.size > 0 && super::android::official_url(&self.url)
+    }
+}
+
+/// Reserve independent slots so GUI setup cannot evict desktop or Android updates.
+fn retain_packages(records: &mut Vec<Artifact>) {
+    let (mut desktop, mut android, mut codex, mut driver) = (0, 0, 0, 0);
+    records.retain(|record| {
+        let (count, limit) = match record.dependency {
+            Some(dependency::Kind::Codex) => (&mut codex, 2),
+            Some(dependency::Kind::ComputerUse) => (&mut driver, 1),
+            None if record.target == "android" => (&mut android, 1),
+            _ => (&mut desktop, MAX_CACHED_PACKAGES),
+        };
+        *count += 1;
+        *count <= limit
+    });
 }
 
 pub(super) fn valid_id(value: &str) -> bool {
@@ -175,12 +230,13 @@ impl Cache {
                 }
                 _ => Vec::new(),
             };
-            let records: Vec<_> = records
+            let mut records: Vec<_> = records
                 .into_iter()
                 .filter(|record| record.valid())
-                .take(MAX_CACHED_PACKAGES + 1)
                 .filter(|record| cache.read_verified(record).is_ok())
+                .take(MAX_CACHED_ARTIFACTS)
                 .collect();
+            retain_packages(&mut records);
             cache.remove_unused(&records)?;
             cache.index.send_replace(records);
             Ok(())
@@ -238,16 +294,7 @@ impl Cache {
             let mut records = cache.artifacts();
             records.retain(|record| record.id != artifact.id);
             records.insert(0, artifact.clone());
-            let (mut desktop, mut android) = (0, 0);
-            records.retain(|record| {
-                if record.target == "android" {
-                    android += 1;
-                    android <= 1
-                } else {
-                    desktop += 1;
-                    desktop <= MAX_CACHED_PACKAGES
-                }
-            });
+            retain_packages(&mut records);
             // Evict older releases before publishing a replacement; temporary writes are never advertised.
             cache.remove_unused(&records)?;
             cache.atomic_write(&format!("{}.pkg", artifact.id), &bytes)?;

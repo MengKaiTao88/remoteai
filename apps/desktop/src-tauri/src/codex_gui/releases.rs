@@ -5,6 +5,8 @@ mod errors;
 pub(crate) mod manual;
 #[path = "release_publish.rs"]
 mod publish_package;
+#[path = "release_download.rs"]
+mod shared_download;
 #[path = "release_store.rs"]
 mod store;
 #[cfg(test)]
@@ -326,7 +328,6 @@ fn unpack_entries(archive: &mut tar::Archive<impl Read>, destination: &Path) -> 
 
 fn prepare_package(app: &AppHandle, version: &str, asset: &Asset, silent: bool) -> Result<()> {
     let root = root(app)?;
-    let client = http_client()?;
     fs::create_dir_all(&root).map_err(|error| {
         errors::io(
             "create install directory",
@@ -337,15 +338,14 @@ fn prepare_package(app: &AppHandle, version: &str, asset: &Asset, silent: bool) 
     let archive = root.join(format!("download-{}.tar.gz", uuid::Uuid::new_v4()));
     let staging = root.join(format!("staging-{}", uuid::Uuid::new_v4()));
     let outcome = (|| {
-        download(
-            |progress| {
-                if !silent {
-                    publish(app, progress);
-                }
-            },
-            &client,
-            asset,
+        shared_download::shared_download(
+            app,
             &archive,
+            shared_download::Request {
+                version,
+                asset,
+                silent,
+            },
         )?;
         if !silent {
             publish(

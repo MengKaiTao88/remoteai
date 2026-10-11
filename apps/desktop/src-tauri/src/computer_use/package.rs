@@ -4,6 +4,7 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
@@ -26,7 +27,7 @@ pub(super) fn present(root: &Path) -> Result<bool> {
         && platform::executable_present(&executable(root)?))
 }
 
-pub(super) fn ensure(root: &Path) -> Result<()> {
+pub(super) fn ensure(app: &tauri::AppHandle, root: &Path) -> Result<()> {
     if present(root)? {
         return Ok(());
     }
@@ -36,8 +37,7 @@ pub(super) fn ensure(root: &Path) -> Result<()> {
         "https://github.com/trycua/cua/releases/download/cua-driver-rs-v{VERSION}/{name}{}",
         asset.suffix
     );
-    let bytes = download(&url)?;
-    verify(&bytes, asset.digest)?;
+    let bytes = shared_download(app, &url, asset.digest)?;
     fs::create_dir_all(root).map_err(|_| ComputerError::Storage)?;
     let staging = root.join(format!("staging-{}", uuid::Uuid::new_v4()));
     fs::create_dir(&staging).map_err(|_| ComputerError::Storage)?;
@@ -53,6 +53,22 @@ pub(super) fn ensure(root: &Path) -> Result<()> {
         eprintln!("Could not clean computer-use staging directory");
     }
     result
+}
+
+fn shared_download(app: &tauri::AppHandle, url: &str, digest: &str) -> Result<Arc<Vec<u8>>> {
+    let package = crate::update_peers::packages::Package::computer_use(VERSION, url, digest);
+    if let Some(bytes) = package
+        .as_ref()
+        .and_then(|package| package.read_shared(app, |_, _| {}))
+    {
+        return Ok(bytes);
+    }
+    let bytes = Arc::new(download(url)?);
+    verify(&bytes, digest)?;
+    if let Some(package) = package {
+        package.remember(app, bytes.clone());
+    }
+    Ok(bytes)
 }
 
 fn download(url: &str) -> Result<Vec<u8>> {

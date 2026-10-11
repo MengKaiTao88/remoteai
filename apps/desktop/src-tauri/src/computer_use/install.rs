@@ -86,8 +86,8 @@ pub(super) fn refresh_installed(root: &Path, home: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn install(root: &Path, home: &Path) -> Result<()> {
-    install_with(root, home, || package::ensure(root))
+pub(super) fn install(app: &tauri::AppHandle, root: &Path, home: &Path) -> Result<()> {
+    install_with(root, home, || package::ensure(app, root))
 }
 
 fn install_with(root: &Path, home: &Path, prepare: impl FnOnce() -> Result<()>) -> Result<()> {

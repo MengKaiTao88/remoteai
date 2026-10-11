@@ -4,13 +4,19 @@ use std::{fs, path::Path};
 const SETUP_DIRECTORY: &str = "gui-setup";
 
 /// Run on a blocking worker before starting the GUI's app-server.
-pub(crate) fn setup_gui(home: &Path, installing: impl FnOnce()) -> Result<()> {
+pub(crate) fn setup_gui(
+    app: &tauri::AppHandle,
+    home: &Path,
+    installing: impl FnOnce(),
+) -> Result<()> {
     if platform::asset().is_err() {
         return Ok(());
     }
     let _guard = CHANGES.lock().map_err(|_| ComputerError::Storage)?;
     let root = super::root()?;
-    setup_with(&root, home, installing, || install::install(&root, home))?;
+    setup_with(&root, home, installing, || {
+        install::install(app, &root, home)
+    })?;
     install::refresh_installed(&root, home)
 }
 

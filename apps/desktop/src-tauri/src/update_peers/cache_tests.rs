@@ -11,6 +11,7 @@ fn fixture(version: &str) -> (Artifact, String) {
         url: "https://github.com/example/installer.exe".into(),
         size: 0,
         saved_at: 0,
+        dependency: None,
     };
     artifact.id = artifact.identity();
     (artifact, key)
@@ -28,6 +29,22 @@ fn signature_and_identity_reject_tampering_and_different_platforms() {
     other.target = artifact.target.clone();
     other.version = "2.0.0".into();
     assert_ne!(other.identity(), artifact.id);
+}
+
+#[test]
+fn custom_updater_target_cannot_reuse_dependency_verification_or_identity() {
+    let url = concat!(
+        "https://github.com/openai/codex/releases/download/rust-v1.0.0/",
+        "codex-package-x86_64-pc-windows-msvc.tar.gz"
+    );
+    let digest = format!("{:x}", Sha256::digest(b"dependency"));
+    let mut cli = Artifact::dependency(dependency::CODEX, "1.0.0", url, &digest).unwrap();
+    cli.size = 10;
+    cli.verify(b"dependency", "").unwrap();
+    let mut updater = cli.clone();
+    updater.dependency = None;
+    assert_ne!(updater.identity(), cli.id);
+    assert!(updater.verify(b"dependency", "").is_err());
 }
 
 #[tokio::test]
@@ -112,4 +129,80 @@ async fn android_cache_keeps_desktop_signatures_and_eviction_independent() {
     let restarted = Arc::new(Cache::new(directory.path().into(), key));
     restarted.restore().await.unwrap();
     assert_eq!(restarted.artifacts().len(), 2);
+}
+
+#[tokio::test]
+async fn dependency_slots_preserve_updates_and_restore_all_six_packages() {
+    let directory = tempfile::tempdir().unwrap();
+    let (desktop, key) = fixture("1.0.0");
+    let cache = Arc::new(Cache::new(directory.path().into(), key.clone()));
+    for version in ["1.0.0", "2.0.0"] {
+        cache
+            .save(fixture(version).0, Arc::new(b"signed installer".to_vec()))
+            .await
+            .unwrap();
+    }
+    let digest = format!("{:x}", Sha256::digest(b"dependency"));
+    let apk = Artifact::android(
+        "1.0.0".into(),
+        "https://github.com/piperhex/remoteai/releases/download/v1/android.apk".into(),
+        format!("sha256:{digest}"),
+        10,
+    )
+    .unwrap();
+    cache
+        .save(apk.clone(), Arc::new(b"dependency".to_vec()))
+        .await
+        .unwrap();
+    for version in ["1.0.0", "2.0.0", "3.0.0"] {
+        let url = format!(
+            concat!(
+                "https://github.com/openai/codex/releases/download/rust-v{0}/",
+                "codex-package-x86_64-pc-windows-msvc.tar.gz"
+            ),
+            version
+        );
+        let mut cli = Artifact::dependency(dependency::CODEX, version, &url, &digest).unwrap();
+        cli.size = 10;
+        cache
+            .save(cli, Arc::new(b"dependency".to_vec()))
+            .await
+            .unwrap();
+        let url = format!(
+            concat!(
+                "https://github.com/trycua/cua/releases/download/cua-driver-rs-v{0}/",
+                "cua-driver-rs-{0}-windows-x86_64.zip"
+            ),
+            version
+        );
+        let driver =
+            Artifact::dependency(dependency::COMPUTER_USE, version, &url, &digest).unwrap();
+        cache
+            .save(driver, Arc::new(b"dependency".to_vec()))
+            .await
+            .unwrap();
+    }
+    let restarted = Arc::new(Cache::new(directory.path().into(), key));
+    restarted.restore().await.unwrap();
+    assert_eq!(restarted.artifacts().len(), MAX_CACHED_ARTIFACTS);
+    assert!(restarted.read(&desktop.id).await.is_ok());
+    assert!(restarted.read(&apk.id).await.is_ok());
+    let records = restarted.artifacts();
+    assert_eq!(
+        records
+            .iter()
+            .filter(|item| item.target == dependency::CODEX)
+            .count(),
+        2
+    );
+    assert_eq!(
+        records
+            .iter()
+            .filter(|item| item.target == dependency::COMPUTER_USE)
+            .count(),
+        1
+    );
+    assert!(!records
+        .iter()
+        .any(|item| item.target == dependency::CODEX && item.version == "1.0.0"));
 }

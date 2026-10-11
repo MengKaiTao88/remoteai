@@ -6,7 +6,9 @@ use tauri_plugin_updater::Update;
 
 #[cfg(test)]
 use super::transfer;
-use super::{cache::Artifact, parallel, Error, Result, Service, TRANSFER_LIFETIME};
+#[cfg(test)]
+use super::Error;
+use super::{cache::Artifact, packages, Result, Service};
 
 struct VerifiedPackage {
     artifact: String,
@@ -135,23 +137,10 @@ async fn download_peer(
     artifact: &Artifact,
     progress: &mut Progress,
 ) -> Result<Arc<Vec<u8>>> {
-    let leases = service.find_peers(&artifact.id).await?;
-    let bytes = tokio::time::timeout(
-        TRANSFER_LIFETIME,
-        parallel::download(&leases, &artifact.id, |length, total| {
-            progress.chunk(length, total)
-        }),
-    )
-    .await
-    .map_err(|_| Error::Unavailable)??;
-    let artifact = artifact.clone();
-    let key = service.cache.key.clone();
-    tokio::task::spawn_blocking(move || {
-        artifact.verify(&bytes, &key)?;
-        Ok(Arc::new(bytes))
+    packages::download_peer(service, artifact, |length, total| {
+        progress.chunk(length, total)
     })
     .await
-    .map_err(|_| Error::Unavailable)?
 }
 
 #[tauri::command]

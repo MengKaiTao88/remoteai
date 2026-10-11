@@ -3,6 +3,8 @@
 mod android;
 mod cache;
 pub(crate) mod commands;
+mod dependency;
+pub(crate) mod packages;
 mod parallel;
 mod signaling;
 mod transfer;
