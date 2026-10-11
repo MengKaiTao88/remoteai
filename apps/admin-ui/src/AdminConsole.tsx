@@ -30,6 +30,7 @@ import { EmailTemplatesPage } from "./pages/EmailTemplatesPage";
 import { InvitationsPage } from "./pages/InvitationsPage";
 import { MyAccountsPage } from "./pages/MyAccountsPage";
 import { OfficialAccountsPage } from "./pages/OfficialAccountsPage";
+import { OfficialModelsPage } from "./pages/OfficialModelsPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { PromptPluginsPage } from "./pages/PromptPluginsPage";
 import { TelemetryPage } from "./pages/TelemetryPage";
@@ -148,6 +149,7 @@ const menuPermissions: Record<MenuKey, Permission> = {
   users: "admin.users.read",
   roles: "admin.roles.read",
   officialAccounts: "admin.official-accounts.read",
+  officialModels: "admin.official-accounts.read",
   announcement: "admin.announcements.read",
   currency: "admin.currency.read",
   tokenPricing: "admin.token-pricing.read",
@@ -168,6 +170,7 @@ const menuOrder: MenuKey[] = [
   "roles",
   "myAccounts",
   "officialAccounts",
+  "officialModels",
   "announcement",
   "currency",
   "tokenPricing",
@@ -1322,6 +1325,10 @@ export function AdminConsole({ dark, onThemeChange }: AdminConsoleProps) {
     if (activeKey === "tokenPricing") {
       return <TokenPricingPage api={api}
         canManage={Boolean(profile?.permissions?.includes("admin.token-pricing.manage"))} />;
+    }
+    if (activeKey === "officialModels") {
+      return <OfficialModelsPage api={api}
+        canManage={Boolean(profile?.permissions?.includes("admin.official-accounts.manage"))} />;
     }
 
     if (activeKey === "currency") {

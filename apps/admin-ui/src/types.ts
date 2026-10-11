@@ -9,6 +9,7 @@ export type MenuKey =
   | "users"
   | "roles"
   | "officialAccounts"
+  | "officialModels"
   | "announcement"
   | "chatSettings"
   | "chatTraffic"

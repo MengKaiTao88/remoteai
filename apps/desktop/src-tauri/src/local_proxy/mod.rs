@@ -28,6 +28,7 @@ pub(crate) mod gui_system_prompts;
 pub(crate) mod lan_keys;
 mod lan_usage_capture;
 mod official_input;
+mod official_model_cache;
 mod quota_detection;
 mod quota_sse;
 mod responses_lite;

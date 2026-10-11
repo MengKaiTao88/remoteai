@@ -12,6 +12,17 @@ struct OfficialForwardRequest<'a, R: Runtime> {
 fn forward_official<R: Runtime>(
     request: OfficialForwardRequest<'_, R>,
 ) -> Result<UpstreamPayload, String> {
+    if *request.method == Method::Get
+        && matches!(request_path(request.url), "/models" | "/v1/models")
+    {
+        return official_model_cache::with_fallback(request.app, || forward_official_upstream(request));
+    }
+    forward_official_upstream(request)
+}
+
+fn forward_official_upstream<R: Runtime>(
+    request: OfficialForwardRequest<'_, R>,
+) -> Result<UpstreamPayload, String> {
     let OfficialForwardRequest {
         app,
         method,
