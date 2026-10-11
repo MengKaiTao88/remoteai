@@ -107,9 +107,6 @@ Select **2FA** in the menu to view and manage authentication codes in the main w
 - Optionally syncs with a self-hosted Go backend. The Expo mobile app can refresh official usage/reset credits, while both the mobile and standalone Web apps can remotely switch a selected PC between official models and synchronized Providers. Cross-source switches prompt for a ChatGPT/Codex restart.
 - Keeps account credentials and Provider secrets in the Rust backend, out of the React UI and application logs.
 
-> [!IMPORTANT]
-> Account credentials, Provider API keys, and cloud-login tokens are stored in the application data directory without additional at-rest encryption. A `.cs` backup contains restorable credentials and keys. Cloud sync is opt-in, but enabling it uploads those secrets to the server you configure. Use only trusted devices and self-hosted servers; never commit, share, or publish credential files, backups, or unchecked diagnostics.
-
 ## Getting started
 
 ### Linux packages
