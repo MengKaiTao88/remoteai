@@ -1,4 +1,4 @@
-use csw_chat_connectivity::Config;
+use csw_chat_connectivity::{Config, Connection, Event};
 use easytier::{
     common::config::{ConfigLoader, NetworkIdentity, TomlConfig},
     instance::factory::{create_native_instance, NativeCoreInstance},
@@ -7,6 +7,37 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
+const STREAM_READY_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Consume the seed's startup events before a protocol fixture starts accepting requests.
+/// The download side keeps its own Open/Status events for the production protocol reader.
+pub(crate) async fn wait_for_stream(connection: &Connection) -> Result<(), String> {
+    let mut diagnostic = "no discovery diagnostics received".to_owned();
+    let ready = tokio::time::timeout(STREAM_READY_TIMEOUT, async {
+        loop {
+            match connection.receive().await {
+                Some(Event::Open) => return true,
+                Some(Event::Closed) | None => return false,
+                Some(Event::Diagnostic { stage, snapshot }) => {
+                    // These snapshots contain counts and stages, never peer addresses or credentials.
+                    diagnostic = format!("{stage:?}: {snapshot:?}");
+                }
+                _ => {}
+            }
+        }
+    })
+    .await;
+    match ready {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(format!(
+            "P2P fixture closed before its stream opened; {diagnostic}"
+        )),
+        Err(_) => Err(format!(
+            "P2P fixture did not open its stream within {STREAM_READY_TIMEOUT:?}; {diagnostic}"
+        )),
+    }
+}
 
 pub(crate) async fn host(session: &str) -> Arc<NativeCoreInstance> {
     start(session, false).await
