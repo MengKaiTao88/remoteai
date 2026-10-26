@@ -1,6 +1,8 @@
 use super::*;
 #[path = "failed_usage_tests.rs"]
 mod failed_usage;
+#[path = "large_usage_tests.rs"]
+mod large_usage;
 #[path = "usage_review_tests.rs"]
 mod usage_review;
 use crate::local_proxy::{self as proxy, TokenUsageContext};

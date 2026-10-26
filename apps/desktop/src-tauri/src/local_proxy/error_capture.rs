@@ -5,9 +5,9 @@ use super::stream_completion::{CompletionEvent, StreamCompletion};
 
 const MAX_CAPTURE_BYTES: usize = 64 * 1024;
 // Terminal Responses frames repeat the output and can exceed the diagnostic sample budget.
-// Health checks must validate those frames before releasing a recovering member. Keep a
-// separate hard bound so an unbounded upstream frame still cannot exhaust proxy memory.
-const MAX_HEALTH_CAPTURE_BYTES: usize = 8 * 1024 * 1024;
+// Health checks and LAN accounting must validate those frames beyond the diagnostic sample.
+// Keep a separate hard bound so an unbounded upstream frame cannot exhaust proxy memory.
+const MAX_COMPLETION_CAPTURE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ERROR_MESSAGE_CHARS: usize = 1000;
 const GENERIC_UPSTREAM_ERROR: &str = "The upstream service returned an error.";
 const INTERRUPTED_STREAM_ERROR: &str = "上游已结束传输，但没有发送完整的响应结束事件。";
@@ -16,6 +16,7 @@ const INTERRUPTED_STREAM_ERROR: &str = "上游已结束传输，但没有发送�
 enum CapturePurpose {
     Diagnostics,
     MemberHealth,
+    Accounting,
 }
 
 /// A structured failure found in bytes already read from the upstream response.
@@ -61,6 +62,14 @@ impl ErrorCapture {
     pub(super) fn new_for_health(event_stream: bool, http_status: u16) -> Self {
         Self {
             purpose: CapturePurpose::MemberHealth,
+            ..Self::new(event_stream, http_status)
+        }
+    }
+
+    /// Validates larger billing frames without relaxing failure or incomplete-response checks.
+    pub(super) fn new_for_accounting(event_stream: bool, http_status: u16) -> Self {
+        Self {
+            purpose: CapturePurpose::Accounting,
             ..Self::new(event_stream, http_status)
         }
     }
@@ -219,7 +228,9 @@ impl ErrorCapture {
     fn capture_limit(&self) -> usize {
         match self.purpose {
             CapturePurpose::Diagnostics => MAX_CAPTURE_BYTES,
-            CapturePurpose::MemberHealth => MAX_HEALTH_CAPTURE_BYTES,
+            CapturePurpose::MemberHealth | CapturePurpose::Accounting => {
+                MAX_COMPLETION_CAPTURE_BYTES
+            }
         }
     }
 

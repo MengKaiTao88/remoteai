@@ -19,7 +19,10 @@ impl LanUsageCapture {
         let event_stream = captures_event_stream(context);
         Self {
             // Only successful HTTP responses reach token capture. Failures can still arrive in the body.
-            errors: ErrorCapture::new(event_stream, reqwest::StatusCode::OK.as_u16()),
+            errors: ErrorCapture::new_for_accounting(
+                event_stream,
+                reqwest::StatusCode::OK.as_u16(),
+            ),
             read_failed: false,
             event_stream,
         }

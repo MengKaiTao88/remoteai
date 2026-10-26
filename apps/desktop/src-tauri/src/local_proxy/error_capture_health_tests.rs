@@ -180,7 +180,7 @@ fn fragmented_valid_response_completion_is_healthy_with_or_without_done() {
 fn terminal_frames_above_health_limit_remain_unknown() {
     let value = json!({
         "type": "response.completed",
-        "response": {"id": "resp_test", "output": "x".repeat(MAX_HEALTH_CAPTURE_BYTES + 1)}
+        "response": {"id": "resp_test", "output": "x".repeat(MAX_COMPLETION_CAPTURE_BYTES + 1)}
     });
     for prefix in ["", "event: response.completed\n"] {
         let body = format!("{prefix}data: {value}\n\ndata: [DONE]\n\n");
