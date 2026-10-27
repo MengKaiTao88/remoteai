@@ -98,6 +98,75 @@ test('moves the dock in the exact same frame as a dragged native parent', async 
   assert.deepEqual(delta, { petX: 63, dockX: 63, petY: 41, dockY: 41 });
 });
 
+test('transparent card wrappers cannot intercept pet drags while actual cards remain clickable', async () => {
+  await page.evaluate(() => {
+    const host = document.querySelector('#tray-host');
+    host.style.cssText = 'position:absolute;left:120px;top:90px;width:220px;height:100px;';
+    const tray = host.firstElementChild;
+    tray.style.cssText = 'position:relative;top:112px;';
+    window.petPresses = 0;
+    window.cardPresses = 0;
+    document.querySelector('[data-avatar-mascot]').addEventListener('pointerdown', () => window.petPresses++);
+    document.querySelector('#card-action').addEventListener('click', () => window.cardPresses++);
+    window.__remoteAiPetDock.update({ language: 'en', kind: 'official' });
+  });
+  await page.locator('[data-avatar-mascot]').click({ timeout: 1500 });
+  await page.locator('#card-action').click({ timeout: 1500 });
+  assert.equal(await page.evaluate(() => window.petPresses), 1);
+  assert.equal(await page.evaluate(() => window.cardPresses), 1);
+});
+
+test('cards follow the pet before the next animation frame and ignore native tray offsets', async () => {
+  const delta = await page.evaluate(() => {
+    const before = window.__remoteAiPetDock.inspect();
+    document.querySelector('.group.absolute').style.transform = 'translate(63px, 160px)';
+    document.querySelector('#tray-host').style.transform = 'translate(-80px, -176px)';
+    document.querySelector('[data-avatar-overlay-size="notification-tray"]').style.top = '-24px';
+    const after = window.__remoteAiPetDock.inspect();
+    return { petX: after.mascot.x - before.mascot.x, trayX: after.tray.x - before.tray.x,
+      petY: after.mascot.y - before.mascot.y, trayY: after.tray.y - before.tray.y,
+      gap: after.tray.top - after.dock.bottom };
+  });
+  assert.equal(delta.trayX, delta.petX);
+  assert.equal(delta.trayY, delta.petY);
+  assert.ok(delta.gap >= 4);
+});
+
+test('cards flip above the pet near the bottom edge and return below when space is available', async () => {
+  await page.evaluate(() => { document.querySelector('.group.absolute').style.top = '550px'; });
+  const bottom = await inspect();
+  assert.ok(bottom.tray.bottom < bottom.mascot.top);
+  assert.ok(bottom.mascot.top - bottom.tray.bottom < 20);
+  assert.ok(bottom.tray.top >= 0);
+  await page.evaluate(() => { document.querySelector('.group.absolute').style.top = '90px'; });
+  const restored = await inspect();
+  assert.ok(restored.tray.top > restored.dock.bottom);
+});
+
+test('cards stay within the frame at either horizontal edge', async () => {
+  for (const left of [0, 420]) {
+    await page.evaluate(left => { document.querySelector('.group.absolute').style.left = `${left}px`; }, left);
+    const state = await inspect();
+    assert.ok(state.tray.left >= 0);
+    assert.ok(state.tray.right <= 500);
+    assert.ok(state.tray.top > state.dock.bottom);
+  }
+});
+
+test('bottom placement measures overflowing stacked cards, not only the native wrapper height', async () => {
+  await page.evaluate(() => {
+    const tray = document.querySelector('[data-avatar-overlay-size="notification-tray"]');
+    tray.style.height = '56px';
+    tray.insertAdjacentHTML('beforeend', '<div style="position:relative;height:150px">Expanded stack</div>');
+    document.querySelector('.group.absolute').style.top = '375px';
+    window.__remoteAiPetDock.update({ language: 'en', kind: 'official' });
+  });
+  const state = await inspect();
+  const cardBottom = await page.locator('[data-avatar-overlay-size="notification-tray"] > div')
+    .evaluate(node => node.getBoundingClientRect().bottom);
+  assert.ok(cardBottom < state.mascot.top);
+});
+
 test('adapts to another pet size and does not add duplicate docks', async () => {
   await page.evaluate(() => {
     document.querySelector('[data-avatar-mascot]').style.width = '128px';
@@ -127,6 +196,9 @@ test('restores native attributes and card positions when disabled', async () => 
   assert.equal(await page.locator('[data-remoteai-dock-toolbar]').count(), 0);
   assert.equal(await page.locator('[inert]').count(), 0);
   assert.equal(await page.locator('#tray-host').evaluate((node) => node.style.getPropertyValue('--remoteai-dock-tray-shift')), '');
+  assert.equal(await page.locator('[data-remoteai-dock-anchored]').count(), 0);
+  assert.equal(await page.locator('#tray-host').evaluate(node => node.style.getPropertyValue('--remoteai-dock-tray-gap')), '');
+  assert.equal(await page.locator('#tray-host').evaluate(node => node.style.getPropertyValue('--remoteai-dock-tray-height')), '');
   await page.locator('#native-action').click();
   await page.locator('#card-action').click();
 });

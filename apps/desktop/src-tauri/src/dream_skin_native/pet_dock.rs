@@ -35,7 +35,7 @@ pub(crate) fn sync_pet_dock(snapshot: Option<&Value>) -> Result<DockState, Strin
             session.evaluate("window.__remoteAiPetDock?.destroy(); true")?;
             continue;
         };
-        let installed = session.evaluate("window.__remoteAiPetDock?.version === 12")?;
+        let installed = session.evaluate("window.__remoteAiPetDock?.version === 14")?;
         if installed.as_bool() != Some(true) {
             session.evaluate(PET_DOCK_RENDERER)?;
             let image = format!("data:image/png;base64,{}", BASE64.encode(PET_DOCK_ART));
