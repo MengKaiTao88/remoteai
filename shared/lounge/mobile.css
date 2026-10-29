@@ -1,14 +1,14 @@
 .lounge-mobile, .lounge-mobile-sheet, .lounge-profile-drawer {
   --lounge-bg: #f5f7f8; --lounge-paper: #fff; --lounge-input: #e9eef1;
   --lounge-text: #202b33; --lounge-muted: #687c89; --lounge-line: #d5dfe6;
-  --lounge-blue: #456c96; --lounge-blue-bg: #deebf7; --lounge-green: #54866a;
+  --lounge-blue: #456c96; --lounge-blue-bg: #deebf7;
   color: var(--lounge-text);
 }
 :root[data-theme="dark"] .lounge-mobile, :root[data-theme="dark"] .lounge-mobile-sheet,
 :root[data-theme="dark"] .lounge-profile-drawer {
   --lounge-bg: #111619; --lounge-paper: #192125; --lounge-input: #212b30;
   --lounge-text: #edf2f4; --lounge-muted: #a0adb5; --lounge-line: #293238;
-  --lounge-blue: #a9c9ee; --lounge-blue-bg: #273b4e; --lounge-green: #a4c8b0;
+  --lounge-blue: #a9c9ee; --lounge-blue-bg: #273b4e;
 }
 .lounge-mobile { min-height: 0; background: var(--lounge-bg); padding-bottom: env(safe-area-inset-bottom); }
 .lounge-mobile button, .lounge-mobile-sheet button { font: inherit; cursor: pointer; }
@@ -30,8 +30,8 @@
 .lounge-heading-identity.is-private .lounge-members-trigger { min-height: 24px; margin-left: 0; }
 .lounge-mobile-heading .lounge-members-trigger { min-width: 0; flex-shrink: 1; color: var(--lounge-muted);
   font-size: 11px; margin-left: 6px; text-align: start; }
-.lounge-members-trigger i { width: 5px; height: 5px; border-radius: 50%; background: var(--lounge-muted); flex-shrink: 0; }
-.lounge-members-trigger i.is-online { background: var(--lounge-green); }
+.lounge-members-trigger i { width: 8px; height: 8px; border-radius: 50%; background: var(--lounge-offline); flex-shrink: 0; }
+.lounge-members-trigger i.is-online { background: var(--lounge-online); }
 .lounge-members-trigger .lounge-online-count, .lounge-members-trigger .lounge-peer-status { font-size: inherit; }
 .lounge-mobile-heading .lounge-chats-trigger { margin-left: auto; position: relative; border: 1px solid var(--lounge-line);
   border-radius: 12px; padding: 0 9px; font-size: 12px; color: var(--lounge-blue); }
@@ -110,9 +110,9 @@
 .lounge-swipe-content { position: relative; background: var(--lounge-bg); }
 .lounge-swipe-delete { position: absolute; inset: 0 auto 0 0; width: 76px; border: 0;
   background: #c8434b; color: #fff; }
-.lounge-avatar-presence { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px;
-  box-sizing: border-box; border-radius: 50%; border: 2px solid var(--lounge-bg); background: var(--lounge-muted); }
-.lounge-avatar-presence.is-online { background: var(--lounge-green); }
+.lounge-avatar-presence { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px;
+  box-sizing: border-box; border-radius: 50%; border: 2px solid var(--lounge-bg); background: var(--lounge-offline); }
+.lounge-avatar-presence.is-online { background: var(--lounge-online); }
 .lounge-mobile .lounge-avatar, .lounge-mobile-sheet .lounge-avatar { width: 42px; height: 42px; flex-basis: 42px;
   border-radius: 15px; background: var(--lounge-blue-bg); color: var(--lounge-blue); }
 .lounge-chat-row-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }

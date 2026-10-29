@@ -5,6 +5,10 @@ import { BUBBLE_HORIZONTAL_PADDING, MESSAGE_FONT_SIZE } from './messageLayout';
 export const UNREAD_BADGE_FONT_SIZE = 10;
 export const UNREAD_BADGE_HORIZONTAL_PADDING = 4;
 
+// Keep presence vivid in both themes instead of mapping it to muted accent colors.
+const ONLINE_COLOR = '#22c55e';
+const OFFLINE_COLOR = '#ef4444';
+
 export const useLoungeStyles = createLoungeStyles(color => ({
   page: { flex: 1, minHeight: 0, backgroundColor: color('#f5f7f8', 'canvas') },
   header: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 4, paddingRight: 12,
@@ -79,15 +83,15 @@ export const useLoungeStyles = createLoungeStyles(color => ({
   memberTrigger: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: 5,
     marginLeft: 6, flexShrink: 1 },
   privateStatus: { minHeight: 24, marginLeft: 0 },
-  onlineDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: color('#54866a', 'accent') },
-  offlineDot: { backgroundColor: color('#687c89', 'muted') },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: ONLINE_COLOR },
+  offlineDot: { backgroundColor: OFFLINE_COLOR },
   chatAvatar: { position: 'relative', flexShrink: 0 },
   chatAvatarBadge: { position: 'absolute', right: -7, top: -5, borderRadius: 12, minWidth: 18,
     paddingHorizontal: 5, backgroundColor: '#e54d57', alignItems: 'center' },
   chatAvatarBadgeText: { ...textMetrics(11, 16), color: '#fff' },
   chatRowMain: { flex: 1, minWidth: 0, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarPresence: { position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6,
-    borderWidth: 2, borderColor: color('#f5f7f8', 'canvas'), backgroundColor: color('#54866a', 'accent') },
+  avatarPresence: { position: 'absolute', right: 0, bottom: 0, width: 14, height: 14, borderRadius: 7,
+    borderWidth: 2, borderColor: color('#f5f7f8', 'canvas'), backgroundColor: ONLINE_COLOR },
   chatsTrigger: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 44, marginLeft: 'auto',
     borderWidth: 1, borderColor: color('#d5dfe6', 'border'), borderRadius: 12, paddingHorizontal: 9 },
   chatsLabel: { ...textMetrics(12, 18), color: color('#456c96', 'info') },

@@ -15,8 +15,8 @@ for (const width of [320, 390]) for (const theme of ['light', 'dark']) {
     const bob = page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true });
     const row = page.locator('.lounge-chat-row').filter({ has: bob });
     const dot = row.locator('.lounge-avatar-presence');
-    const green = theme === 'dark' ? 'rgb(164, 200, 176)' : 'rgb(84, 134, 106)';
-    const gray = theme === 'dark' ? 'rgb(160, 173, 181)' : 'rgb(104, 124, 137)';
+    const green = 'rgb(34, 197, 94)';
+    const red = 'rgb(239, 68, 68)';
     await expect(dot).toHaveCSS('background-color', green);
     await expect(row.locator('.lounge-avatar-unread')).toHaveText('1');
     expect(relay.receipts.some(receipt => receipt.id === id && receipt.status === 'read')).toBe(false);
@@ -28,11 +28,11 @@ for (const width of [320, 390]) for (const theme of ['light', 'dark']) {
     expect(badge.y + badge.height).toBeCloseTo(avatar.y + avatar.height, 0);
     await page.screenshot({ path: `../../.codex-tmp/lounge-presence-${width}-${theme}-online.png` });
     relay.contact(false);
-    await expect(dot).toHaveCSS('background-color', gray);
+    await expect(dot).toHaveCSS('background-color', red);
     await expect(bob).toHaveAccessibleDescription('离线');
     await page.screenshot({ path: `../../.codex-tmp/lounge-presence-${width}-${theme}-offline.png` });
     relay.contact(null);
-    await expect(dot).toHaveCSS('background-color', gray);
+    await expect(dot).toHaveCSS('background-color', red);
     await expect(bob).toHaveAccessibleDescription('在线状态不可见');
     relay.private('Picture avatar', { id: 'bob', account: 'bob@example.test', avatar: pixel });
     await expect(row.locator('img')).toBeVisible();
@@ -52,6 +52,6 @@ for (const width of [320, 390]) for (const theme of ['light', 'dark']) {
     await page.locator('.discovery-lounge').click();
     await expect(page.getByRole('textbox', { name: '搜索聊天' })).toBeVisible();
     relay.offline(); relay.close();
-    await expect(dot).toHaveCSS('background-color', gray);
+    await expect(dot).toHaveCSS('background-color', red);
   });
 }

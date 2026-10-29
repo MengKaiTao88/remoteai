@@ -10,8 +10,9 @@
 .lounge-profile-details .lounge-avatar img { width: 100%; height: 100%; }
 .lounge-profile-details h2 { margin: 20px 0 10px; font-size: 20px; line-height: 1.5; overflow-wrap: anywhere; }
 .lounge-profile-status { display: flex; align-items: center; gap: 7px; color: var(--lounge-muted); font-size: 14px; }
-.lounge-profile-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--lounge-muted); }
-.lounge-profile-status i.is-online { background: var(--lounge-green); }
+.lounge-profile-status i { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%;
+  background: var(--lounge-offline); }
+.lounge-profile-status i.is-online { background: var(--lounge-online); }
 .lounge-profile-actions { margin-top: auto; display: flex; flex-shrink: 0; gap: 12px;
   padding: 16px 20px max(20px, env(safe-area-inset-bottom)); }
 .lounge-profile-actions button { min-height: 48px; border-radius: 14px; padding: 12px 20px; overflow-wrap: anywhere; }
