@@ -32,6 +32,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 csw-ssh-client = { path = "../../../crates/ssh-client" }
 csw-chat-connectivity = { path = "../../../crates/chat-connectivity" }
+csw-provider-balance-script = { path = "../../../crates/provider-balance-script" }
 arboard = { version = "3.6.1", default-features = false, features = ["image-data"] }
 base64 = "0.22"
 bytes = "1"

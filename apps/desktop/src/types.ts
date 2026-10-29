@@ -101,6 +101,7 @@ export interface ProviderRequestOptions {
 }
 
 export interface Provider {
+  balanceScript?: import('../../../shared/provider-market/types').MarketBalanceQuery | null;
   requestOptions?: ProviderRequestOptions | null;
   id: string;
   kind: ProviderKind;
@@ -134,6 +135,8 @@ export interface Provider {
 }
 
 export interface ProviderInput {
+  balanceScript?: import('../../../shared/provider-market/types').MarketBalanceQuery | null;
+  clearBalanceScript?: boolean;
   requestOptions?: ProviderRequestOptions;
   id?: string;
   kind: ProviderKind;

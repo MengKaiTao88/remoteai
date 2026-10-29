@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { MarketLauncher } from "../../../../shared/provider-market/MarketLauncher";
+import { desktopProviderMarket } from "../api/providerMarket";
+import type { MarketIdentity } from '../../../../shared/provider-market/types';
 import { createPortal } from "react-dom";
 import { Button, Space } from "antd";
 import {
@@ -44,7 +47,7 @@ interface ProvidersPageProps {
   proxyBusy: boolean;
   proxyStartDisabledReason?: string;
   onStartProxy: () => void;
-  onSave: (provider: ProviderInput) => Promise<Provider | null>;
+  onSave: (provider: ProviderInput, identity?: MarketIdentity | null) => Promise<Provider | null>;
   onSaveAggregateApi: (aggregate: AggregateApiInput) => Promise<AggregateApi | null>;
   onRefreshAggregateApis: () => Promise<void>;
   onSwitchAggregateApi: (id: string) => Promise<boolean>;
@@ -105,6 +108,7 @@ export function ProvidersPage({
   language,
   t,
 }: ProvidersPageProps) {
+  const marketClient = useMemo(() => desktopProviderMarket(onSave), [onSave]);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showOpenAiModal, setShowOpenAiModal] = useState(false);
@@ -250,6 +254,7 @@ export function ProvidersPage({
         <Space size={[8, 8]} wrap>
           <ProviderAddMenu onAddPreset={() => setShowPresetModal(true)} onAddOpenAi={openCreateOpenAi}
             onAddProvider={openCreate} t={t} />
+          <MarketLauncher client={marketClient} language={language} />
           <Button className="provider-topbar-button" icon={<Network size={14} />}
             onClick={() => setShowAggregateManager(true)}>
             {t("providers.aggregate.manage")}
@@ -272,9 +277,10 @@ export function ProvidersPage({
         <div className="provider-empty">
           <Server size={24} />
           <strong>{t("providers.empty.title")}</strong>
-          <Space size={8}>
+          <Space size={[8, 8]} wrap>
             <ProviderAddMenu onAddPreset={() => setShowPresetModal(true)} onAddOpenAi={openCreateOpenAi}
               onAddProvider={openCreate} t={t} />
+            <MarketLauncher client={marketClient} language={language} />
             <Button icon={<Network size={14} />} onClick={() => setShowAggregateManager(true)}>
               {t("providers.aggregate.manage")}
             </Button>

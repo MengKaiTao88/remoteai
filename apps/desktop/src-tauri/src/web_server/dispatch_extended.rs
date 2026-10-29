@@ -14,6 +14,12 @@ fn dispatch_extended_command(app: AppHandle, command: &str, args: Value) -> Resu
         "cloud_ssh_profiles" => serialize(block_on(crate::cloud::cloud_ssh_profiles(
             app, argument(&args, "identity")?, argument(&args, "request")?,
         ))),
+        "cloud_provider_market" => serialize(block_on(crate::cloud::cloud_provider_market(
+            app, argument(&args, "identity")?, argument(&args, "request")?,
+        ))),
+        "cloud_install_market_provider" => serialize(block_on(crate::cloud::cloud_install_market_provider(
+            app, argument(&args, "identity")?, argument(&args, "input")?,
+        ))),
         "cloud_lounge_ticket" => serialize(block_on(crate::cloud::cloud_lounge_ticket(
             app, argument(&args, "identity")?,
         ))),
@@ -225,6 +231,7 @@ fn dispatch_extended_command(app: AppHandle, command: &str, args: Value) -> Resu
         "cloud_push_provider" => serialize(block_on(crate::cloud::cloud_push_provider(
             app,
             argument(&args, "id")?,
+            argument(&args, "identity")?,
         ))),
         "cloud_delete_account" => serialize(block_on(crate::cloud::cloud_delete_account(
             app,

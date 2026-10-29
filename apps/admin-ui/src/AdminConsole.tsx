@@ -23,6 +23,7 @@ import { AnnouncementPage } from "./pages/AnnouncementPage";
 import { ChatSettingsPage } from "./pages/ChatSettingsPage";
 import { UpdateSharingPage } from "./pages/UpdateSharingPage";
 import { TokenPricingPage } from "./pages/TokenPricingPage";
+import { ProviderMarketPage } from "./pages/ProviderMarketPage";
 import { CurrencyPage } from "./pages/CurrencyPage";
 import { CodexHomePresetsPage } from "./pages/CodexHomePresetsPage";
 import { AuditLogsPage } from "./pages/AuditLogsPage";
@@ -155,6 +156,7 @@ const menuPermissions: Record<MenuKey, Permission> = {
   announcement: "admin.announcements.read",
   currency: "admin.currency.read",
   tokenPricing: "admin.token-pricing.read",
+  providerMarket: "admin.provider-market.read",
   codexHomePresets: "admin.codex-home-presets.read",
   emailTemplates: "admin.email-templates.read",
   skills: "admin.skills.read",
@@ -176,6 +178,7 @@ const menuOrder: MenuKey[] = [
   "announcement",
   "currency",
   "tokenPricing",
+  "providerMarket",
   "chatSettings",
   "updateSharing",
   "chatTraffic",
@@ -1332,6 +1335,11 @@ export function AdminConsole({ dark, onThemeChange }: AdminConsoleProps) {
     if (activeKey === "tokenPricing") {
       return <TokenPricingPage api={api}
         canManage={Boolean(profile?.permissions?.includes("admin.token-pricing.manage"))} />;
+    }
+    if (activeKey === 'providerMarket') {
+      return <ProviderMarketPage key={profile?.id} api={api}
+        canManage={Boolean(profile?.permissions?.includes('admin.provider-market.manage'))}
+        canOrder={Boolean(profile?.permissions?.includes('admin.provider-market.order'))} />;
     }
     if (activeKey === "officialModels") {
       return <OfficialModelsPage api={api}

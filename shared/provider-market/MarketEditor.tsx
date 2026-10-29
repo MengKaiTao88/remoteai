@@ -1,0 +1,52 @@
+import { useState } from 'react';
+import { Alert, Button, Checkbox, ConfigProvider, Input, Select, Space } from 'antd';
+import type { MarketText } from './i18n';
+import { emptyDraft, emptyModel, publicDraft, type MarketDraft } from './types';
+import { validDraft } from './validation';
+import { ModelEditor } from './ModelEditor';
+import { BalanceQueryEditor } from './BalanceQueryEditor';
+
+export function MarketEditor({ initial, busy, t, onSave, onCancel }: {
+  initial?: MarketDraft; busy: boolean; t: MarketText;
+  onSave: (draft: MarketDraft, published: boolean) => Promise<void>; onCancel: () => void;
+}) {
+  const [value, setValue] = useState(() => initial ? publicDraft(initial) : emptyDraft());
+  const [published, setPublished] = useState(() => initial && 'published' in initial ? Boolean(initial.published) : true);
+  const [attempted, setAttempted] = useState(false);
+  const valid = validDraft(value);
+  return <form className="pm-editor" onSubmit={(event) => {
+    event.preventDefault(); setAttempted(true);
+    if (valid && !busy) void onSave(publicDraft(value), published);
+  }}>
+    <Alert type="info" showIcon message={t('market.publicNotice')} />
+    <ConfigProvider componentDisabled={busy}><fieldset disabled={busy}>
+      <label><span>{t('market.name')}</span><Input value={value.name} maxLength={80}
+        aria-label={t('market.name')} onChange={(event) => setValue({ ...value, name: event.target.value })} /></label>
+      <label><span>{t('market.baseUrl')}</span><Input value={value.baseUrl} aria-label={t('market.baseUrl')}
+        onChange={(event) => setValue({ ...value, baseUrl: event.target.value.trim() })} /></label>
+      <label><span>{t('market.description')}</span><Input.TextArea value={value.description} maxLength={4000}
+        rows={3} aria-label={t('market.description')}
+        onChange={(event) => setValue({ ...value, description: event.target.value })} /></label>
+      <div className="pm-row"><label><span>{t('market.currency')}</span><Select value={value.currency}
+        aria-label={t('market.currency')} options={['USD', 'CNY', 'EUR', 'JPY'].map((currency) => ({ value: currency }))}
+        onChange={(currency) => setValue({ ...value, currency })} /></label>
+        <span>{t('market.unit', { currency: value.currency })}</span></div>
+      <p>{t('market.independentPrices')}</p>
+      {value.models.map((model, index) => <ModelEditor key={index} value={model} t={t}
+        onChange={(changed) => setValue({ ...value, models: value.models.map((entry, position) =>
+          position === index ? changed : entry) })}
+        onRemove={value.models.length > 1 ? () => setValue({ ...value,
+          models: value.models.filter((_, position) => position !== index) }) : undefined} />)}
+      <Button disabled={value.models.length >= 64} onClick={() => setValue({
+        ...value, models: [...value.models, emptyModel()],
+      })}>{t('market.addModel')}</Button>
+      <BalanceQueryEditor value={value.balanceQuery ?? null} t={t}
+        onChange={(balanceQuery) => setValue({ ...value, balanceQuery })} />
+      <Checkbox checked={published} onChange={(event) => setPublished(event.target.checked)}>
+        {t('market.published')}</Checkbox>
+    </fieldset></ConfigProvider>
+    {attempted && !valid && <Alert type="error" message={t('market.invalid')} />}
+    <Space><Button disabled={busy} onClick={onCancel}>{t('market.cancel')}</Button>
+      <Button type="primary" htmlType="submit" loading={busy}>{t('market.save')}</Button></Space>
+  </form>;
+}

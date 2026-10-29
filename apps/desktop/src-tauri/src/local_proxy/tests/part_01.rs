@@ -56,6 +56,7 @@ fn openai_provider(base_url: String) -> ProviderProfile {
         model_selection_controlled_by_codex: true,
         fast_mode_enabled: true,
         api_format: ProviderApiFormat::OpenaiResponses,
+        balance_script: None,
         balance_platform: None,
         balance_query_url: None,
         balance_query_token: None,

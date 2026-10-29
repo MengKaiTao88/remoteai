@@ -75,6 +75,14 @@ pub(crate) fn save_provider_blocking<R: Runtime>(
         provider.request_options,
     );
     let base_url = normalize_provider_endpoint(&provider.base_url, request_options.as_ref())?;
+    let balance_script = if provider.clear_balance_script {
+        None
+    } else {
+        provider.balance_script.or_else(|| existing.as_ref().and_then(|value| value.balance_script.clone()))
+    };
+    if let Some(script) = &balance_script {
+        script.validate(&base_url).map_err(|error| error.to_string())?;
+    }
     let model = if kind == ProviderKind::OpenAi && provider.model.trim().is_empty() {
         DEFAULT_OFFICIAL_MODEL
     } else {
@@ -157,6 +165,7 @@ pub(crate) fn save_provider_blocking<R: Runtime>(
         fast_mode_enabled: provider.fast_mode_enabled,
         api_format: provider.api_format,
         request_options,
+        balance_script,
         balance_platform,
         balance_query_url,
         balance_query_token,
@@ -332,6 +341,9 @@ fn query_provider_balance_blocking<R: Runtime>(
 ) -> Result<ProviderBalance, String> {
     let paths = resolve_paths(&app)?;
     let provider = read_provider(&paths, &id)?;
+    if let Some(script) = &provider.balance_script {
+        return script_balance::query(&provider, script).map_err(|error| error.to_string());
+    }
     let platform = provider
         .balance_platform
         .ok_or_else(|| "Provider balance query is not enabled".to_string())?;

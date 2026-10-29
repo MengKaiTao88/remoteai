@@ -1,0 +1,65 @@
+import { useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { App, ConfigProvider, theme } from 'antd';
+import { ProvidersPage } from '../src/pages/ProvidersPage';
+import { RemoteAccountPicker } from '../src/pages/codexGui/remote/RemoteAccountPicker';
+import { RemoteModelSwitchSheet } from '../../web/src/components/RemoteModelSwitchSheet';
+import { ProviderMarketPage } from '../../admin-ui/src/pages/ProviderMarketPage';
+import { I18nProvider } from '../../admin-ui/src/i18n-context';
+import { loadStoredSession } from '../../web/src/api';
+import { saveProviderProfile } from '../src/api/backend';
+import { translate } from '../src/i18n';
+import type { GuiAccountsClient } from '../../../shared/remote-chat/guiAccounts';
+import 'antd/dist/reset.css';
+import '../src/styles.css';
+
+loadStoredSession();
+const query = new URLSearchParams(location.search);
+const mode = query.get('mode') ?? 'local';
+if (mode === 'web') void import('../../web/src/styles.css');
+const dark = query.has('dark');
+document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+const nothing = () => {};
+const done = async () => {};
+const yes = async () => true;
+const guiClient: GuiAccountsClient = {
+  read: async () => ({ choices: [], selection: { kind: 'none' }, running: true }),
+  select: async (selection) => selection, subscribe: () => nothing,
+};
+const adminApi = async <T,>(path: string, options?: RequestInit): Promise<T> => {
+  const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json' } });
+  if (!response.ok) throw new Error((await response.json()).message);
+  return response.json() as Promise<T>;
+};
+function Harness() {
+  const [beats, setBeats] = useState(0);
+  useEffect(() => { const timer = setInterval(() => setBeats((n) => n + 1), 50);
+    return () => clearInterval(timer); }, []);
+  return <ConfigProvider theme={{ algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+    token: { motion: false } }}><App><main style={{ padding: 24 }}>
+    <output data-testid="beats">{beats}</output>
+    {mode === 'local' || mode === 'hosted' ? <>
+      <div id="provider-topbar-actions" />
+      <ProvidersPage providers={[]} aggregateApis={[]} providerGroups={[]} accounts={[]} active
+        loading={false} saving={false} busyProviderId={null} localProxy={null} proxyBusy={false}
+        onStartProxy={nothing} onSave={saveProviderProfile} onSaveAggregateApi={async () => null}
+        onRefreshAggregateApis={done} onSwitchAggregateApi={yes} onDeleteAggregateApi={nothing}
+        onSwitch={nothing} onSwitchGroup={nothing} onDeactivate={nothing} onSwitchModel={nothing}
+        onModelControlChange={nothing} onGroupChange={nothing} onGroupChangeMany={done}
+        onProviderGroupsChange={done} onChangeGroupMembers={yes} onAutoSwitchChange={nothing}
+        onDelete={nothing} onDeleteMany={async () => []} onImageModelChange={nothing}
+        displayMode="table" privacyMode={false} tokenUsageRefreshSeconds={2} language="en"
+        t={(key, values) => translate('en', key, values)} />
+    </> : mode === 'remote' ? <aside style={{ width: 340, marginTop: 400 }}>
+      <RemoteAccountPicker active ready client={guiClient} privacyMode={false}
+        computers={{ current: null, devices: [], authenticated: true, loading: false, error: '',
+          refresh: nothing, choose: nothing, login: nothing }} />
+    </aside> : mode === 'admin' ? <I18nProvider language="en" onLanguageChange={nothing}>
+      <ProviderMarketPage api={adminApi} canManage canOrder />
+    </I18nProvider> : <RemoteModelSwitchSheet device={{ deviceId: 'test-computer', name: 'Test computer',
+      platform: 'windows', localProxyRunning: true, capabilities: [], lastSeenAt: '', online: true }}
+      accounts={[]} providers={[]} switchingAccountId={null} switchingProviderId={null} onClose={nothing}
+      onSwitchAccount={yes} onSwitchProvider={yes} onSwitchProviderGroup={yes} />}
+  </main></App></ConfigProvider>;
+}
+createRoot(document.getElementById('root')!).render(<Harness />);

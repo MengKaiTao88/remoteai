@@ -16,6 +16,7 @@ export type MenuKey =
   | "chatTraffic"
   | "currency"
   | "tokenPricing"
+  | "providerMarket"
   | "codexHomePresets"
   | "emailTemplates"
   | "skills"

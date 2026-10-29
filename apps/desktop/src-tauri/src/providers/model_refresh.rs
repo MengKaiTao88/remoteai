@@ -375,6 +375,10 @@ pub(crate) struct ProviderInput {
     #[serde(default)]
     pub(crate) request_options: Option<crate::models::ProviderRequestOptions>,
     #[serde(default)]
+    pub(crate) balance_script: Option<crate::models::ProviderBalanceScript>,
+    #[serde(default)]
+    pub(crate) clear_balance_script: bool,
+    #[serde(default)]
     pub(crate) balance_platform: Option<ProviderBalancePlatform>,
     #[serde(default)]
     pub(crate) balance_query_url: Option<String>,

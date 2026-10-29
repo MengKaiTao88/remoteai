@@ -263,6 +263,8 @@ fn pending_provider_input(
         model_selection_controlled_by_codex: pending.controlled_by_codex,
         fast_mode_enabled: true,
         api_format: pending.api_format,
+        balance_script: None,
+        clear_balance_script: false,
         balance_platform: pending.balance.platform,
         balance_query_url: pending.balance.query_url,
         balance_query_token: None,

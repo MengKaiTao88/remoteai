@@ -934,6 +934,7 @@ export async function saveProviderProfile(provider: ProviderInput): Promise<Prov
     const apiFormat = kind === "openai" ? "openaiResponses" : provider.apiFormat;
     const requestOptions = retainedRequestOptions(existing, provider);
     const next: Provider = {
+      balanceScript: provider.clearBalanceScript ? null : provider.balanceScript ?? existing?.balanceScript ?? null,
       id: existing?.id ?? provider.id ?? previewProviderId(),
       kind,
       name: provider.name.trim(),
@@ -2659,9 +2660,11 @@ export async function pushCloudProviders(): Promise<CloudSyncResult> {
   return invoke<CloudSyncResult>("cloud_push_providers");
 }
 
-export async function pushCloudProvider(id: string): Promise<CloudSyncResult> {
+export async function pushCloudProvider(
+  id: string, identity?: import('../../../../shared/provider-market/types').MarketIdentity,
+): Promise<CloudSyncResult> {
   if (!hasLocalBackend) return { uploaded: 0, downloaded: 0 };
-  return invoke<CloudSyncResult>("cloud_push_provider", { id });
+  return invoke<CloudSyncResult>("cloud_push_provider", { id, identity });
 }
 
 export async function deleteCloudAccount(id: string): Promise<CloudSyncResult> {

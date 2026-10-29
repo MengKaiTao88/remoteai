@@ -93,6 +93,10 @@ pub(super) fn apply_remote_provider<R: Runtime>(
     if provider.request_options.is_some() {
         merge_field!(request_options);
     }
+    // Missing timestamps identify old clients; they cannot erase an explicitly enabled script.
+    if !provider.field_modified_at.balance_script.is_empty() {
+        merge_field!(balance_script);
+    }
     merge_field!(balance_platform);
     merge_field!(balance_query_url);
     merge_field!(balance_query_token);
@@ -149,6 +153,7 @@ pub(super) fn normalize_provider_field_modified_at(
         &mut values.fast_mode_enabled,
         &mut values.api_format,
         &mut values.request_options,
+        &mut values.balance_script,
         &mut values.balance_platform,
         &mut values.balance_query_url,
         &mut values.balance_query_token,
@@ -182,6 +187,7 @@ pub(super) fn latest_provider_field_modified_at(values: &ProviderFieldModifiedAt
         &values.fast_mode_enabled,
         &values.api_format,
         &values.request_options,
+        &values.balance_script,
         &values.balance_platform,
         &values.balance_query_url,
         &values.balance_query_token,
@@ -220,6 +226,7 @@ pub(super) fn provider_payload_from_profile(
         fast_mode_enabled: provider.fast_mode_enabled,
         api_format: provider.api_format,
         request_options: provider.request_options,
+        balance_script: provider.balance_script,
         balance_platform: provider.balance_platform,
         balance_query_url: provider.balance_query_url,
         balance_query_token: provider.balance_query_token,
@@ -253,6 +260,7 @@ pub(super) fn provider_payload_to_profile(provider: &ProviderSyncPayload) -> Pro
         fast_mode_enabled: provider.fast_mode_enabled,
         api_format: provider.api_format,
         request_options: provider.request_options.clone(),
+        balance_script: provider.balance_script.clone(),
         balance_platform: provider.balance_platform,
         balance_query_url: provider.balance_query_url.clone(),
         balance_query_token: provider.balance_query_token.clone(),

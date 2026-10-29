@@ -8,6 +8,8 @@ import { formatCompactTokenCount } from "../../utils/tokenContext";
 import { formatEstimatedCost, type TokenCostDisplaySettings } from "../../utils/tokenCost";
 import { modelOptions, normalizeModels } from "./providerUtils";
 import { useCurrencyFormatter } from "../../hooks/useTokenCostDisplaySettings";
+import { formatMarketError } from '../../../../../shared/provider-market/i18n';
+import { guiLanguage } from '../../i18n/uiText';
 import type { CurrencyFormatter } from "../../utils/currencyDisplay";
 
 export function apiFormatTag(provider: Provider, t: Translate) {
@@ -53,6 +55,9 @@ function BalanceValues({ options }: { options: {
   walletValue: string;
 } }) {
   const { apiValue, deepSeekValues, provider, t, walletValue } = options;
+  if (provider.balanceScript) {
+    return <strong><span>{t('providers.balance.balance')}</span>{apiValue}</strong>;
+  }
   if (provider.balancePlatform === "codexSwitch") {
     return <strong><span>{t("providers.balance.remainingQuota")}</span>{apiValue}</strong>;
   }
@@ -76,13 +81,13 @@ export function ProviderBalanceCell({ provider, t }: { provider: Provider; t: Tr
   const [error, setError] = useState("");
 
   const refresh = async () => {
-    if (!provider.balancePlatform) return;
+    if ((!provider.balancePlatform && !provider.balanceScript) || loading) return;
     setLoading(true);
     setError("");
     try {
       setBalance(await queryProviderBalance(provider.id));
     } catch (queryError) {
-      setError(String(queryError));
+      setError(provider.balanceScript ? formatMarketError(guiLanguage(), queryError) : String(queryError));
     } finally {
       setLoading(false);
     }
@@ -96,7 +101,7 @@ export function ProviderBalanceCell({ provider, t }: { provider: Provider; t: Tr
 
   useEffect(() => {
     let active = true;
-    if (!provider.balancePlatform) {
+    if (!provider.balancePlatform && !provider.balanceScript) {
       setBalance(null);
       setError("");
       return () => { active = false; };
@@ -108,15 +113,16 @@ export function ProviderBalanceCell({ provider, t }: { provider: Provider; t: Tr
         if (active) setBalance(result);
       })
       .catch((queryError) => {
-        if (active) setError(String(queryError));
+        if (active) setError(provider.balanceScript
+          ? formatMarketError(guiLanguage(), queryError) : String(queryError));
       })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [provider.id, provider.balancePlatform, provider.balanceQueryUrl, provider.walletQueryUrl]);
+  }, [provider.id, provider.balancePlatform, provider.balanceQueryUrl, provider.walletQueryUrl, provider.balanceScript]);
 
-  if (!provider.balancePlatform) {
+  if (!provider.balancePlatform && !provider.balanceScript) {
     return <span className="provider-balance-disabled">{t("providers.balance.disabled")}</span>;
   }
   const apiValue = apiBalanceValue({ balance, provider, error, t, formatAmount });

@@ -2,6 +2,7 @@ mod catalog_storage;
 mod group_accounts;
 mod group_display_names;
 mod model_order;
+mod script_balance;
 pub(crate) use group_accounts::refresh_labels as refresh_group_account_labels;
 mod reasoning_defaults;
 pub(crate) use reasoning_defaults::known_model_reasoning_efforts;
@@ -36,4 +37,5 @@ mod tests {
     include!("tests/reasoning_defaults.rs");
     include!("tests/config_repair.rs");
     include!("tests/request_options.rs");
+    include!("tests/market_balance.rs");
 }

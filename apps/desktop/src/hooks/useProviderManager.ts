@@ -48,14 +48,18 @@ import type {
 } from "../types";
 import { useProviderData } from "./useProviderData";
 import { runSwitchFollowUp } from "./switchFollowUp";
+import type { MarketIdentity } from '../../../../shared/provider-market/types';
+import { formatMarketError } from '../../../../shared/provider-market/i18n';
+import { guiLanguage } from '../i18n/uiText';
 
 interface ProviderCloudSync {
-  pushProvider?: (id: string) => Promise<void> | void;
+  pushProvider?: (id: string, identity?: MarketIdentity) => Promise<void> | void;
   deleteProvider?: (id: string) => Promise<void> | void;
 }
 
 function providerErrorMessage(error: unknown, t: Translate) {
   const message = String(error);
+  if (message.includes('market.script')) return formatMarketError(guiLanguage(), error);
   if (message.includes("conversation history could not be synchronized")
     && message.includes("ChatGPT/Codex could not be restarted")) {
     return t("providers.error.proxyStartSyncAndRestartFailed");
@@ -192,13 +196,13 @@ export function useProviderManager(
   const [proxyStartProgress, setProxyStartProgress] = useState<LocalProxyStartProgress | null>(null);
   const [proxyStopProgress, setProxyStopProgress] = useState<LocalProxyStopProgress | null>(null);
 
-  const saveProvider = useCallback(async (provider: ProviderInput) => {
+  const saveProvider = useCallback(async (provider: ProviderInput, identity?: MarketIdentity | null) => {
     setSaving(true);
     try {
       const saved = await saveProviderProfile(provider);
       notify(t("toast.providerSaved"));
       await load();
-      await cloudSync?.pushProvider?.(saved.id);
+      if (identity !== null) await cloudSync?.pushProvider?.(saved.id, identity);
       return saved;
     } catch (error) {
       notify(providerErrorMessage(error, t));

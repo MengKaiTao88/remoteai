@@ -32,6 +32,7 @@ import { LanguageSelect } from "../../../../../shared/localization/LanguageSelec
 import type { MenuKey, Permission, Profile } from "../../types";
 import { getLatestAndroidApkUrl } from "../../utils/releaseDownloads";
 import "./AdminShell.css";
+import { marketText } from '../../../../../shared/provider-market/i18n';
 
 interface AdminShellProps {
   activeKey: MenuKey;
@@ -45,7 +46,7 @@ interface AdminShellProps {
   onSignOut: () => Promise<void>;
 }
 
-const menuLabelKeys: Record<MenuKey, TranslationKey> = {
+const menuLabelKeys: Record<Exclude<MenuKey, 'providerMarket'>, TranslationKey> = {
   chatTraffic: "nav.chatTraffic",
   dashboard: "nav.dashboard",
   myAccounts: "nav.myAccounts",
@@ -82,6 +83,7 @@ const menuPermissions: Record<MenuKey, Permission> = {
   updateSharing: "admin.update-sharing.read",
   currency: "admin.currency.read",
   tokenPricing: "admin.token-pricing.read",
+  providerMarket: "admin.provider-market.read",
   codexHomePresets: "admin.codex-home-presets.read",
   emailTemplates: "admin.email-templates.read",
   skills: "admin.skills.read",
@@ -120,6 +122,7 @@ export function AdminShell({
       { key: "updateSharing" as const, icon: <Download size={17} />, label: t("nav.updateSharing") },
       { key: "chatTraffic" as const, icon: <ChartNoAxesCombined size={17} />, label: t("nav.chatTraffic") },
       { key: "tokenPricing" as const, icon: <Coins size={17} />, label: t("nav.tokenPricing") },
+      { key: "providerMarket" as const, icon: <PackageOpen size={17} />, label: marketText(language)('market.title') },
       { key: "currency" as const, icon: <Coins size={17} />, label: t("nav.currency") },
       { key: "codexHomePresets" as const, icon: <FolderCog size={17} />, label: t("nav.codexHomePresets") },
       { key: "emailTemplates" as const, icon: <Mails size={17} />, label: t("nav.emailTemplates") },
@@ -138,7 +141,7 @@ export function AdminShell({
         && permissions.has("admin.official-accounts.read-own")
       )
     ));
-  }, [profile?.permissions, t]);
+  }, [language, profile?.permissions, t]);
 
   const avatarMenu = useMemo<MenuProps["items"]>(() => [
     { key: "profile", icon: <UserRound size={15} />, label: t("header.profile") },
@@ -170,7 +173,8 @@ export function AdminShell({
       <Layout>
         <header className="app-header">
           <div className="brand-copy">
-            <strong>{t(menuLabelKeys[activeKey])}</strong>
+            <strong>{activeKey === 'providerMarket' ? marketText(language)('market.title')
+              : t(menuLabelKeys[activeKey])}</strong>
             <span>{profile?.email}</span>
           </div>
           <div className="header-actions">

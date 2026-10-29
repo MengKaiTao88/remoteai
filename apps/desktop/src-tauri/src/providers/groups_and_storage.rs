@@ -196,6 +196,7 @@ fn provider_field_values(provider: &ProviderProfile) -> Vec<serde_json::Value> {
         json!(provider.fast_mode_enabled),
         json!(provider.api_format),
         json!(provider.request_options),
+        json!(provider.balance_script),
         json!(provider.balance_platform),
         json!(provider.balance_query_url),
         json!(provider.balance_query_token),
@@ -206,7 +207,7 @@ fn provider_field_values(provider: &ProviderProfile) -> Vec<serde_json::Value> {
     ]
 }
 
-fn provider_field_versions_mut(values: &mut ProviderFieldModifiedAt) -> [&mut String; 23] {
+fn provider_field_versions_mut(values: &mut ProviderFieldModifiedAt) -> [&mut String; 24] {
     [
         &mut values.kind,
         &mut values.name,
@@ -224,6 +225,7 @@ fn provider_field_versions_mut(values: &mut ProviderFieldModifiedAt) -> [&mut St
         &mut values.fast_mode_enabled,
         &mut values.api_format,
         &mut values.request_options,
+        &mut values.balance_script,
         &mut values.balance_platform,
         &mut values.balance_query_url,
         &mut values.balance_query_token,
@@ -351,6 +353,7 @@ fn provider_summary(
         fast_mode_enabled: provider.fast_mode_enabled,
         api_format: provider.api_format,
         request_options: provider.request_options.clone(),
+        balance_script: provider.balance_script.clone(),
         active,
         auto_switch_enabled: auto_switch_enabled && provider.kind == ProviderKind::Custom,
         has_api_key: !provider.api_key.trim().is_empty(),

@@ -120,6 +120,9 @@ fn normalize_model_api_formats(models: &[String], configured: ModelApiFormats) -
 }
 
 fn normalize_provider_profile(mut provider: ProviderProfile) -> Result<ProviderProfile, String> {
+    if let Some(script) = &provider.balance_script {
+        script.validate(&provider.base_url).map_err(|error| error.to_string())?;
+    }
     if provider.context_window == Some(0) {
         return Err("Context window must be greater than zero".to_string());
     }

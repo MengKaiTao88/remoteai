@@ -35,6 +35,8 @@ pub(crate) struct ProviderProfile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) request_options: Option<ProviderRequestOptions>,
     #[serde(default)]
+    pub(crate) balance_script: Option<ProviderBalanceScript>,
+    #[serde(default)]
     pub(crate) balance_platform: Option<ProviderBalancePlatform>,
     #[serde(default)]
     pub(crate) balance_query_url: Option<String>,
@@ -70,6 +72,7 @@ pub(crate) struct ProviderSummary {
     pub(crate) fast_mode_enabled: bool,
     pub(crate) api_format: ProviderApiFormat,
     pub(crate) request_options: Option<ProviderRequestOptions>,
+    pub(crate) balance_script: Option<ProviderBalanceScript>,
     pub(crate) active: bool,
     pub(crate) auto_switch_enabled: bool,
     pub(crate) has_api_key: bool,

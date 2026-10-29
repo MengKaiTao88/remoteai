@@ -129,12 +129,21 @@ pub(crate) async fn cloud_push_providers<R: Runtime>(
 pub(crate) async fn cloud_push_provider<R: Runtime>(
     app: tauri::AppHandle<R>,
     id: String,
+    identity: Option<GuiCloudIdentity>,
 ) -> Result<CloudSyncResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let _credentials_guard = lock_cloud_credentials()?;
         let client = api_client()?;
         let mut settings = read_app_settings(&app)?;
         let mut credentials = read_cloud_credentials(&app);
+        if let Some(identity) = identity {
+            if base_url(&settings).ok() != Some(identity.base_url.as_str())
+                || settings.cloud_user_id.as_deref() != Some(&identity.user_id)
+                || !cloud_state(&settings, &credentials).authenticated
+            {
+                return Err("market.signIn".into());
+            }
+        }
         put_remote_provider(&app, &client, &mut settings, &mut credentials, &id)?;
         write_app_settings(&app, &settings)?;
         write_cloud_credentials(&app, &credentials)?;

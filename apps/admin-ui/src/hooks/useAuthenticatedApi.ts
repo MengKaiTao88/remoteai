@@ -22,7 +22,8 @@ export function useAuthenticatedApi(
   const refreshAuth = useCallback(() => {
     if (refreshPromiseRef.current) return refreshPromiseRef.current;
 
-    const refreshToken = authRef.current?.refreshToken;
+    const refreshOwner = authRef.current;
+    const refreshToken = refreshOwner?.refreshToken;
     if (!refreshToken) return Promise.reject(new Error(t("errors.sessionExpired")));
 
     const refreshPromise = fetch("/auth/refresh", {
@@ -30,11 +31,15 @@ export function useAuthenticatedApi(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
     }).then(async (response) => {
+      if (authRef.current !== refreshOwner) throw new Error(t("errors.sessionExpired"));
       if (!response.ok) {
         updateAuth(null);
         throw new Error(t("errors.sessionExpired"));
       }
       const refreshed = await response.json() as AuthTokens;
+      if (authRef.current !== refreshOwner || refreshed.user.id !== refreshOwner?.user.id) {
+        throw new Error(t("errors.sessionExpired"));
+      }
       if (!refreshed.accessToken || !refreshed.refreshToken) {
         updateAuth(null);
         throw new Error(t("errors.sessionExpired"));
@@ -54,17 +59,18 @@ export function useAuthenticatedApi(
     options: RequestInit = {},
     jsonRequest = true,
   ) => {
+    const requestAuth = authRef.current;
+    if (!requestAuth?.accessToken) throw new Error(t("errors.notSignedIn"));
     const requestWithToken = (token: string) => {
+      if (authRef.current?.user.id !== requestAuth.user.id) throw new Error(t("errors.sessionExpired"));
       const headers = new Headers(options.headers);
       if (jsonRequest && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
       headers.set("Authorization", `Bearer ${token}`);
       return fetch(path, { ...options, headers });
     };
 
-    const requestAuth = authRef.current;
-    if (!requestAuth?.accessToken) throw new Error(t("errors.notSignedIn"));
-
     let response = await requestWithToken(requestAuth.accessToken);
+    if (authRef.current?.user.id !== requestAuth.user.id) throw new Error(t("errors.sessionExpired"));
     if (response.status !== 401) return response;
 
     const latestAuth = authRef.current;
@@ -72,6 +78,7 @@ export function useAuthenticatedApi(
       ? latestAuth
       : await refreshAuth();
     response = await requestWithToken(retryAuth.accessToken);
+    if (authRef.current?.user.id !== requestAuth.user.id) throw new Error(t("errors.sessionExpired"));
     return response;
   }, [refreshAuth, t]);
 

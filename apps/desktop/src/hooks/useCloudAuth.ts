@@ -19,6 +19,7 @@ import {
 import type { Translate } from "../i18n";
 import type { CloudAuthState } from "../types";
 import { cloudLoginErrorMessage } from "../utils/cloudLoginError";
+import type { MarketIdentity } from '../../../../shared/provider-market/types';
 
 const DISABLED_STATE: CloudAuthState = {
   enabled: false,
@@ -245,10 +246,10 @@ export function useCloudAuth(notify: (message: string) => void, t: Translate) {
     }
   }, [load, state.authenticated]);
 
-  const pushProviderQuietly = useCallback(async (id: string) => {
+  const pushProviderQuietly = useCallback(async (id: string, identity?: MarketIdentity) => {
     if (!state.authenticated) return;
     try {
-      await pushCloudProvider(id);
+      await pushCloudProvider(id, identity);
       await load();
     } catch {
       // Provider operations remain local-first if cloud sync is temporarily unavailable.

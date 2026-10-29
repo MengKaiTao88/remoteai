@@ -22,6 +22,7 @@ import {
 import { useProviderBalanceDetection } from "./useProviderBalanceDetection";
 import { useProviderRequestOptions } from "./useProviderRequestOptions";
 import { ProviderAdvancedSettings } from "./ProviderAdvancedSettings";
+import { ProviderScriptSettings } from './ProviderScriptSettings';
 
 export interface ProviderModalProps {
   provider: Provider | null;
@@ -38,12 +39,14 @@ export function ProviderModal({ provider, saving, onClose, onSave, t }: Provider
   const [model, setModel] = useState("");
   const [modelConfigs, setModelConfigs] = useState<ModelReasoningConfig[]>([]);
   const [apiKey, setApiKey] = useState("");
+  const [balanceScript, setBalanceScript] = useState(provider?.balanceScript ?? null);
   const [supportsFastMode, setSupportsFastMode] = useState(true);
   const balance = useProviderBalanceDetection({ provider, baseUrl, apiKey });
   const requestOptions = useProviderRequestOptions(provider);
 
   useEffect(() => {
     setName(provider?.name ?? "");
+    setBalanceScript(provider?.balanceScript ?? null);
     setNameTouched(Boolean(provider));
     setBaseUrl(provider?.baseUrl ?? "");
     const nextModels = normalizeModels(provider?.model ?? "", provider?.models ?? []);
@@ -116,6 +119,8 @@ export function ProviderModal({ provider, saving, onClose, onSave, t }: Provider
       modelSelectionControlledByCodex: provider?.modelSelectionControlledByCodex ?? true,
       fastModeEnabled: supportsFastMode,
       apiKey: apiKey.trim() || undefined,
+      balanceScript,
+      clearBalanceScript: balanceScript === null,
       apiFormat: provider?.apiFormat ?? "openaiResponses",
       requestOptions: requestOptions.value,
       balancePlatform: detectedPlatform,
@@ -177,6 +182,7 @@ export function ProviderModal({ provider, saving, onClose, onSave, t }: Provider
             setName(value);
           }} t={t} />
         <ProviderAdvancedSettings options={requestOptions} saving={saving} t={t} />
+        <ProviderScriptSettings value={balanceScript} onChange={setBalanceScript} />
         <div className="provider-modal-footer">
           <Button onClick={onClose} disabled={saving}>{t("providers.form.cancel")}</Button>
           <Button type="primary" icon={<Save size={14} />} loading={saving} disabled={!canSave}

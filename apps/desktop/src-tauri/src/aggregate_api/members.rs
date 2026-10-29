@@ -62,6 +62,7 @@ fn official_profile(paths: &Paths, id: &str, name: String) -> ProviderProfile {
         fast_mode_enabled: true,
         api_format: ProviderApiFormat::OpenaiResponses,
         request_options: None,
+        balance_script: None,
         balance_platform: None,
         balance_query_url: None,
         balance_query_token: None,

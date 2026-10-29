@@ -3,6 +3,7 @@ include!("auto_reset.rs");
 include!("lan_keys.rs");
 include!("providers.rs");
 mod provider_request_options;
+pub(crate) use csw_provider_balance_script::BalanceScript as ProviderBalanceScript;
 pub(crate) use provider_request_options::ProviderRequestOptions;
 mod proxy_transport;
 pub(crate) use proxy_transport::ProxyTransportSettings;
