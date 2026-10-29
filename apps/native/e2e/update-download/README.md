@@ -13,7 +13,9 @@ It checks continuous responses, resumed and non-contiguous ranges, invalid or tr
 cancellation, connection cleanup, and cooperation with peer downloads. It does not install an APK,
 launch the app, or access an account.
 
-The checks also exercise timed and 4 MiB checkpoint batches, final flush and corrupt-block recovery.
+The checks also exercise repeated login-time empty task saves, interrupted and failed checkpoint writes,
+hash-page replacement, timed and 4 MiB checkpoint batches, final flush and corrupt-block recovery.
+They package the app's AndroidX atomic file implementation, avoiding vendor framework atomic commit code.
 Three 32 MiB write benchmarks compare the production updater checkpoint writer with the production
 download-manager storage class. These are storage measurements, not end-to-end download speeds.
 

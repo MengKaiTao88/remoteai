@@ -6,7 +6,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.AtomicFile
+// Use the bundled implementation: some HyperOS builds abort in the framework's native atomic commit.
+import androidx.core.util.AtomicFile
 import org.json.JSONArray
 import java.io.File
 import java.io.RandomAccessFile
@@ -59,8 +60,9 @@ internal class DownloadStorage(private val context: Context) {
     }
     val json = JSONArray().apply { tasks.forEach { put(it.data) } }.toString()
     val output = index.startWrite()
-    try { output.write(json.toByteArray(Charsets.UTF_8)); index.finishWrite(output) }
+    try { output.write(json.toByteArray(Charsets.UTF_8)) }
     catch (error: Exception) { index.failWrite(output); throw error }
+    index.finishWrite(output)
   }
 
   fun prepare(task: DownloadTask) {

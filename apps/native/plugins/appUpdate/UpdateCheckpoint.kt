@@ -1,6 +1,7 @@
 package com.codexswitch.update
 
-import android.util.AtomicFile
+// Match download storage; framework atomic commits can abort on affected HyperOS builds.
+import androidx.core.util.AtomicFile
 import android.os.SystemClock
 import org.json.JSONArray
 import org.json.JSONObject
@@ -77,8 +78,9 @@ internal class UpdateCheckpoint(
     val metadata = JSONObject().put("artifact", artifact).put("size", size)
       .put("hashes", JSONArray(hashes.map { it ?: JSONObject.NULL }))
     val output = ledger.startWrite()
-    try { output.write(metadata.toString().toByteArray(Charsets.UTF_8)); ledger.finishWrite(output) }
+    try { output.write(metadata.toString().toByteArray(Charsets.UTF_8)) }
     catch (error: Exception) { ledger.failWrite(output); throw error }
+    ledger.finishWrite(output)
     dirtyBytes = 0
     savedAt = clock()
   }

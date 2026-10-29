@@ -19,11 +19,11 @@ const cache = path.join(process.env.GRADLE_USER_HOME ?? path.join(os.homedir(), 
 assert.ok(sdk && process.env.JAVA_HOME, 'ANDROID_HOME and JAVA_HOME are required');
 await mkdir(output, { recursive: true });
 
-async function jar(artifact) {
+async function artifactFile(artifact, extension = '.jar') {
   const directory = path.join(cache, artifact);
   for (const hash of await readdir(directory)) {
     const files = await readdir(path.join(directory, hash));
-    const name = files.find(file => file.endsWith('.jar'));
+    const name = files.find(file => file.endsWith(extension));
     if (name) return path.join(directory, hash, name);
   }
   throw new Error(`Missing Gradle dependency: ${artifact}. Build the Android project first.`);
@@ -38,7 +38,17 @@ const compiler = await Promise.all([
   'org.jetbrains.intellij.deps/trove4j/1.0.20200330',
   'org.jetbrains.kotlinx/kotlinx-coroutines-core-jvm/1.6.4',
   'org.jetbrains/annotations/13.0',
-].map(jar));
+].map(artifact => artifactFile(artifact)));
+// Package the same AndroidX implementation as the app, without unrelated AndroidX components.
+const core = await artifactFile('androidx.core/core/1.13.1', '.aar');
+const coreDirectory = path.join(output, 'androidx-core');
+await mkdir(coreDirectory, { recursive: true });
+const jarTool = path.join(process.env.JAVA_HOME, 'bin', process.platform === 'win32' ? 'jar.exe' : 'jar');
+const atomicClass = 'androidx/core/util/AtomicFile.class';
+await exec(jarTool, ['xf', core, 'classes.jar'], { cwd: coreDirectory });
+await exec(jarTool, ['xf', 'classes.jar', atomicClass], { cwd: coreDirectory });
+const atomicJar = path.join(coreDirectory, 'atomic-file.jar');
+await exec(jarTool, ['cf', atomicJar, atomicClass], { cwd: coreDirectory });
 const android = path.join(sdk, 'platforms/android-35/android.jar');
 const classes = path.join(output, 'checks.jar');
 const dex = path.join(output, 'checks-dex.jar');
@@ -48,16 +58,18 @@ const sources = ['UpdateOriginBlocks.kt', 'UpdateFiles.kt', 'UpdateBlockPlan.kt'
   .map(name => path.join(root, 'apps/native/plugins/appUpdate', name));
 sources.push(path.join(root, 'apps/native/plugins/connectivity/NativeConnectivity.kt'));
 const storageSources = ['DownloadStorage.kt', 'DownloadTask.kt', 'DownloadImages.kt', 'BulkDownloadStorage.kt',
-  'BulkManifest.kt', 'BulkDownloadFailure.kt'].map(name => path.join(root, 'apps/native/plugins/downloads', name));
+  'BulkManifest.kt', 'BulkDownloadFailure.kt', 'DownloadSharing.kt', 'DownloadSpeed.kt']
+  .map(name => path.join(root, 'apps/native/plugins/downloads', name));
 storageSources.push(path.join(root, 'apps/native/plugins/chatPacketCipher/PacketCipher.kt'));
 const checks = ['UpdateOriginChecks.kt', 'UpdateDownloadProbe.kt', 'UpdateStorageChecks.kt', 'UpdateTestStorage.kt',
-  'UpdatePipelineChecks.kt', 'UpdateSnapshotChecks.kt', 'UpdateCancellationChecks.kt']
+  'UpdatePipelineChecks.kt', 'UpdateSnapshotChecks.kt', 'UpdateCancellationChecks.kt', 'DownloadCheckpointChecks.kt']
   .map(name => fileURLToPath(new URL(`./update-download/${name}`, import.meta.url)));
 await exec(java, ['-cp', compiler.join(path.delimiter), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
-  '-no-stdlib', '-no-reflect', '-jvm-target', '1.8', '-classpath', [android, compiler[1]].join(path.delimiter),
+  '-no-stdlib', '-no-reflect', '-jvm-target', '1.8',
+  '-classpath', [android, compiler[1], path.join(coreDirectory, 'classes.jar')].join(path.delimiter),
   '-d', classes, ...sources, ...storageSources, ...checks]);
 await exec(java, ['-cp', path.join(sdk, 'build-tools/35.0.0/lib/d8.jar'), 'com.android.tools.r8.D8',
-  '--min-api', '24', '--lib', android, '--output', dex, classes, compiler[1]]);
+  '--min-api', '24', '--lib', android, '--output', dex, classes, compiler[1], atomicJar]);
 
 const live = [];
 const localPort = 49351;

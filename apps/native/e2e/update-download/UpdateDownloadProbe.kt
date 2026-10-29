@@ -11,6 +11,7 @@ object UpdateDownloadProbe {
     UpdateCancellationChecks.run()
     UpdateOriginChecks.run()
     UpdatePipelineChecks.run()
+    DownloadCheckpointChecks.run()
     UpdateStorageChecks.run()
     if (args.isNotEmpty()) downloadRelease(args)
     // Some phones retain a network helper thread after all synchronous checks and cleanup have finished.

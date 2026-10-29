@@ -1,6 +1,7 @@
 package com.codexswitch.downloads
 
-import android.util.AtomicFile
+// Keep all download checkpoints off the vendor framework's native atomic commit path.
+import androidx.core.util.AtomicFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -18,8 +19,9 @@ internal class BulkDownloadStorage(private val storage: DownloadStorage) {
     val page = JSONObject(json); val file = pageFile(task, page.getInt("page"))
     check(file.parentFile?.mkdirs() == true || file.parentFile?.isDirectory == true)
     val atomic = AtomicFile(file); val output = atomic.startWrite()
-    try { output.write(json.toByteArray(Charsets.UTF_8)); atomic.finishWrite(output) }
+    try { output.write(json.toByteArray(Charsets.UTF_8)) }
     catch (error: Exception) { atomic.failWrite(output); throw error }
+    atomic.finishWrite(output)
   }
   fun page(task: DownloadTask, page: Int): JSONObject =
     JSONObject(AtomicFile(pageFile(task, page)).openRead().bufferedReader().use { it.readText() })
