@@ -1,4 +1,5 @@
 {
+  "client.lounge.adminBadge": "Админ",
   "client.lounge.adminSettings": "Управление болталкой",
   "client.lounge.moderator": "Модератор болталки",
   "client.lounge.moderatorHint": "Может запрещать и разрешать другим пользователям писать в чате.",

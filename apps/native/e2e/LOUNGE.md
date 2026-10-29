@@ -97,6 +97,11 @@ while the operating system has suspended networking.
 
 ## Automated checks
 
+Set `LOUNGE_ADMIN_BADGE_ONLY=1` to verify the yellow administrator badge before sender names,
+ordinary messages without badges, own messages, history, English copy and back navigation at
+font scales 1.0 and 1.3. Inspect `admin-*.png` for complete glyphs, long nickname wrapping and
+light/dark appearance. Browser coverage is in `apps/desktop/e2e/lounge-admin-badge.pw.ts`.
+
 Set `LOUNGE_NAMES_ONLY=1` to verify nickname and owner-private contact remark editing, failed saves,
 remote-device updates, clearing, long-press sheet labels and server recovery after clearing app data.
 The fixture runs at font scales 1.0 and 1.3; inspect `names-*.png` for Chinese glyphs and keyboard layout.

@@ -1,4 +1,4 @@
-import { accountName } from './names';
+import { LoungeSender } from './LoungeSender';
 import { useLayoutEffect, useRef } from 'react';
 import { MessagesSquare } from 'lucide-react';
 import { displayText as t } from '../localization/messages';
@@ -57,10 +57,8 @@ export function MobileLoungeThread({ model, controller }: { model: MobileLounge;
         className={`lounge-message${own ? ' is-own' : ''}${highlight === historyKey(message) ? ' is-highlighted' : ''}`}>
         <LoungeAvatar user={message.sender} onProfile={() => model.setProfile(message.sender)} />
         <div className="lounge-message-main">
-          {!own && state.policy.moderator ? <button type="button" className="lounge-account lounge-account-action"
-            aria-label={t('client.lounge.manageUser', { account: accountName(message.sender) })}
-            onClick={() => model.setModerating(message.sender)}>{accountName(message.sender)}</button>
-            : <div className="lounge-account">{accountName(message.sender)}</div>}
+          <LoungeSender user={message.sender} manage={state.policy.moderator && !own
+            ? () => model.setModerating(message.sender) : undefined} />
           <LoungeMessageBody message={message} preview={model.setPreview} onImageLoad={scrollBottom}
             controller={controller} locate={model.locate}
             actions={{ reply: model.quote, blocked: state.blocked.includes(message.sender.id),

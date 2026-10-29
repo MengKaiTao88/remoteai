@@ -45,6 +45,10 @@
   color: var(--lounge-muted); margin: 0 0 6px; }
 .lounge-account-action { border: 0; background: transparent; padding: 0; cursor: pointer; text-align: start; }
 .lounge-account-action:hover { text-decoration: underline; }
+.lounge-sender { display: flex; align-items: center; gap: 5px; }
+.lounge-sender-name { min-width: 0; overflow-wrap: anywhere; }
+.lounge-moderator-badge { flex-shrink: 0; border-radius: 4px; padding: 1px 5px;
+  background: #facc15; color: #422006; font-size: 10px; line-height: 1.5; font-weight: 600; }
 .lounge-mute-notice { margin: 0; padding: 8px 24px; font-size: 12px; color: var(--lounge-muted); }
 .lounge-duration-label { display: flex; flex-direction: column; gap: 8px; }
 .lounge-bubble { border-radius: 4px 16px 16px; background: var(--lounge-paper); padding: 11px 15px;

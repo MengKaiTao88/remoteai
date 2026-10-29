@@ -64,10 +64,12 @@ describe('application lifetime lounge', () => {
     expect(controller.snapshot().onlineCount).toBeUndefined();
     socket.frame({ type: 'policy', policy: { moderator: true, mutedUntil: null }, onlineCount: 5 });
     expect(controller.snapshot().onlineCount).toBe(5);
+    expect(controller.snapshot().user?.moderator).toBe(true);
     socket.frame({ type: 'presence', onlineCount: 6 });
     expect(controller.snapshot().onlineCount).toBe(6); expect(controller.snapshot().unread).toBe(0);
     socket.frame({ type: 'policy', policy: { moderator: false, mutedUntil: null } });
     expect(controller.snapshot().onlineCount).toBeUndefined();
+    expect(controller.snapshot().user?.moderator).toBe(false);
     socket.frame({ type: 'policy', policy: { moderator: true, mutedUntil: null }, onlineCount: 6 });
     socket.onclose?.(); expect(controller.snapshot().onlineCount).toBeUndefined();
   });

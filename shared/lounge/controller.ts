@@ -543,6 +543,7 @@ export class LoungeController {
     if (typeof value.moderator !== 'boolean' || value.mutedUntil !== null &&
       (typeof value.mutedUntil !== 'string' || !Number.isFinite(Date.parse(value.mutedUntil)))) return;
     this.update({ policy: { moderator: value.moderator, mutedUntil: value.mutedUntil as string | null },
+      user: this.state.user ? { ...this.state.user, moderator: value.moderator } : undefined,
       onlineCount: value.moderator ? this.state.onlineCount : undefined });
   }
   private submit(frame: Record<string, unknown>, draft?: LoungeDraft): Promise<void> {

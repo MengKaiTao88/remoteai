@@ -16,6 +16,7 @@ export function parseAccount(input: unknown): LoungeAccount | undefined {
   if (typeof user.id !== 'string' || !user.id || user.id.length > 80
     || typeof user.account !== 'string' || !user.account || [...user.account].length > 320) return;
   return { id: user.id, account: user.account, avatar: avatarData(user.avatar) ? user.avatar : undefined,
+    ...(typeof user.moderator === 'boolean' ? { moderator: user.moderator } : {}),
     ...(validName(user.nickname, MAX_NICKNAME) ? { nickname: user.nickname } : {}),
     ...(validName(user.remark, MAX_REMARK) ? { remark: user.remark } : {}) };
 }

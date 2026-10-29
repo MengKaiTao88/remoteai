@@ -1,4 +1,5 @@
 {
+  "client.lounge.adminBadge": "管理者",
   "client.lounge.adminSettings": "チャット管理",
   "client.lounge.moderator": "チャット管理者",
   "client.lounge.moderatorHint": "チャット内で他のユーザーの発言を制限・解除できます。",

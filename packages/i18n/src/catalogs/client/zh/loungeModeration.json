@@ -1,4 +1,5 @@
 {
+  "client.lounge.adminBadge": "管理员",
   "client.lounge.adminSettings": "闲聊管理",
   "client.lounge.moderator": "闲聊管理员",
   "client.lounge.moderatorHint": "可在闲聊中设置或解除其他用户的禁言。",

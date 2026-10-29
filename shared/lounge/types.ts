@@ -12,6 +12,8 @@ export const MAX_FRAME_BYTES = 6 * 1024 * 1024;
 export const MAX_MUTE_MINUTES = 30 * 24 * 60;
 export interface LoungeAccount {
   id: string; account: string; avatar?: string; nickname?: string;
+  /** Server-confirmed lounge role, retained with messages for offline history. */
+  moderator?: boolean;
   /** Private label for the current account; presentation/cache only, never transmitted to other users. */
   remark?: string;
 }

@@ -1,4 +1,5 @@
 {
+  "client.lounge.adminBadge": "Admin",
   "client.lounge.adminSettings": "Lounge management",
   "client.lounge.moderator": "Lounge moderator",
   "client.lounge.moderatorHint": "Can mute and unmute other users in the lounge.",

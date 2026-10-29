@@ -22,6 +22,7 @@ import { createNamesFixture } from './lounge-names-fixture.mjs';
 import { verifyNativeContacts } from './lounge-contacts-check.mjs';
 import { loadHistorySource, verifyNativeSync } from './lounge-sync-check.mjs';
 import { verifyNativeNotifications } from './lounge-notifications-check.mjs';
+import { verifyNativeAdminBadge } from './lounge-admin-badge-check.mjs';
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -87,7 +88,8 @@ sockets.on('connection', socket => socket.on('message', raw => {
       savedContacts: contactsMode, deviceSync: syncMode,
       notificationSettings: true, mutedConversations: [...notifications.muted],
       names: process.env.LOUNGE_NAMES_ONLY === '1',
-      user: { id: 'alice', account: 'alice@example.test', avatar, nickname: names.nicknames.get('alice') ?? '' },
+      user: { id: 'alice', account: 'alice@example.test', avatar, nickname: names.nicknames.get('alice') ?? '',
+        moderator: true },
       policy: { moderator: true, mutedUntil: null }, onlineCount: 2, direct: true, receipts: true,
       directReset: resetAvailable,
       blocked: blocked ? [{ id: 'bob', account: 'bob@example.test' }] : [] }));
@@ -144,7 +146,8 @@ sockets.on('connection', socket => socket.on('message', raw => {
   if (frame.type === 'message') {
     if (frame.to && resetAvailable && directState === 'new') directState = 'waiting';
     sent.push(frame);
-    socket.send(JSON.stringify({ ...frame, sender: { id: 'alice', account: 'alice@example.test', avatar: frame.avatar },
+    socket.send(JSON.stringify({ ...frame, sender: { id: 'alice', account: 'alice@example.test', avatar: frame.avatar,
+      moderator: true },
       ...(frame.to ? { recipient: { id: frame.to, account: `${frame.to}@example.test` } } : {}),
       sentAt: new Date().toISOString() }));
     if (frame.to) socket.send(JSON.stringify({ type: 'receipt', id: frame.id, from: frame.to,
@@ -320,6 +323,10 @@ try {
       continue;
     }
     await tap('群聊'); await find('真机中文测试：忙里偷闲，聊点轻松的 ☕');
+    if (process.env.LOUNGE_ADMIN_BADGE_ONLY === '1') {
+      await verifyNativeAdminBadge({ adb, tap, find, nodes, screenshot, hideKeyboard, scale, broadcast, incoming });
+      continue;
+    }
     if (process.env.LOUNGE_TEXT_ONLY === '1') {
       await verifyNativeText({ adb, tap, find, screenshot, hideKeyboard, scale, broadcast, incoming, image,
         fail: value => { rejectAvatar = value; }, saves: () => avatarSaves,

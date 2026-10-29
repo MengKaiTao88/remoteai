@@ -11,6 +11,7 @@ import type { LoungeController } from './controller';
 import { LoungeComposer, type LoungeComposerHandle } from './LoungeComposer';
 import { LoungeModeration } from './LoungeModeration';
 import { LoungeAvatar } from './LoungeAvatar';
+import { LoungeSender } from './LoungeSender';
 import { LoungeAvatarSettings } from './LoungeAvatarSettings';
 import { LoungeMessageBody } from './LoungeMessageBody';
 import { LoungeHistory } from './LoungeHistory';
@@ -138,10 +139,8 @@ function DesktopLoungePage({ controller, onLogin, mobile = false }: {
               onMention={!own ? () => composer.current?.mention(message.sender) : undefined}
               onDirect={!own && state.directAvailable ? () => select(message.sender) : undefined} />
             <div className="lounge-message-main">
-              {state.policy.moderator && !own ? <button type="button" className="lounge-account lounge-account-action"
-                aria-label={t('client.lounge.manageUser', { account: accountName(message.sender) })}
-                onClick={() => setModerating(message.sender)}>{accountName(message.sender)}</button>
-                : <div className="lounge-account">{accountName(message.sender)}</div>}
+              <LoungeSender user={message.sender} manage={state.policy.moderator && !own
+                ? () => setModerating(message.sender) : undefined} />
               <LoungeMessageBody message={message} preview={setPreview} controller={controller} locate={locate}
                 actions={{ reply: quote, blocked: state.blocked.includes(message.sender.id),
                   direct: !own && state.directAvailable ? () => select(message.sender) : undefined,

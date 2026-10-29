@@ -9,6 +9,7 @@ import { LoungeMessageActions } from './LoungeMessageActions';
 import { LoungeImage } from './LoungeImage';
 import { LoungeDeliveryStatus } from './LoungeDeliveryStatus';
 import { messageMinimumWidth } from './messageLayout';
+import { LoungeSender } from './LoungeSender';
 import type { LoungeReply } from '../../../../shared/lounge/reply';
 import type { LoungeController } from '../../../../shared/lounge/controller';
 
@@ -64,11 +65,7 @@ export function LoungeMessage({ message, own, manage, preview, onImageLoad, repl
     <LoungeAvatar user={message.sender} size="small" onDirect={direct} onProfile={profile} />
     <View style={[styles.messageMain, own && styles.ownMain]}
       onLayout={event => setAvailableWidth(event.nativeEvent.layout.width)}>
-      {!own && manage ? <Pressable accessibilityRole="button"
-        accessibilityLabel={t('client.lounge.manageUser', { account: accountName(message.sender) })}
-        onPress={() => manage(message.sender)}>
-        <Text style={styles.messageName}>{accountName(message.sender)}</Text>
-      </Pressable> : <Text style={styles.messageName}>{accountName(message.sender)}</Text>}
+      <LoungeSender user={message.sender} manage={!own && manage ? () => manage(message.sender) : undefined} />
       <Pressable onLongPress={openMenu} style={[styles.bubble, own && styles.ownBubble,
         { minWidth }, message.reply && styles.quotedBubble,
         !message.text.trim() && !message.reply && styles.imageOnly]}>

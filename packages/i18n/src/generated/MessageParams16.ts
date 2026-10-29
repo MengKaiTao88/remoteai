@@ -77,6 +77,7 @@ export interface MessageParams16 {
   "client.lounge.accountSettings": Record<string, never>;
   "client.lounge.actionFailed": Record<string, never>;
   "client.lounge.addImage": Record<string, never>;
+  "client.lounge.adminBadge": Record<string, never>;
   "client.lounge.adminDurationHint": Record<string, never>;
   "client.lounge.adminOnlineCount": { "count": string | number };
   "client.lounge.adminSettings": Record<string, never>;
@@ -199,5 +200,4 @@ export interface MessageParams16 {
   "client.lounge.notificationsMuted": Record<string, never>;
   "client.lounge.onlineCount": { "count": string | number };
   "client.lounge.onlineLoading": Record<string, never>;
-  "client.lounge.onlineUnavailable": Record<string, never>;
 }
