@@ -14,16 +14,20 @@ function escapeHtml(text: string) {
   return text.replace(/[&<>"']/g, character => `&#${character.charCodeAt(0)};`);
 }
 
-interface ImageEditorOptions { scriptUrl?: string; mode?: ConnectionMode; themeMode?: ThemeMode }
+export interface ImageEditorOutputLimits { targetBytes: number; maxEdge: number }
+interface ImageEditorOptions {
+  scriptUrl?: string; mode?: ConnectionMode; themeMode?: ThemeMode; outputLimits?: ImageEditorOutputLimits;
+}
 
 /** A local canvas editor shared by desktop, phone WebView and browser. No remote images are loaded. */
 export function imageEditorHtml(dataUrl: string, translate = defaultText, language = 'zh-CN',
-  { scriptUrl, mode, themeMode = 'light' }: ImageEditorOptions = {}) {
+  { scriptUrl, mode, themeMode = 'light', outputLimits }: ImageEditorOptions = {}) {
   validateChatImages([dataUrl], mode);
   const policy = getChatPolicy(mode);
   const label = (text: MessageKey) => escapeHtml(translate(text));
-  const config = JSON.stringify({ dataUrl, desktop: !!scriptUrl, targetBytes: policy.imageTargetKb * KIB,
-    maxEdge: policy.imageMaxEdge, labels: {
+  const config = JSON.stringify({ dataUrl, desktop: !!scriptUrl,
+    targetBytes: outputLimits?.targetBytes ?? policy.imageTargetKb * KIB,
+    maxEdge: outputLimits?.maxEdge ?? policy.imageMaxEdge, labels: {
       saving: translate("client.projectBrowser.saving"),
       saveFailed: translate("client.shared.couldNotSaveUndoSomeAnnotationsAndTryAgain"),
       unavailable: translate("client.shared.couldNotEditThisImageOpenItAgainToRetry"),

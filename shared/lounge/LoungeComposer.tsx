@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent, type ReactNode, type Ref } from 'react';
-import { ArrowUp, History, ImagePlus, Keyboard, Plus, Send, Smile, X } from 'lucide-react';
+import { ArrowUp, History, ImagePlus, Keyboard, Plus, Send, Smile } from 'lucide-react';
 import { displayText as t } from '../localization/messages';
 import { MAX_IMAGES, MAX_TEXT, type LoungeAccount, type LoungeDraft } from './types';
 import { prepareImage } from './images';
@@ -11,6 +11,7 @@ import { useComposerDraft, type ComposerDraftState } from './useComposerDraft';
 import { MobileLoungeSheet } from './MobileLoungeSheet';
 import { MobileLoungeEmojiPanel, useMobileEmojiHeight } from './MobileLoungeEmojiPanel';
 import { insertLoungeEmoji } from './emoji';
+import { LoungeImageAttachments } from './LoungeImageAttachments';
 
 export interface LoungeComposerHandle { mention: (user: LoungeAccount) => void }
 
@@ -26,10 +27,11 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
   const { text, setText, images, setImages, clearSent } = useComposerDraft(draftState);
   const [extras, setExtras] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [editingImage, setEditingImage] = useState(false);
   useEffect(() => {
-    onOverlayChange?.(extras || !mobile && emojiOpen);
+    onOverlayChange?.(extras || editingImage || !mobile && emojiOpen);
     return () => onOverlayChange?.(false);
-  }, [extras, emojiOpen, mobile, onOverlayChange]);
+  }, [extras, editingImage, emojiOpen, mobile, onOverlayChange]);
   const [busy, setBusy] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -56,7 +58,7 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
   }, [mobile, text]);
 
   const addImages = async (files: File[]) => {
-    if (!files.length || adding.current || submitting.current) return;
+    if (!files.length || adding.current || submitting.current || editingImage) return;
     if (images.length + files.length > MAX_IMAGES) { setError('client.lounge.tooManyImages'); return; }
     adding.current = true; setProcessing(true); setError(''); setNotice('');
     try {
@@ -72,7 +74,7 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
     finally { adding.current = false; setProcessing(false); }
   };
   const submit = async () => {
-    if (!connected || submitting.current || adding.current || !text.trim() && !images.length) return;
+    if (!connected || submitting.current || adding.current || editingImage || !text.trim() && !images.length) return;
     if ([...text].length > MAX_TEXT) { setError('client.lounge.tooLong'); return; }
     submitting.current = true; setBusy(true); setError('');
     const sent = { text, images, reply };
@@ -138,11 +140,8 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
       </div>}
     </div>
     {reply && <LoungeReplyPreview reply={reply} cancel={() => cancelReply()} />}
-    {!!images.length && <div className="lounge-attachments">{images.map((image, index) => <div key={index}>
-      <img src={image} alt={t('client.lounge.image')} />
-      <button type="button" disabled={busy || processing} aria-label={t('client.lounge.removeImage')}
-        onClick={() => setImages(value => value.filter((_, position) => position !== index))}><X size={14} /></button>
-    </div>)}</div>}
+    <LoungeImageAttachments images={images} setImages={setImages} disabled={busy || processing}
+      onEditingChange={setEditingImage} />
     <textarea ref={textarea} rows={mobile ? 1 : undefined} value={text}
       onFocus={() => { if (mobile) setEmojiOpen(false); }}
       aria-label={t('client.lounge.message')}
@@ -165,7 +164,7 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
           if (event.button === 0 && document.activeElement === textarea.current) event.preventDefault();
         }}
         aria-label={t(busy ? 'client.lounge.sending' : 'client.lounge.send')}
-        disabled={!connected || busy || processing || !text.trim() && !images.length}>
+        disabled={!connected || busy || processing || editingImage || !text.trim() && !images.length}>
         {mobile ? <ArrowUp size={22} /> : <><Send size={16} />{t(busy ? 'client.lounge.sending' : 'client.lounge.send')}</>}
       </button></footer>
     {mobile && emojiOpen && <MobileLoungeEmojiPanel height={emojiHeight} insert={insertEmoji} />}

@@ -1,16 +1,17 @@
 import { remoteErrorText } from '../localization/errors';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from 'antd';
-import { editedImageMessage, imageEditorHtml } from './imageEditorHtml';
+import { editedImageMessage, imageEditorHtml, type ImageEditorOutputLimits } from './imageEditorHtml';
 import { IMAGE_EDITOR_ASSET } from './imageEditorAsset';
 import type { ConnectionMode } from '../remote-chat/protocol';
 import { darkColors, type ThemeMode } from '../theme/mode';
 import { useDocumentThemeMode } from '../theme/useDocumentThemeMode';
 import './imageEditor.css';
 
-export function ImageEditor({ dataUrl, save, close, translate: t, language, mode, themeMode: override }: {
+export function ImageEditor({ dataUrl, save, close, translate: t, language, mode, themeMode: override, outputLimits }: {
   dataUrl: string; save: (dataUrl: string) => void; close: () => void;
   translate: (text: string) => string; language: string; mode?: ConnectionMode; themeMode?: ThemeMode;
+  outputLimits?: ImageEditorOutputLimits;
 }) {
   const hostTheme = useDocumentThemeMode();
   const themeMode = override ?? hostTheme;
@@ -18,8 +19,8 @@ export function ImageEditor({ dataUrl, save, close, translate: t, language, mode
   const initialTheme = useRef(themeMode);
   const html = useMemo(() => imageEditorHtml(dataUrl, t, language, {
     scriptUrl: new URL(`${import.meta.env.BASE_URL}${IMAGE_EDITOR_ASSET}`, document.baseURI).href, mode,
-    themeMode: initialTheme.current,
-  }), [dataUrl, t, language, mode]);
+    themeMode: initialTheme.current, outputLimits,
+  }), [dataUrl, t, language, mode, outputLimits]);
   const [error, setError] = useState('');
   // Keep the iframe document and its unsaved annotations when the host appearance changes.
   useEffect(() => {

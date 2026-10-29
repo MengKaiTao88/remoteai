@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Image, Keyboard, Pressable, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MAX_IMAGES, MAX_TEXT, type LoungeDraft } from '../../../../shared/lounge/types';
 import { displayText, t } from '../i18n';
@@ -13,6 +13,7 @@ import { useComposerDraft, type ComposerDraftState } from '../../../../shared/lo
 import { LoungeSheet } from './LoungeSheet';
 import { LoungeEmojiPanel } from './LoungeEmojiPanel';
 import { useLoungeEmoji } from './useLoungeEmoji';
+import { LoungeImageAttachments } from './LoungeImageAttachments';
 
 export function LoungeComposer({ connected, send, onHistory, reply, cancelReply, draftState, extraActions,
   onOverlayChange, viewportHeight }: {
@@ -28,10 +29,11 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
   const [busy, setBusy] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [extras, setExtras] = useState(false);
+  const [editingImage, setEditingImage] = useState(false);
   useEffect(() => {
-    onOverlayChange(extras);
+    onOverlayChange(extras || editingImage);
     return () => onOverlayChange(false);
-  }, [extras, onOverlayChange]);
+  }, [extras, editingImage, onOverlayChange]);
   const [inputHeight, setInputHeight] = useState(44);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(false);
@@ -40,7 +42,7 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
   const emoji = useLoungeEmoji({ input, text, setText, viewportHeight });
   useEffect(() => { if (reply) input.current?.focus(); }, [reply]);
   const addImages = async () => {
-    if (locked.current) return;
+    if (locked.current || editingImage) return;
     if (images.length >= MAX_IMAGES) { setError('client.lounge.tooManyImages'); return; }
     locked.current = true; setProcessing(true); setError('');
     try {
@@ -52,7 +54,7 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
     } finally { locked.current = false; setProcessing(false); }
   };
   const submit = async () => {
-    if (locked.current || !connected || !text.trim() && !images.length) return;
+    if (locked.current || editingImage || !connected || !text.trim() && !images.length) return;
     if ([...text].length > MAX_TEXT) { setError('client.lounge.tooLong'); return; }
     locked.current = true; setBusy(true); setError('');
     const sent = { text, images, reply };
@@ -65,13 +67,8 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
   };
   return <View style={styles.composer}>
     {reply && <LoungeReplyPreview reply={reply} cancel={() => cancelReply()} />}
-    {!!images.length && <View style={styles.attachments}>{images.map((uri, index) => <View key={index}>
-      <Image source={{ uri }} style={styles.attachment} />
-      <Pressable accessibilityRole="button" accessibilityLabel={t('client.lounge.removeImage')}
-        disabled={busy || processing} style={styles.remove}
-        onPress={() => setImages(current => current.filter((_, at) => at !== index))}>
-        <Ionicons name="close" size={18} color={color('#24262c', 'ink')} /></Pressable>
-    </View>)}</View>}
+    <LoungeImageAttachments images={images} setImages={setImages} disabled={busy || processing}
+      onEditingChange={setEditingImage} />
     <View style={styles.toolbar}>
       <Pressable accessibilityRole="button" accessibilityLabel={t('client.lounge.emoji')}
         accessibilityState={{ expanded: emoji.open }} disabled={busy} style={styles.iconButton} onPress={emoji.toggle}>
@@ -88,8 +85,10 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
         onPress={() => { emoji.close(); Keyboard.dismiss(); setExtras(true); }}>
         <Ionicons name="add" size={24} color={color('#687c89', 'muted')} /></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={t(busy ? 'client.lounge.sending' : 'client.lounge.send')}
-        onPress={() => void submit()} disabled={!connected || busy || processing || !text.trim() && !images.length}
-        style={[styles.send, (!connected || busy || processing || !text.trim() && !images.length) && styles.disabled]}>
+        onPress={() => void submit()}
+        disabled={!connected || busy || processing || editingImage || !text.trim() && !images.length}
+        style={[styles.send,
+          (!connected || busy || processing || editingImage || !text.trim() && !images.length) && styles.disabled]}>
         <Ionicons name="arrow-up" size={22} color={color('#fff', 'canvas')} /></Pressable>
     </View>
     {processing && <Text style={styles.muted}>{t('client.lounge.preparingImage')}</Text>}

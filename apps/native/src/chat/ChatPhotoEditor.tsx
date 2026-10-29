@@ -6,20 +6,25 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import { editedImageMessage, imageEditorHtml } from '../../../../shared/chat/imageEditorHtml';
+import { editedImageMessage, imageEditorHtml,
+  type ImageEditorOutputLimits } from '../../../../shared/chat/imageEditorHtml';
+import type { ConnectionMode } from '../../../../shared/remote-chat/protocol';
 import type { ChatPhoto } from './chatPhotos';
 
-interface Props { photo: ChatPhoto; save: (dataUrl: string) => void; close: () => void }
+interface Props {
+  photo: Pick<ChatPhoto, 'dataUrl'>; save: (dataUrl: string) => void; close: () => void;
+  mode?: ConnectionMode; outputLimits?: ImageEditorOutputLimits;
+}
 
-export function ChatPhotoEditor({ photo, save, close }: Props) {
+export function ChatPhotoEditor({ photo, save, close, mode, outputLimits }: Props) {
   const styles = useStyles();
   const language = useLanguage();
   const themeMode = useThemeMode();
   const initialTheme = useRef(themeMode);
   const webview = useRef<WebView>(null);
   const source = useMemo(() => ({ html: imageEditorHtml(photo.dataUrl, displayText, getLocale(), {
-    themeMode: initialTheme.current,
-  }) }), [photo.dataUrl, language]);
+    themeMode: initialTheme.current, mode, outputLimits,
+  }) }), [photo.dataUrl, language, mode, outputLimits]);
   const themeScript = `document.documentElement.dataset.theme = ${JSON.stringify(themeMode)}; true;`;
   // Update only the page colors so an appearance change preserves unsaved annotations.
   useEffect(() => { webview.current?.injectJavaScript(themeScript); }, [themeScript]);
@@ -27,7 +32,7 @@ export function ChatPhotoEditor({ photo, save, close }: Props) {
   const receive = (raw: string) => {
     try {
       if (raw === '{"type":"cancel"}') { close(); return; }
-      const dataUrl = editedImageMessage(raw);
+      const dataUrl = editedImageMessage(raw, mode);
       if (!dataUrl) return;
       save(dataUrl);
       close();
