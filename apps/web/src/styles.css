@@ -298,7 +298,12 @@ h1, h2, h3, .brand-lockup { font-family: "Manrope", "PingFang SC", "Microsoft Ya
   .page-body { padding: max(20px, env(safe-area-inset-top)) 16px 34px; }
   .mobile-only { display: flex; }
   .mobile-tabbar { position: fixed; z-index: 30; right: 0; bottom: 0; left: 0; display: block; border-top: 1px solid var(--app-border, #dfe7e3); background: color-mix(in srgb, var(--app-surface, #ffffff) 96%, transparent); box-shadow: 0 -10px 30px rgba(37,66,54,.06); backdrop-filter: blur(16px); }
-  .mobile-tabbar .adm-tab-bar { min-height: 61px; }.mobile-tabbar .adm-tab-bar-item { color: var(--app-muted, #85918b); }.mobile-tabbar .adm-tab-bar-item-active { color: var(--green); }.mobile-tabbar .adm-tab-bar-item-title { font-size: 10px; }
+  .mobile-tabbar .adm-tab-bar-wrap { min-height: 61px; }
+  /* Reserve space for floating badges even when larger text grows the tab contents. */
+  .mobile-tabbar .adm-tab-bar-item { padding: 12px 8px 8px; color: var(--app-muted, #85918b); }
+  .mobile-tabbar .adm-tab-bar-item-icon { display: flex; align-items: center; justify-content: center; }
+  .mobile-tabbar .adm-tab-bar-item-active { color: var(--green); }
+  .mobile-tabbar .adm-tab-bar-item-title { font-size: 10px; }
   .page-heading { margin-bottom: 20px; }.page-heading h1 { font-size: 25px; }.devices-page .page-heading, .settings-page .page-heading { display: flex; }
 }
 

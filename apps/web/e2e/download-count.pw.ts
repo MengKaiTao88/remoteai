@@ -21,7 +21,8 @@ test('discovery and download icons share live counts across navigation and langu
   await navigate(page, '发现');
   const navigation = page.locator(info.project.name === 'desktop' ? '.desktop-sidebar nav' : '.mobile-tabbar');
   const entry = page.locator('.discovery-downloads');
-  const navCount = navigation.getByRole('status');
+  // The desktop sidebar also has a separate Downloads shortcut; target the Discovery icon.
+  const navCount = navigation.locator('.download-count-icon').first().getByRole('status');
   const entryCount = entry.getByRole('status');
   await expect(navCount).toHaveCount(0);
   await control(page, 'startDownloads');

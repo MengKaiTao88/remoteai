@@ -38,8 +38,6 @@
   .discovery-back { margin-left: clamp(12px, 2vw, 42px); }
 }
 @media (max-width: 860px) {
-  /* Center icons in the full bar height so floating unread badges stay inside its clipped content. */
-  .mobile-tabbar .adm-tab-bar-wrap { min-height: 61px; }
   .app-shell.lounge-active { position: fixed; inset: var(--chat-top, 0) 0 auto;
     height: var(--chat-height, 100dvh); min-height: 0; overflow: hidden; }
   .app-shell.lounge-active .content-shell { height: 100%; padding-bottom: 0; }
