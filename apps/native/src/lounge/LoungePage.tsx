@@ -94,7 +94,8 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
         <Ionicons name="information-circle-outline" size={13} color={color('#687c89', 'muted')} />
         <Text style={styles.retentionText}>{t(contact ? 'client.lounge.directRetention' : 'client.lounge.retention')}</Text>
       </Pressable>
-      <LoungeComposer key={`composer:${state.conversation}`} draftState={model.draftState} reply={model.draftState.draft.reply}
+      <LoungeComposer direct={!!state.conversation} filesAvailable={state.attachmentsAvailable}
+        key={`composer:${state.conversation}`} draftState={model.draftState} reply={model.draftState.draft.reply}
         viewportHeight={viewportHeight} composerRef={composer}
         onOverlayChange={model.setComposerOverlay}
         cancelReply={model.cancelReply}

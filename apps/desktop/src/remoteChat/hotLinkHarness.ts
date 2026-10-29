@@ -13,6 +13,7 @@ type Path = 'direct' | 'relay';
 interface Packet { side: Side; path: Path; payload: string; frame: Record<string, unknown> }
 
 export function hotLinkHarness(options: {
+  startOnRelay?: boolean;
   relayDelay?: number; endpoints?: Partial<Record<Side, ConnectionEndpoints>>;
   wrapDirectChannel?: (channel: Channel) => Channel;
   onMessage?: (side: Side, message: RpcMessage) => void;
@@ -58,6 +59,7 @@ export function hotLinkHarness(options: {
     inspectors[side] = new SessionCipher({ sessionId: 'session', desktop: side !== 'pc',
       secret: keys[other].secret, publicKey: keys[side].publicKey });
     links[side] = new HotLink({ sessionId: 'session', desktop: side === 'pc',
+      startOnRelay: options.startOnRelay,
       createPacketCompression: options.compression?.[side],
       secret: keys[side].secret, publicKey: keys[other].publicKey, iceServers: [],
       createPeer: (options) => {

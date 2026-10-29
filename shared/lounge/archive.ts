@@ -26,13 +26,15 @@ export const historyPosition = (message: LoungeMessage): HistoryCursor =>
 export const searchableHistory = (value: string) => value.normalize('NFKC').toLowerCase();
 export const historyTerms = (query: string) => searchableHistory(query).trim().split(/\s+/).filter(Boolean);
 export const historyText = (message: LoungeMessage) => searchableHistory(
-  `${message.sender.account}\n${message.text}\n${message.reply?.account ?? ''}\n${message.reply?.text ?? ''}`);
+  `${message.sender.account}\n${message.text}\n${message.reply?.account ?? ''}\n${message.reply?.text ?? ''}\n`
+  + (message.attachments?.map(file => file.name).join('\n') ?? ''));
 export const historyPageLimit = (query: HistoryQuery) =>
   Math.min(RECENT_MESSAGE_LIMIT, Math.max(1, query.limit ?? HISTORY_PAGE_SIZE));
 
 export function messageBytes(message: LoungeMessage) {
   return (message.text.length + (message.reply?.text.length ?? 0) + (message.reply?.account.length ?? 0)
     + (message.sender.avatar?.length ?? 0)
+    + (message.attachments?.reduce((total, file) => total + file.name.length + (file.grant?.length ?? 0), 0) ?? 0)
     + message.images.reduce((total, value) => total + value.length, 0)) * 2;
 }
 

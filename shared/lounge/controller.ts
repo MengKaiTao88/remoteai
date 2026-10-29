@@ -20,6 +20,7 @@ import { LoungeSubmissions } from './submissions';
 import { LoungeDeviceSync } from './deviceSync';
 import { synchronizedSnapshot } from './syncSnapshot';
 import { notificationSettingsUpdate, notificationUnread } from './notificationSettings';
+import { LoungeAttachmentManager } from './attachmentManager';
 
 const HEARTBEAT_MS = 20_000;
 const STALE_MS = 65_000;
@@ -56,8 +57,10 @@ export class LoungeController {
   private readonly accountLookup = new LoungeAccountLookup();
   private readonly contactSync: LoungeContactSync;
   private readonly deviceSync: LoungeDeviceSync;
+  readonly attachments: LoungeAttachmentManager;
 
   constructor(private readonly session?: LoungeSession, private readonly runtime: LoungeRuntime = browserLoungeRuntime) {
+    this.attachments = new LoungeAttachmentManager({ session, randomId: runtime.randomId });
     this.state = { status: session ? 'connecting' : 'signed-out', messages: [], unread: 0,
       policy: { moderator: false, mutedUntil: null }, historyRevision: 0, historyError: false,
       contacts: [], blocked: [], directAvailable: false, conversation: '', unreadByConversation: {} };
@@ -126,6 +129,7 @@ export class LoungeController {
     void this.connect();
   }
   stop() {
+    this.attachments.stop();
     this.deviceSync.stop();
     this.delivery.stop();
     this.running = false;
@@ -273,7 +277,7 @@ export class LoungeController {
       }
       this.submissions.finish(String(frame.id), frame.type === 'rejected' ? new Error([
         'client.lounge.muted', 'client.lounge.directUnavailable',
-        'client.lounge.awaitingReply'].includes(String(frame.code))
+        'client.lounge.awaitingReply', 'client.lounge.attachmentLimit'].includes(String(frame.code))
         ? String(frame.code) : 'client.lounge.actionFailed') : undefined);
       return;
     }
@@ -281,10 +285,12 @@ export class LoungeController {
       const user = frame.user as LoungeSnapshot['user'];
       if (!user || typeof user.id !== 'string' || typeof user.account !== 'string') return;
       this.authorized = Date.now(); this.attempt = 0; this.renewalStarted = 0;
+      this.attachments.ready(frame.attachments === true);
       this.profiles.ready(user, frame.profiles === true, frame.names === true);
       this.profiles.cache(user, this.session?.avatars);
       this.directState.resetAvailable = frame.directReset === true;
       this.update({ status: 'connected', user, historyRevision: this.state.historyRevision + 1,
+        attachmentsAvailable: frame.attachments === true,
         directAvailable: frame.direct === true && frame.receipts === true,
         accountLookupAvailable: frame.accountLookup === true,
         namesAvailable: frame.names === true,
@@ -301,6 +307,7 @@ export class LoungeController {
     if (message.recipient && message.receipts) {
       const own = message.sender.id === this.state.user?.id;
       if (this.state.blocked.includes(message.sender.id) || !own && message.recipient.id !== this.state.user?.id) return;
+      this.attachments.prefetch(message.attachments);
       this.delivery.receive({ ...message, delivery: undefined,
         conversation: messageConversation(message, this.state.user?.id ?? '') });
       return;
@@ -311,6 +318,7 @@ export class LoungeController {
     const own = message.sender.id === this.state.user?.id;
     if (this.state.blocked.includes(message.sender.id)) return;
     if (message.recipient && !own && message.recipient.id !== this.state.user?.id) return;
+    this.attachments.prefetch(message.attachments);
     const conversation = messageConversation(message, this.state.user?.id ?? '');
     message = { ...message, conversation: conversation || undefined };
     if (own) this.submissions.finish(message.id);
@@ -437,6 +445,8 @@ export class LoungeController {
     if (this.state.policy.mutedUntil && Date.parse(this.state.policy.mutedUntil) > Date.now()) {
       return Promise.reject(new Error('client.lounge.muted'));
     }
+    try { draft = this.attachments.prepare(draft); }
+    catch (error) { return Promise.reject(error); }
     if (draft.to) {
       const recipient = this.state.contacts.find(contact => contact.user.id === draft.to)?.user;
       if (!recipient) return Promise.reject(new Error('client.lounge.directUnavailable'));

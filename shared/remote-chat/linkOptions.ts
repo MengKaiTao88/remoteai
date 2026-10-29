@@ -2,6 +2,8 @@ import type { ConnectionMode, IceServer, PeerFactory, RpcMessage } from './proto
 import type { PacketCipherFactory } from './packetCipher';
 
 export interface LinkOptions {
+  /** Start data on the warm relay while direct discovery runs in the background. */
+  startOnRelay?: boolean;
   binaryBulk?: boolean;
   bulkRelay?: import('./bulkTransport').BulkRelay;
   directEndpoints?: (value?: import('./connectionEndpoints').ConnectionEndpoints) => void;

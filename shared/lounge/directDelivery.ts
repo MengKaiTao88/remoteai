@@ -91,6 +91,7 @@ export class LoungeDirectDelivery {
         page: query => this.host.page(query) });
       if (!current()) return;
       const message: LoungeMessage = { type: 'message', id, sender, recipient, text: draft.text,
+        attachments: draft.attachments,
         images: draft.images, reply: draft.reply, sentAt: new Date().toISOString(), conversation: recipient.id,
         generation: this.host.generation?.(recipient.id),
         receipts: true, delivery: { direction: 'outgoing', status: 'pending', retry: true, attemptedAt: Date.now() } };
@@ -101,7 +102,7 @@ export class LoungeDirectDelivery {
   }
 
   reject(frame: Record<string, unknown>) {
-    if (![AWAITING_REPLY, 'client.lounge.conversationReset'].includes(String(frame.code))
+    if (![AWAITING_REPLY, 'client.lounge.conversationReset', 'client.lounge.attachmentLimit'].includes(String(frame.code))
       || typeof frame.id !== 'string' || !this.host.self()) return;
     const key = JSON.stringify([this.host.self()!.id, frame.id]);
     this.background(async current => {
@@ -118,6 +119,9 @@ export class LoungeDirectDelivery {
       const previous = await this.host.find(historyKey(message));
       if (!current()) return;
       if (message.sender.id === this.host.self()?.id) {
+        if (previous && message.attachments?.length) {
+          await this.host.publish({ ...previous, attachments: message.attachments }, false);
+        }
         if (!previous) await this.host.publish({ ...message,
           delivery: { direction: 'outgoing', status: 'pending' } }, true);
         return;
@@ -190,7 +194,8 @@ export class LoungeDirectDelivery {
   }
   private transmitMessage(message: LoungeMessage) {
     this.host.transmit({ type: 'message', id: message.id, to: message.recipient!.id, receipts: true,
-      text: message.text, images: message.images, reply: message.reply, avatar: message.sender.avatar ?? '',
+      text: message.text, images: message.images, attachments: message.attachments,
+      reply: message.reply, avatar: message.sender.avatar ?? '',
       generation: message.generation ?? 0 });
   }
   private transmitReceipt(message: LoungeMessage) {

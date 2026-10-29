@@ -9,6 +9,9 @@ export const P2P_POLICY_FIELDS = {
 
 /** Public numeric contract shared by the admin form, chat clients and desktop host. */
 export const CHAT_POLICY_FIELDS = {
+  loungeFileMaxMb: { min: 1, max: undefined, default: 300 },
+  loungeGroupImageMaxMb: { min: 1, max: undefined, default: 1 },
+  loungeDirectImageMaxMb: { min: 1, max: undefined, default: 1 },
   chatSessionLimit: { min: 1, max: undefined, default: 5 },
   ...P2P_POLICY_FIELDS,
   relayHeartbeatTimeoutSeconds: { min: 1, max: undefined, default: 30 },
@@ -48,7 +51,7 @@ export function parseChatPolicy(value: unknown): ChatPolicy {
     const optional = field.default === -1 || key === 'videoPreviewMaxMb'
       || key === 'fileUploadMaxMb' || key === 'fileUploadTotalMaxMb' || key === 'chatSessionLimit'
       || key === 'relayHeartbeatTimeoutSeconds' || key === 'fileDownloadWindowSize'
-      || key === 'fileBulkEnabled' || key in P2P_POLICY_FIELDS;
+      || key === 'fileBulkEnabled' || key.startsWith('lounge') || key in P2P_POLICY_FIELDS;
     const number = optional && record[key] === undefined ? field.default : record[key];
     if (typeof number !== 'number' || !Number.isSafeInteger(number) || number < field.min
       || (field.default === -1 && number === 0) || (field.max !== undefined && number > field.max)) {

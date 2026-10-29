@@ -12,7 +12,7 @@ export function conversationPreviewText(row: ConversationRow) {
 }
 
 function messageText(message: LoungeMessage) {
-  return singleLine(message.text) || t('client.lounge.quotedImages', { count: message.images.length });
+  return singleLine(message.text) || message.attachments?.find(file => file.kind === 'file')?.name || t('client.lounge.quotedImages', { count: message.images.length + (message.attachments?.filter(file => file.kind === 'image').length ?? 0) });
 }
 
 function singleLine(text: string) { return text.replace(/\s+/g, ' ').trim(); }

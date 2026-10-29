@@ -1,3 +1,4 @@
+import { LoungeAttachment } from './LoungeAttachment';
 import { accountName } from '../../../../shared/lounge/names';
 import { Image, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { useRef, useState, type ReactNode } from 'react';
@@ -82,6 +83,8 @@ export function LoungeMessage({ message, own, manage, preview, onImageLoad, repl
         {message.reply && <LoungeReplyPreview reply={message.reply} controller={controller}
           locate={locate} onLongPress={openMenu} />}
         {!!message.text && <Text selectable={!reply} onLongPress={openMenu} style={styles.messageText}>{message.text}</Text>}
+        {message.attachments?.map(file => <LoungeAttachment key={file.id} file={file}
+          controller={controller} preview={preview} onLoad={onImageLoad} onLongPress={openMenu} />)}
         {message.images.map((uri, index) => <LoungeImage key={index} uri={uri} preview={preview}
           onLongPress={openMenu} onLoad={onImageLoad} />)}
       </Pressable>

@@ -43,7 +43,8 @@ export function MobileLoungePage({ controller, onBack }: { controller: LoungeCon
       {model.navigation.error && <p className="lounge-mute-notice" role="status">{t(model.navigation.error)}</p>}
       <button type="button" className="lounge-retention" onClick={() => model.setSheet('about')}>
         <Info size={13} />{t(contact ? 'client.lounge.directRetention' : 'client.lounge.retention')}</button>
-      <LoungeComposer key={`composer:${state.conversation}`} mobile draftState={model.draftState} composerRef={composer}
+      <LoungeComposer direct={!!state.conversation} filesAvailable={state.attachmentsAvailable}
+        key={`composer:${state.conversation}`} mobile draftState={model.draftState} composerRef={composer}
         onOverlayChange={model.setComposerOverlay}
         reply={model.draftState.draft.reply} cancelReply={model.cancelReply}
         connected={state.status === 'connected' && !model.muted && (!state.conversation || state.directAvailable)}

@@ -166,7 +166,8 @@ function DesktopLoungePage({ controller, onLogin, mobile = false }: {
       <button type="button" onClick={() => controller.retryContacts()}>{t('client.lounge.historyRetry')}</button></p>}
     <LoungeSyncNotice failed={state.deviceSyncError} controller={controller} />
     {navigation.error && <p className="lounge-mute-notice" role="status">{t(navigation.error)}</p>}
-    <LoungeComposer key={`${state.user?.id ?? 'guest'}:${state.conversation}`}
+    <LoungeComposer direct={!!state.conversation} filesAvailable={state.attachmentsAvailable}
+      key={`${state.user?.id ?? 'guest'}:${state.conversation}`}
       composerRef={composer}
       assistance={contact && <LoungeAssistanceButton user={contact.user} />}
       connected={state.status === 'connected' && !muted && (!state.conversation || state.directAvailable)} mobile={mobile}

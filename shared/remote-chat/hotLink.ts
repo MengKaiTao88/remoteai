@@ -272,7 +272,8 @@ export class HotLink {
     const relay = this.healthy('relay');
     const stable = Date.now() - this.directSince >= DIRECT_STABLE_MS;
     let path: Path | undefined;
-    if (direct && (stable || this.selected === 'direct' || !relay)) path = 'direct';
+    if (this.options.startOnRelay && !this.established) path = relay ? 'relay' : undefined;
+    else if (direct && (stable || this.selected === 'direct' || !relay)) path = 'direct';
     else if (relay) path = 'relay';
     const changed = path !== this.selected;
     if (changed) this.directPackets.clear();

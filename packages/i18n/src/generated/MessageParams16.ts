@@ -85,6 +85,7 @@ export interface MessageParams16 {
   "client.lounge.assistance.desktopRequired": Record<string, never>;
   "client.lounge.assistance.recipient": { "email": string | number };
   "client.lounge.assistance.understood": Record<string, never>;
+  "client.lounge.attachmentLimit": Record<string, never>;
   "client.lounge.avatarHint": Record<string, never>;
   "client.lounge.avatarSaveFailed": Record<string, never>;
   "client.lounge.avatarSettings": Record<string, never>;
@@ -122,6 +123,7 @@ export interface MessageParams16 {
   "client.lounge.directUpgrade": Record<string, never>;
   "client.lounge.directWith": { "account": string | number };
   "client.lounge.done": Record<string, never>;
+  "client.lounge.downloadFile": Record<string, never>;
   "client.lounge.draftPreview": { "text": string | number };
   "client.lounge.duration": Record<string, never>;
   "client.lounge.durationHint": Record<string, never>;
@@ -130,6 +132,10 @@ export interface MessageParams16 {
   "client.lounge.empty": Record<string, never>;
   "client.lounge.emptyHint": Record<string, never>;
   "client.lounge.ephemeral": Record<string, never>;
+  "client.lounge.fileLimitHint": { "size": string | number };
+  "client.lounge.fileOnlineHint": Record<string, never>;
+  "client.lounge.fileProgress": { "percent": string | number };
+  "client.lounge.fileUnavailable": Record<string, never>;
   "client.lounge.greeting": Record<string, never>;
   "client.lounge.groupChat": Record<string, never>;
   "client.lounge.groupOfflineHint": Record<string, never>;
@@ -147,7 +153,7 @@ export interface MessageParams16 {
   "client.lounge.image": Record<string, never>;
   "client.lounge.imageFailed": Record<string, never>;
   "client.lounge.imageFormat": Record<string, never>;
-  "client.lounge.imageHint": Record<string, never>;
+  "client.lounge.imageHint": { "size": string | number };
   "client.lounge.invalidDuration": Record<string, never>;
   "client.lounge.latest": Record<string, never>;
   "client.lounge.localHint": Record<string, never>;
@@ -162,7 +168,7 @@ export interface MessageParams16 {
   "client.lounge.messageActions": Record<string, never>;
   "client.lounge.messageCopied": Record<string, never>;
   "client.lounge.messageCopyFailed": Record<string, never>;
-  "client.lounge.mobileImageHint": Record<string, never>;
+  "client.lounge.mobileImageHint": { "size": string | number };
   "client.lounge.mobileOnlineCount": { "count": string | number };
   "client.lounge.mobilePlaceholder": Record<string, never>;
   "client.lounge.moderateTitle": Record<string, never>;
@@ -194,10 +200,4 @@ export interface MessageParams16 {
   "client.lounge.nicknameSaveFailed": Record<string, never>;
   "client.lounge.noChats": Record<string, never>;
   "client.lounge.noMembers": Record<string, never>;
-  "client.lounge.noPeople": Record<string, never>;
-  "client.lounge.noRecentSpeakers": Record<string, never>;
-  "client.lounge.notificationSaveFailed": Record<string, never>;
-  "client.lounge.notificationsMuted": Record<string, never>;
-  "client.lounge.onlineCount": { "count": string | number };
-  "client.lounge.onlineLoading": Record<string, never>;
 }

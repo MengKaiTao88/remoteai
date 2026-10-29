@@ -1,4 +1,5 @@
 import type { LoungeAvatarStore } from './avatar';
+import { parseAttachments, type AttachmentSource, type LoungeAttachment } from './attachments';
 import type { LoungeHistoryStore } from './archive';
 import { parseReply, type LoungeReply } from './reply';
 import { parseAccount, type LoungeContact } from './contacts';
@@ -18,6 +19,7 @@ export interface LoungeAccount {
   remark?: string;
 }
 export interface LoungeMessage {
+  attachments?: LoungeAttachment[];
   type: 'message'; id: string; sender: LoungeAccount; text: string; images: string[]; sentAt: string;
   reply?: LoungeReply;
   recipient?: LoungeAccount;
@@ -26,9 +28,13 @@ export interface LoungeMessage {
   delivery?: LoungeDelivery;
   generation?: number;
 }
-export interface LoungeDraft { text: string; images: string[]; reply?: LoungeReply; to?: string }
+export interface LoungeDraft {
+  text: string; images: string[]; reply?: LoungeReply; to?: string;
+  attachments?: LoungeAttachment[]; files?: AttachmentSource[];
+}
 export interface LoungePolicy { moderator: boolean; mutedUntil: string | null }
 export interface LoungeSession {
+  attachmentImages?: import('./attachmentCache').AttachmentImageStore;
   sync?: import('./syncConnection').LoungeSyncTransport;
   baseUrl: string;
   account?: string;
@@ -37,6 +43,7 @@ export interface LoungeSession {
   history?: LoungeHistoryStore;
 }
 export interface LoungeSnapshot {
+  attachmentsAvailable?: boolean;
   status: 'signed-out' | 'connecting' | 'connected';
   messages: LoungeMessage[];
   user?: LoungeAccount;
@@ -59,8 +66,8 @@ export interface LoungeSnapshot {
   unreadByConversation: Record<string, number>;
 }
 
-export function imageData(value: unknown): value is string {
-  return typeof value === 'string' && value.length <= Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 32
+export function imageData(value: unknown, maxBytes = MAX_IMAGE_BYTES): value is string {
+  return typeof value === 'string' && value.length <= Math.ceil(maxBytes / 3) * 4 + 32
     && /^data:image\/(png|jpeg|gif);base64,[A-Za-z0-9+/]+=*$/.test(value);
 }
 
@@ -73,13 +80,17 @@ export function parseMessage(value: unknown): LoungeMessage | undefined {
     || !Array.isArray(item.images) && item.images != null
     || typeof item.sentAt !== 'string' || !Number.isFinite(Date.parse(item.sentAt))) return;
   const images = item.images ?? [];
-  if (images.length > MAX_IMAGES || !images.every(imageData)) return;
+  if (images.length > MAX_IMAGES || !images.every(image => imageData(image))) return;
   const recipient = parseAccount(item.recipient);
+  const attachments = parseAttachments(item.attachments);
+  if (!attachments || attachments.some(file => file.kind === 'file') && !recipient) return;
+  if (images.length + attachments.filter(file => file.kind === 'image').length > MAX_IMAGES) return;
   if (item.generation !== undefined && (!Number.isSafeInteger(item.generation) || item.generation < 0)) return;
   if (item.recipient && !recipient) return;
   const sender = parseAccount(item.sender);
   if (!sender) return;
-  return { ...item, sender, images, recipient, reply: parseReply(item.reply),
+  return { ...item, sender, images, attachments: attachments.length ? attachments : undefined,
+    recipient, reply: parseReply(item.reply),
     receipts: item.receipts === true || undefined, delivery: parseDelivery(item.delivery),
     conversation: typeof item.conversation === 'string' ? item.conversation : undefined } as LoungeMessage;
 }

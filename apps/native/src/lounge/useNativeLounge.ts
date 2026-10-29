@@ -10,6 +10,7 @@ import { authorizedRequest } from '../api/client';
 import type { AuthSession } from '../types';
 import { nativeLoungeHistory } from './historyStore';
 import { nativeLoungeSync } from './syncTransport';
+import { nativeAttachmentImages } from './attachments';
 
 export const nativeLoungeRuntime: LoungeRuntime = {
   randomId: randomUUID,
@@ -39,6 +40,7 @@ function avatarStore(baseUrl: string): LoungeAvatarStore {
 export function useNativeLounge(session: AuthSession | null) {
   const controller = useMemo(() => new LoungeController(session ? {
     sync: nativeLoungeSync,
+    attachmentImages: nativeAttachmentImages(JSON.stringify([session.baseUrl, session.email])),
     baseUrl: session.baseUrl, account: session.email, avatars: avatarStore(session.baseUrl),
     history: nativeLoungeHistory(session.baseUrl, session.email),
     authorize: async () => {

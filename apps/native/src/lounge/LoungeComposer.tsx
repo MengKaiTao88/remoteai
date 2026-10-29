@@ -4,6 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { MAX_IMAGES, MAX_TEXT, type LoungeDraft } from '../../../../shared/lounge/types';
 import { displayText, t } from '../i18n';
 import { useLoungeColor } from './theme';
+import { LoungeFileButton } from './LoungeFileButton';
+import { attachmentByteLimit } from '../../../../shared/lounge/attachments';
+import { useLoungeAttachmentLimit } from '../../../../shared/lounge/useLoungeAttachmentLimit';
 import { pickLoungeImages } from './images';
 import { useLoungeStyles } from './styles';
 import type { LoungeReply } from '../../../../shared/lounge/reply';
@@ -17,15 +20,16 @@ import { LoungeImageAttachments } from './LoungeImageAttachments';
 import { loungeMention, type LoungeComposerHandle } from '../../../../shared/lounge/mention';
 
 export function LoungeComposer({ connected, send, onHistory, reply, cancelReply, draftState, extraActions,
-  onOverlayChange, viewportHeight, composerRef }: {
+  onOverlayChange, viewportHeight, composerRef, direct = false, filesAvailable = false }: {
   connected: boolean; send: (draft: LoungeDraft) => Promise<void>; onHistory: () => void;
   reply?: LoungeReply; cancelReply: (sent?: LoungeReply) => void;
   draftState: ComposerDraftState; extraActions: (close: () => void) => ReactNode;
   onOverlayChange: (open: boolean) => void;
-  viewportHeight: number;
+  viewportHeight: number; direct?: boolean; filesAvailable?: boolean;
   composerRef?: Ref<LoungeComposerHandle>;
 }) {
   const styles = useLoungeStyles();
+  const imageLimit = useLoungeAttachmentLimit('image', direct);
   const color = useLoungeColor();
   const { text, setText, images, setImages, clearSent } = useComposerDraft(draftState);
   const [busy, setBusy] = useState(false);
@@ -51,7 +55,8 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
     if (images.length >= MAX_IMAGES) { setError('client.lounge.tooManyImages'); return; }
     locked.current = true; setProcessing(true); setError('');
     try {
-      const result = await pickLoungeImages({ remaining: MAX_IMAGES - images.length });
+      const result = await pickLoungeImages({ remaining: MAX_IMAGES - images.length,
+        maxBytes: attachmentByteLimit('image', direct) });
       setImages(current => [...current, ...result.images]); setNotice(result.flattened);
     } catch (failure) {
       setError(failure instanceof Error && failure.message.startsWith('client.lounge.')
@@ -72,8 +77,8 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
   };
   return <View style={styles.composer}>
     {reply && <LoungeReplyPreview reply={reply} cancel={() => cancelReply()} />}
-    <LoungeImageAttachments images={images} setImages={setImages} disabled={busy || processing}
-      onEditingChange={setEditingImage} />
+    <LoungeImageAttachments maxBytes={imageLimit} images={images} setImages={setImages}
+      disabled={busy || processing} onEditingChange={setEditingImage} />
     <View style={styles.toolbar}>
       <Pressable accessibilityRole="button" accessibilityLabel={t('client.lounge.emoji')}
         accessibilityState={{ expanded: emoji.open }} disabled={busy} style={styles.iconButton} onPress={emoji.toggle}>
@@ -101,7 +106,10 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
     {emoji.open && <LoungeEmojiPanel height={emoji.panelHeight} insert={emoji.insert} />}
     {extras && <LoungeSheet title={t('client.lounge.more')} close={() => setExtras(false)}>
       <View style={styles.extraActions}>
-        <Pressable accessibilityRole="button" accessibilityHint={t('client.lounge.mobileImageHint')}
+        {direct && filesAvailable && <LoungeFileButton send={send} disabled={!connected || busy}
+          close={() => setExtras(false)} />}
+        <Pressable accessibilityRole="button" accessibilityHint={t('client.lounge.mobileImageHint',
+          { size: imageLimit / 1024 / 1024 })}
           disabled={busy || processing} style={styles.extraAction}
           onPress={() => { setExtras(false); void addImages(); }}>
           <Ionicons name="image-outline" size={24} color={color('#456c96', 'info')} />

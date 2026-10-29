@@ -39,6 +39,15 @@ it('rejects unsupported sources before invoking a native action', async () => {
   expect(invoke).not.toHaveBeenCalled();
 });
 
+it('saves cached images larger than the current default sending limit', async () => {
+  vi.mocked(invoke).mockResolvedValue({ completed: true });
+  const cached = 'data:image/png;base64,' + 'AAAA'.repeat(500_000);
+  await expect(saveLoungeImage(cached)).resolves.toBeUndefined();
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('codex_gui_image_action', {
+    request: { source: cached, action: 'saveAs' },
+  });
+});
+
 it('keeps saving single-flight and leaves the preview open after cancellation', async () => {
   let finish: (result: { completed: boolean }) => void = () => {};
   vi.mocked(invoke).mockReturnValue(new Promise(resolve => { finish = resolve; }));

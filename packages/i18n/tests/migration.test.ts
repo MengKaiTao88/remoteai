@@ -1,3 +1,4 @@
+import loungeAttachments from '../src/catalogs/client/zh/loungeAttachments.json';
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { resources as client } from '../src/catalogs/client';
@@ -74,6 +75,7 @@ const additions = new Set(['client.chat.usePlugin',
   ...Object.keys(loungeOrdering),
   ...Object.keys(loungeNames),
   ...Object.keys(loungeMenus),
+  ...Object.keys(loungeAttachments),
   ...Object.keys(loungeAssistance),
   ...Object.keys(loungeNotifications),
   'client.remoteDesktop.takeoverTitle', 'client.remoteDesktop.takeoverMessage',

@@ -2,6 +2,9 @@ import { useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent, 
 import { ArrowUp, History, ImagePlus, Keyboard, Plus, Send, Smile } from 'lucide-react';
 import { displayText as t } from '../localization/messages';
 import { MAX_IMAGES, MAX_TEXT, type LoungeDraft } from './types';
+import { LoungeFileButton } from './LoungeFileButton';
+import { attachmentByteLimit } from './attachments';
+import { useLoungeAttachmentLimit } from './useLoungeAttachmentLimit';
 import { prepareImage } from './images';
 import { LoungeEmojiPicker } from './LoungeEmojiPicker';
 import { sendError } from './contacts';
@@ -17,15 +20,16 @@ import { loungeMention, type LoungeComposerHandle } from './mention';
 export type { LoungeComposerHandle } from './mention';
 
 export function LoungeComposer({ connected, send, onHistory, mobile = false, reply, cancelReply,
-  draftState, extraActions, onOverlayChange, composerRef, assistance }: {
+  draftState, extraActions, onOverlayChange, composerRef, assistance, direct = false, filesAvailable = false }: {
   connected: boolean; send: (draft: LoungeDraft) => Promise<void>; onHistory: () => void; mobile?: boolean;
   reply?: LoungeReply; cancelReply: (sent?: LoungeReply) => void;
   draftState?: ComposerDraftState; extraActions?: (close: () => void) => ReactNode;
   onOverlayChange?: (open: boolean) => void;
   composerRef?: Ref<LoungeComposerHandle>;
-  assistance?: ReactNode;
+  assistance?: ReactNode; direct?: boolean; filesAvailable?: boolean;
 }) {
   const { text, setText, images, setImages, clearSent } = useComposerDraft(draftState);
+  const imageLimit = useLoungeAttachmentLimit('image', direct);
   const [extras, setExtras] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [editingImage, setEditingImage] = useState(false);
@@ -66,7 +70,7 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
       const prepared: string[] = [];
       let flattened = false;
       for (const file of files) {
-        const result = await prepareImage(file);
+        const result = await prepareImage(file, attachmentByteLimit('image', direct));
         prepared.push(result.data); flattened ||= result.flattened;
       }
       setImages(current => [...current, ...prepared]);
@@ -132,8 +136,10 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
           {emojiOpen ? <Keyboard size={22} /> : <Smile size={22} />}</button>
       </div> : <LoungeEmojiPicker disabled={busy} insert={insertEmoji} onOpenChange={setEmojiOpen} />}
       {!mobile && <button type="button" disabled={busy || processing} aria-label={t('client.lounge.addImage')}
-        title={t(mobile ? 'client.lounge.mobileImageHint' : 'client.lounge.imageHint')}
+        title={t(mobile ? 'client.lounge.mobileImageHint' : 'client.lounge.imageHint',
+          { size: imageLimit / 1024 / 1024 })}
         onClick={() => picker.current?.click()}><ImagePlus size={22} /></button>}
+      {!mobile && direct && filesAvailable && <LoungeFileButton send={send} disabled={!connected || busy} />}
       <input ref={picker} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden
         onChange={event => { void addImages(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
       {processing && <span role="status">{t('client.lounge.preparingImage')}</span>}
@@ -143,8 +149,8 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
       </div>}
     </div>
     {reply && <LoungeReplyPreview reply={reply} cancel={() => cancelReply()} />}
-    <LoungeImageAttachments images={images} setImages={setImages} disabled={busy || processing}
-      onEditingChange={setEditingImage} />
+    <LoungeImageAttachments maxBytes={imageLimit} images={images} setImages={setImages}
+      disabled={busy || processing} onEditingChange={setEditingImage} />
     <textarea ref={textarea} rows={mobile ? 1 : undefined} value={text}
       onFocus={() => { if (mobile) setEmojiOpen(false); }}
       aria-label={t('client.lounge.message')}
@@ -173,6 +179,8 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
     {mobile && emojiOpen && <MobileLoungeEmojiPanel height={emojiHeight} insert={insertEmoji} />}
     {mobile && extras && <MobileLoungeSheet title={t('client.lounge.more')} close={() => setExtras(false)}>
       <div className="lounge-extra-actions">
+        {direct && filesAvailable && <LoungeFileButton send={send} disabled={!connected || busy}
+          close={() => setExtras(false)} />}
         <button type="button" disabled={busy || processing} onClick={() => {
           setExtras(false); picker.current?.click();
         }}><ImagePlus size={24} />{t('client.lounge.addImage')}</button>

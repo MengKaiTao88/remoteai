@@ -1,3 +1,5 @@
+import { browserAttachmentImages } from '../../../../shared/lounge/attachmentCache';
+import { browserAttachmentSink } from '../../../../shared/lounge/browserAttachments';
 import { useMemo } from 'react';
 import { LoungeController } from '../../../../shared/lounge/controller';
 import { browserAvatarStore } from '../../../../shared/lounge/avatar';
@@ -11,6 +13,7 @@ export function useDesktopLounge(auth: CloudAuthState) {
   const { authenticated, baseUrl, userId, userEmail } = auth;
   const controller = useMemo(() => new LoungeController(authenticated && baseUrl && userId ? {
     sync: browserLoungeSync,
+    attachmentImages: browserAttachmentImages(JSON.stringify([baseUrl, userId]), browserAttachmentSink),
     baseUrl, account: userEmail || undefined, avatars: browserAvatarStore(baseUrl),
     history: browserLoungeHistory(baseUrl, userEmail || userId),
     authorize: () => invoke<{ ticket: string }>('cloud_lounge_ticket', { identity: { baseUrl, userId } }),

@@ -1,4 +1,15 @@
 export default [
+  { key: 'lounge', title: ['在线交流', 'Community chat'],
+    hint: ['设置每个文件或每张图片的大小上限，保存后生效。',
+      'Set the size limit for each file or image. Changes apply after saving.'], fields: [
+      { key: 'loungeFileMaxMb', label: ['私聊文件大小上限', 'Private chat file limit'],
+        hint: ['默认 300 MB，仅私聊支持发送文件。', 'Default: 300 MB. Files are available in private chats.'],
+        unit: ['MB', 'MB'] },
+      { key: 'loungeGroupImageMaxMb', label: ['群聊图片大小上限', 'Group chat image limit'],
+        hint: ['默认 1 MB，超出时自动压缩。', 'Default: 1 MB. Larger images are compressed.'], unit: ['MB', 'MB'] },
+      { key: 'loungeDirectImageMaxMb', label: ['私聊图片大小上限', 'Private chat image limit'],
+        hint: ['默认 1 MB，超出时自动压缩。', 'Default: 1 MB. Larger images are compressed.'], unit: ['MB', 'MB'] },
+    ] },
   { key: 'connections', title: ['聊天连接', 'Chat connections'],
     hint: ['保存后对新连接生效，已有连接不受影响。',
       'Changes apply to new connections after saving. Existing connections stay active.'], fields: [

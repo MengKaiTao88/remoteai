@@ -1,4 +1,5 @@
 import { MAX_FRAME_BYTES, type LoungeAccount, type LoungeDraft, type LoungeMessage } from './types';
+import { parseAttachments } from './attachments';
 
 const SEND_TIMEOUT_MS = 20_000;
 interface Pending {
@@ -39,6 +40,7 @@ export class LoungeSubmissions {
     const group = this.pending.get(frame.id)?.group;
     if (!group) return;
     return { type: 'message', id: frame.id, sender: group.sender, text: group.draft.text,
+      attachments: parseAttachments(frame.attachments),
       images: group.draft.images, reply: group.draft.reply, sentAt: frame.sentAt };
   }
 

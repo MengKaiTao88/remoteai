@@ -1,3 +1,5 @@
+import { browserAttachmentImages } from '../../../../shared/lounge/attachmentCache';
+import { browserAttachmentSink } from '../../../../shared/lounge/browserAttachments';
 import { useMemo } from 'react';
 import { LoungeController } from '../../../../shared/lounge/controller';
 import { browserAvatarStore } from '../../../../shared/lounge/avatar';
@@ -12,6 +14,7 @@ export function useWebLounge(session: AuthSession | null) {
   const email = session?.email;
   const controller = useMemo(() => new LoungeController(baseUrl && email ? {
     sync: browserLoungeSync,
+    attachmentImages: browserAttachmentImages(JSON.stringify([baseUrl, email]), browserAttachmentSink),
     baseUrl, account: email, avatars: browserAvatarStore(baseUrl), history: browserLoungeHistory(baseUrl, email), authorize: async () => {
       const current = getActiveSession();
       if (current?.baseUrl !== baseUrl || current.email !== email) throw new Error('client.lounge.signIn');

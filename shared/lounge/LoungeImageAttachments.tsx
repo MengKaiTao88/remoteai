@@ -20,7 +20,8 @@ export function LoungeImageAttachments(props: LoungeImageAttachmentsProps) {
         onClick={() => editor.open(index)}>{t('client.chat.annotate')}</button>
     </div>)}</div>}
     {editor.editing && <ImageEditor dataUrl={editor.editing.original} mode="direct"
-      outputLimits={LOUNGE_IMAGE_EDITOR_LIMITS} language={getInterfaceLanguage()} translate={t}
+      outputLimits={{ ...LOUNGE_IMAGE_EDITOR_LIMITS, targetBytes: props.maxBytes ?? LOUNGE_IMAGE_EDITOR_LIMITS.targetBytes }}
+      language={getInterfaceLanguage()} translate={t}
       save={editor.save} close={editor.close} />}
   </>;
 }

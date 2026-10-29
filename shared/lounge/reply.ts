@@ -5,11 +5,11 @@ export interface LoungeReply { id: string; senderId: string; account: string; te
 
 /** Quotes carry a bounded snapshot, so recipients do not need a server history lookup. */
 export function quoteMessage(message: LoungeMessage): LoungeReply {
-  const characters = Array.from(message.text);
+  const characters = Array.from(message.text || message.attachments?.find(file => file.kind === 'file')?.name || '');
   const text = characters.length > MAX_REPLY_TEXT
-    ? `${characters.slice(0, MAX_REPLY_TEXT - 1).join('')}…` : message.text;
+    ? `${characters.slice(0, MAX_REPLY_TEXT - 1).join('')}…` : characters.join('');
   return { id: message.id, senderId: message.sender.id, account: message.sender.account,
-    text, imageCount: message.images.length };
+    text, imageCount: message.images.length + (message.attachments?.filter(file => file.kind === 'image').length ?? 0) };
 }
 
 export function parseReply(input: unknown): LoungeReply | undefined {

@@ -20,14 +20,14 @@ function encode(canvas: HTMLCanvasElement, mime: string, quality: number): Promi
 }
 
 /** The wire limit applies to decoded image bytes; base64 transport overhead is separate. */
-export async function prepareImage(file: File): Promise<{ data: string; flattened: boolean }> {
+export async function prepareImage(file: File, maxBytes = MAX_IMAGE_BYTES): Promise<{ data: string; flattened: boolean }> {
   if (!ACCEPTED.has(file.type)) throw new Error('client.lounge.imageFormat');
   let bitmap: ImageBitmap;
   try { bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch { throw new Error('client.lounge.imageFailed'); }
   try {
     const safeOriginal = bitmap.width * bitmap.height <= MAX_PIXELS;
-    if (file.size <= MAX_IMAGE_BYTES && file.type !== 'image/webp' && safeOriginal) {
+    if (file.size <= maxBytes && file.type !== 'image/webp' && safeOriginal) {
       return { data: await readDataURL(file), flattened: false };
     }
     const canvas = document.createElement('canvas');
@@ -41,7 +41,7 @@ export async function prepareImage(file: File): Promise<{ data: string; flattene
       canvas.width = width; canvas.height = height;
       context.drawImage(bitmap, 0, 0, width, height);
       const result = await encode(canvas, mime, Math.max(0.55, 0.88 - attempt * 0.05));
-      if (result.size <= MAX_IMAGE_BYTES) {
+      if (result.size <= maxBytes) {
         return { data: await readDataURL(result), flattened: file.type === 'image/gif' || file.type === 'image/webp' };
       }
       width = Math.max(1, Math.floor(width * 0.78)); height = Math.max(1, Math.floor(height * 0.78));

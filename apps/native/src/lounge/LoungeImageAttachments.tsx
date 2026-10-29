@@ -27,7 +27,8 @@ export function LoungeImageAttachments(props: LoungeImageAttachmentsProps) {
         <Text style={editStyles.label}>{t('client.chat.annotate')}</Text></Pressable>
     </View>)}</View>}
     {editor.editing && <ChatPhotoEditor photo={{ dataUrl: editor.editing.original }} mode="direct"
-      outputLimits={LOUNGE_IMAGE_EDITOR_LIMITS} save={editor.save} close={editor.close} />}
+      outputLimits={{ ...LOUNGE_IMAGE_EDITOR_LIMITS, targetBytes: props.maxBytes ?? LOUNGE_IMAGE_EDITOR_LIMITS.targetBytes }}
+      save={editor.save} close={editor.close} />}
   </>;
 }
 
