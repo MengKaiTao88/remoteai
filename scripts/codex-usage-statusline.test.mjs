@@ -21,7 +21,7 @@ function trackVisibilityListeners(document) {
   return listeners;
 }
 
-function setup(autoRespond = true) {
+function setup(autoRespond = true, dailyEnabled = true) {
   const dom = new JSDOM(`<div data-codex-composer-root data-composer-placement="thread">
     <div data-above-composer-conversation-id="one"></div><section>
     <div data-composer-surface-variant="default"><div contenteditable="true"></div></div></section></div>`);
@@ -40,7 +40,7 @@ function setup(autoRespond = true) {
   const registry = { getImplForHostId: host => host === "local" ? manager : null, addRegistryCallback() {} };
   window.__codexRoot = { _internalRoot: { current: { memoizedProps: { value: registry } } } };
   window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ = true;
-  window.__CODEX_SWITCH_SPEED_SELECTOR__ = { installed: true, language: "zh", usage: { enabled: true } };
+  window.__CODEX_SWITCH_SPEED_SELECTOR__ = { installed: true, language: "zh", usage: { enabled: dailyEnabled } };
   const timing = { totalOutputTokens: 102, totalOutputTimeMs: 2000, outputRequestCount: 1 };
   const requests = [];
   const respond = (request, value = timing) => window.__CODEX_SWITCH_USAGE_STATUSLINE__
@@ -79,7 +79,7 @@ test("mounts below the active input and reuses proxy timings without app-server 
   assert.equal(h.timers.size, 0);
 });
 
-test("switches identities, clears drafts, follows language and hides with the original toggle", async () => {
+test("switches identities, clears drafts and follows language independently of daily usage", async () => {
   const h = setup(); await drain();
   const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
   h.document.querySelector("[data-above-composer-conversation-id]")
@@ -91,34 +91,57 @@ test("switches identities, clears drafts, follows language and hides with the or
   h.document.querySelector("[data-codex-composer-root]").setAttribute("data-composer-placement", "home");
   await h.refresh(); assert.equal(bar.textContent, "— tok/sCache hit ——");
   h.window.__CODEX_SWITCH_SPEED_SELECTOR__.usage.enabled = false;
-  await h.refresh(); assert.equal(bar.isConnected, false);
-  assert.equal(h.timers.size, 0);
-  assert.equal(h.document.querySelector("[data-codex-switch-usage-statusline]"), null);
+  await h.refresh(); assert.equal(bar.isConnected, true);
+  assert.equal(bar.textContent, "— tok/sCache hit ——");
+  assert.equal(h.timers.size, 1);
+  h.window.__CODEX_SWITCH_USAGE_STATUSLINE__.dispose();
 });
 
-test("the real usage switch disposes resources and reopens without accepting old timing replies", async () => {
+test("conversation metrics start before a daily summary arrives, including when daily usage is disabled", async () => {
+  for (const dailyEnabled of [false, undefined]) {
+    const h = setup(true, false);
+    if (dailyEnabled === undefined) {
+      delete h.window.__CODEX_SWITCH_SPEED_SELECTOR__.usage;
+      h.run();
+    }
+    await drain();
+    const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
+    assert.equal(bar.textContent, "51.0 tok/s缓存命中 99.9%19.0%");
+    assert.equal(h.requests.length, 1);
+    h.window.__CODEX_SWITCH_USAGE_STATUSLINE__.dispose();
+  }
+});
+
+test("the real daily switch preserves metrics, pending timing replies and polling without Fast controls", async () => {
   const h = setup(false); await drain();
   h.installOwner();
   const owner = h.window.__CODEX_SWITCH_SPEED_SELECTOR__;
-  owner.updateUsage({ enabled: true }); await drain();
+  const summary = { enabled: true, totalTokens: 1234, estimatedCostUsd: 7.5, primaryRemainingPercent: 80 };
+  owner.updateUsage(summary); await drain();
+  const api = h.window.__CODEX_SWITCH_USAGE_STATUSLINE__;
+  const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
+  assert.equal(owner.fastModeAllowed, false);
+  assert.equal(owner.usageNode.parentElement, bar);
+  assert.equal(owner.usageNode.hidden, false);
   const pending = h.requests.at(-1);
-  owner.updateUsage({ enabled: false });
-  assert.equal(h.window.__CODEX_SWITCH_USAGE_STATUSLINE__, undefined);
-  assert.equal(h.document.querySelector("[data-codex-switch-usage-statusline]"), null);
-  assert.equal(h.document.querySelector("style"), null);
-  assert.equal(h.timers.size, 2, "only the original selector's timers remain");
-  assert.equal(h.visibilityListeners.size, 1);
+  for (const enabled of [false, true, false]) {
+    owner.updateUsage({ ...summary, enabled }); await drain();
+    assert.equal(h.window.__CODEX_SWITCH_USAGE_STATUSLINE__, api);
+    assert.equal(bar.isConnected, true);
+    assert.equal(owner.usageNode.hidden, !enabled);
+    assert.equal(h.timers.size, 3);
+    assert.equal(h.visibilityListeners.size, 2);
+    assert.equal(h.requests.at(-1), pending, "daily toggles preserve the pending timing request");
+  }
   h.respond(pending); await drain();
-  owner.updateUsage({ enabled: true }); await drain();
-  assert.equal(h.timers.size, 3);
-  assert.equal(h.visibilityListeners.size, 2);
+  assert.equal(bar.querySelector('[data-usage-metric="0"]').textContent, "51.0 tok/s");
+  h.setNow(3000); await h.refresh();
   const current = h.requests.at(-1);
   assert.notEqual(current.requestId, pending.requestId);
-  const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
-  h.respond(pending); await drain();
-  assert.match(bar.textContent, /^— tok\/s/);
-  h.respond(current); await drain();
-  assert.match(bar.textContent, /^51.0 tok\/s/);
+  h.respond(pending, { ...h.timing, totalOutputTokens: 999 }); await drain();
+  assert.equal(bar.querySelector('[data-usage-metric="0"]').textContent, "51.0 tok/s");
+  h.respond(current, { ...h.timing, totalOutputTokens: 120 }); await drain();
+  assert.equal(bar.querySelector('[data-usage-metric="0"]').textContent, "60.0 tok/s");
   h.window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ = false;
   h.window.__CODEX_SWITCH_REFRESH_SPEED_SELECTOR__();
   assert.equal(h.timers.size, 0);
@@ -126,9 +149,10 @@ test("the real usage switch disposes resources and reopens without accepting old
 });
 
 test("proxy stop clears all polling and restart restores exactly one statusline", async () => {
-  const h = setup(); await drain();
+  const h = setup(false); await drain();
   h.installOwner();
-  h.window.__CODEX_SWITCH_SPEED_SELECTOR__.updateUsage({ enabled: true }); await drain();
+  h.window.__CODEX_SWITCH_SPEED_SELECTOR__.updateUsage({ enabled: false }); await drain();
+  const pending = h.requests.at(-1);
   h.window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ = false;
   h.window.__CODEX_SWITCH_REFRESH_SPEED_SELECTOR__();
   assert.equal(h.timers.size, 0);
@@ -141,10 +165,18 @@ test("proxy stop clears all polling and restart restores exactly one statusline"
   assert.equal(h.timers.size, 0, "reinjection outside proxy mode stays inactive");
   h.window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ = true;
   h.window.__CODEX_SWITCH_REFRESH_SPEED_SELECTOR__();
-  h.window.__CODEX_SWITCH_SPEED_SELECTOR__.updateUsage({ enabled: true }); await drain();
+  h.window.__CODEX_SWITCH_SPEED_SELECTOR__.updateUsage({ enabled: false }); await drain();
   h.installOwner(); await drain();
   assert.equal(h.document.querySelectorAll("[data-codex-switch-usage-statusline]").length, 1);
   assert.equal(h.timers.size, 3);
+  const current = h.requests.at(-1);
+  assert.notEqual(current.requestId, pending.requestId);
+  const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
+  h.respond(pending); await drain();
+  assert.match(bar.textContent, /^— tok\/s/);
+  h.respond(current); await drain();
+  assert.match(bar.textContent, /^51.0 tok\/s/);
+  assert.equal(h.window.__CODEX_SWITCH_SPEED_SELECTOR__.usageNode.hidden, true);
   h.window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ = false;
   h.window.__CODEX_SWITCH_REFRESH_SPEED_SELECTOR__();
 });

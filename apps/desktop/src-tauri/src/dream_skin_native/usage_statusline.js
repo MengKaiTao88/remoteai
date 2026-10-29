@@ -1,12 +1,13 @@
 const KEY = "__CODEX_SWITCH_USAGE_STATUSLINE__";
-const VERSION = 8;
+const VERSION = 9;
 const REFRESH_MS = 1000;
 const TIMING_REFRESH_MS = 2000;
 const TIMING_TIMEOUT_MS = 10000;
 const previous = window[KEY];
 function isStatuslineEnabled() {
   const owner = window.__CODEX_SWITCH_SPEED_SELECTOR__;
-  return window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ === true && owner?.installed && owner.usage?.enabled;
+  // Daily accounting controls only its own node; conversation metrics follow proxy availability.
+  return window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ === true && owner?.installed;
 }
 if (!isStatuslineEnabled()) { previous?.dispose(); return; }
 if (previous?.version === VERSION) { void previous.refresh(); return; }
