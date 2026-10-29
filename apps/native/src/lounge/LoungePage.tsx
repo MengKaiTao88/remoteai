@@ -22,6 +22,7 @@ import { LoungeDeleteDialog } from './LoungeDeleteDialog';
 import { LoungeNewChat } from './LoungeNewChat';
 import { historyKey } from '../../../../shared/lounge/archive';
 import { useLoungeListFocus } from './useLoungeListFocus';
+import { useLoungeListScroll } from './useLoungeListScroll';
 import type { LoungeComposerHandle } from '../../../../shared/lounge/mention';
 
 export function LoungePage({ controller, onBack }: { controller: LoungeController; onBack: () => void }) {
@@ -34,8 +35,8 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
   const composer = useRef<LoungeComposerHandle>(null);
   const messages = [...model.navigation.messages].reverse();
   const focus = useLoungeListFocus({ list, messages, focus: model.navigation.focus });
+  const scroll = useLoungeListScroll({ list, model, reveal: focus.reveal });
   const [viewportHeight, setViewportHeight] = useState(0);
-  const scrollBottom = () => { if (model.atBottom) list.current?.scrollToOffset({ offset: 0, animated: false }); };
   const back = () => {
     if (model.chats) onBack();
     else model.setChats(true);
@@ -48,37 +49,36 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
     onLayout={event => setViewportHeight(event.nativeEvent.layout.height)}>
     {model.chats ? <LoungeChats model={model} controller={controller} onBack={onBack} /> : <>
       <LoungeHeading model={model} back={back} />
-      <FlatList key={`thread:${state.conversation}`} ref={list} inverted data={messages}
-        contentContainerStyle={styles.list} style={styles.spacer} keyExtractor={item => `${item.sender.id}:${item.id}`}
-        keyboardShouldPersistTaps="handled" scrollEventThrottle={32} onScrollToIndexFailed={focus.failed}
-        onContentSizeChange={() => { if (model.navigation.highlight) focus.reveal(); else scrollBottom(); }}
-        onLayout={() => !model.navigation.focus && list.current?.scrollToOffset({
-          offset: model.offsets.current.get(state.conversation) ?? 0, animated: false,
-        })} onScroll={({ nativeEvent: event }) => {
-          model.offsets.current.set(state.conversation, event.contentOffset.y);
-          model.setAtBottom(!model.navigation.focus && event.contentOffset.y < 48);
-        }} renderItem={({ item }) => <LoungeMessage message={item} own={item.sender.id === state.user?.id}
-          reply={model.quote} blocked={state.blocked.includes(item.sender.id)}
-          direct={item.sender.id !== state.user?.id && state.directAvailable ? () => model.select(item.sender) : undefined}
-          profile={() => model.setProfile(item.sender)} controller={controller} locate={model.locate}
-          mention={item.sender.id !== state.user?.id ? () => composer.current?.mention(item.sender) : undefined}
-          highlighted={model.navigation.highlight === historyKey(item)}
-          block={item.sender.id !== state.user?.id && state.directAvailable ? () => model.setBlocking(item.sender) : undefined}
-          manage={state.policy.moderator ? model.setModerating : undefined}
-          preview={model.setPreview} onImageLoad={scrollBottom} />}
-        ListEmptyComponent={<View style={styles.empty}>
-          <View style={styles.emptySymbol}>
-            <Ionicons name="chatbubbles-outline" size={27} color={color('#456c96', 'info')} /></View>
-          <Text style={styles.emptyTitle}>{t(contact ? 'client.lounge.directEmpty' : 'client.lounge.empty')}</Text>
-          <Text style={styles.muted}>{t('client.lounge.emptyHint')}</Text>
-          <Pressable accessibilityRole="button" style={styles.greeting} onPress={() => model.draftState.change({
-            ...model.draftState.draft, text: t(contact ? 'client.lounge.directGreeting' : 'client.lounge.greeting'),
-          })}><Text style={styles.chatsLabel}>{t(contact ? 'client.lounge.directGreeting' : 'client.lounge.greeting')}</Text>
-          </Pressable>
-        </View>} />
-      {(!model.atBottom || model.navigation.focus) && <Pressable accessibilityRole="button" style={styles.iconButton} onPress={() => {
-        model.latest(); list.current?.scrollToOffset({ offset: 0, animated: true });
-      }}><Text style={styles.link}>{t('client.lounge.latest')}</Text></Pressable>}
+      <View style={styles.spacer}>
+        <FlatList key={`thread:${state.conversation}`} ref={list} inverted data={messages}
+          contentContainerStyle={styles.list} style={styles.spacer} keyExtractor={item => `${item.sender.id}:${item.id}`}
+          keyboardShouldPersistTaps="handled" scrollEventThrottle={32} onScrollToIndexFailed={focus.failed}
+          onContentSizeChange={scroll.onContentSizeChange} onLayout={scroll.onLayout}
+          onScroll={scroll.onScroll} onScrollBeginDrag={scroll.onScrollBeginDrag}
+          renderItem={({ item }) => <LoungeMessage message={item} own={item.sender.id === state.user?.id}
+            reply={model.quote} blocked={state.blocked.includes(item.sender.id)}
+            direct={item.sender.id !== state.user?.id && state.directAvailable ? () => model.select(item.sender) : undefined}
+            profile={() => model.setProfile(item.sender)} controller={controller} locate={model.locate}
+            mention={item.sender.id !== state.user?.id ? () => composer.current?.mention(item.sender) : undefined}
+            highlighted={model.navigation.highlight === historyKey(item)}
+            block={item.sender.id !== state.user?.id && state.directAvailable ? () => model.setBlocking(item.sender) : undefined}
+            manage={state.policy.moderator ? model.setModerating : undefined}
+            preview={model.setPreview} onImageLoad={scroll.follow} />}
+          ListEmptyComponent={<View style={styles.empty}>
+            <View style={styles.emptySymbol}>
+              <Ionicons name="chatbubbles-outline" size={27} color={color('#456c96', 'info')} /></View>
+            <Text style={styles.emptyTitle}>{t(contact ? 'client.lounge.directEmpty' : 'client.lounge.empty')}</Text>
+            <Text style={styles.muted}>{t('client.lounge.emptyHint')}</Text>
+            <Pressable accessibilityRole="button" style={styles.greeting} onPress={() => model.draftState.change({
+              ...model.draftState.draft, text: t(contact ? 'client.lounge.directGreeting' : 'client.lounge.greeting'),
+            })}><Text style={styles.chatsLabel}>{t(contact ? 'client.lounge.directGreeting' : 'client.lounge.greeting')}</Text>
+            </Pressable>
+          </View>} />
+        {(model.showLatest || model.navigation.focus) && <Pressable accessibilityRole="button"
+          accessibilityLabel={t('client.lounge.latest')}
+          style={[styles.iconButton, styles.jumpLatest]} onPress={scroll.latest}>
+          <Ionicons name="arrow-down" size={20} color={color('#456c96', 'info')} /></Pressable>}
+      </View>
       {model.muted && <View style={styles.notice}><Text style={styles.muted}>{t('client.lounge.mutedUntil', {
         time: new Date(state.policy.mutedUntil!).toLocaleString(getLocale()),
       })}</Text></View>}
@@ -90,10 +90,6 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
         </Pressable></View>}
       {model.navigation.error && <View style={styles.notice}><Text accessibilityRole="alert" style={styles.muted}>
         {t(model.navigation.error)}</Text></View>}
-      <Pressable accessibilityRole="button" style={styles.retention} onPress={() => model.setSheet('about')}>
-        <Ionicons name="information-circle-outline" size={13} color={color('#687c89', 'muted')} />
-        <Text style={styles.retentionText}>{t(contact ? 'client.lounge.directRetention' : 'client.lounge.retention')}</Text>
-      </Pressable>
       <LoungeComposer direct={!!state.conversation} filesAvailable={state.attachmentsAvailable}
         key={`composer:${state.conversation}`} draftState={model.draftState} reply={model.draftState.draft.reply}
         viewportHeight={viewportHeight} composerRef={composer}
@@ -102,6 +98,10 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
         connected={state.status === 'connected' && !model.muted && (!state.conversation || state.directAvailable)}
         send={draft => controller.send({ ...draft, to: state.conversation || undefined })}
         onHistory={() => model.setHistory(true)} extraActions={close => <>
+          <Pressable accessibilityRole="button" style={styles.extraAction}
+            onPress={() => { close(); model.setSheet('about'); }}>
+            <Ionicons name="information-circle-outline" size={24} color={color('#456c96', 'info')} />
+            <Text style={styles.chatsLabel}>{t('client.lounge.about')}</Text></Pressable>
           <Pressable accessibilityRole="button" style={styles.extraAction}
             onPress={() => { close(); model.setAvatar(true); }}>
             <Ionicons name="person-circle-outline" size={24} color={color('#456c96', 'info')} />

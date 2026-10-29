@@ -70,7 +70,9 @@ for (const width of [320, 390]) {
       await page.getByRole('textbox', { name: '搜索聊天' }).fill('');
       await page.getByRole('button', { name: '群聊', exact: true }).click();
       await expect(input).toHaveValue('大家好呀 👋');
-      await page.locator('.lounge-retention').click();
+      await expect(page.locator('.lounge-retention')).toHaveCount(0);
+      await page.getByRole('button', { name: '添加内容', exact: true }).click();
+      await page.getByRole('button', { name: '关于聊天', exact: true }).click();
       await expect(page.getByText('服务器不保存聊天内容')).toBeVisible();
       await page.getByRole('button', { name: '知道了' }).click();
       await page.getByRole('button', { name: '添加内容', exact: true }).click();
@@ -154,7 +156,8 @@ test('mobile redesign: all released languages switch offline without losing a dr
     await expect(page.locator('.lounge-chat-row')).toContainText('unsent multilingual draft');
     await expect(page.locator('.lounge-chat-list')).not.toContainText('client.lounge.');
     await page.locator('.lounge-chat-row').first().click();
-    await page.locator('.lounge-retention').click();
+    await page.locator('.lounge-more').click();
+    await page.locator('.lounge-about-trigger').click();
     await expect(page.locator('.lounge-mobile-sheet')).not.toContainText('client.lounge.');
     await page.screenshot({ path: `../../.codex-tmp/lounge-mobile-language-${language}.png` });
     await page.locator('.lounge-sheet-done').click();

@@ -58,10 +58,6 @@
 .lounge-mobile .lounge-text { font-size: 14px; }
 .lounge-mobile .lounge-message.is-own .lounge-bubble { background: var(--lounge-blue-bg); color: var(--lounge-text); }
 .lounge-mobile .lounge-message-time { font-size: 9px; color: var(--lounge-muted); margin-top: 5px; }
-.lounge-mobile .lounge-retention { display: flex; flex-shrink: 0; align-items: center; justify-content: center;
-  gap: 5px; min-height: 44px; padding: 8px 12px; border: 0; background: transparent; color: var(--lounge-muted);
-  font-size: 11px; line-height: 1.6; }
-.lounge-retention svg { flex-shrink: 0; }
 .lounge-mobile .lounge-composer { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
   gap: 5px; align-items: end; min-height: 0; padding: 10px; background: var(--lounge-paper); }
 .lounge-mobile .lounge-toolbar { grid-column: 1; grid-row: 4; margin: 0; }
@@ -91,7 +87,10 @@
 .lounge-mobile-emoji-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .lounge-mobile-emoji-grid button { min-width: 0; min-height: 52px; border: 0; padding: 6px 0;
   background: transparent; font-size: 28px; line-height: 36px; touch-action: manipulation; }
-.lounge-mobile .lounge-jump { position: static; align-self: center; margin: 4px; flex-shrink: 0; }
+.lounge-mobile-thread { position: relative; display: flex; flex: 1; min-height: 0; }
+.lounge-mobile-messages { min-height: 100%; display: flow-root; }
+.lounge-mobile .lounge-jump { position: absolute; bottom: 8px; left: 50%; right: auto; transform: translateX(-50%);
+  margin: 0; width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 50%; }
 .lounge-chat-list { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .lounge-mobile-heading .lounge-new-chat { margin-left: auto; color: var(--lounge-blue); font-size: 12px; }
 .lounge-chat-search { display: flex; align-items: center; gap: 9px; margin: 10px 18px 18px; padding: 0 13px;

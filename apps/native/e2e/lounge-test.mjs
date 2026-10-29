@@ -24,6 +24,7 @@ import { loadHistorySource, verifyNativeSync } from './lounge-sync-check.mjs';
 import { verifyNativeNotifications } from './lounge-notifications-check.mjs';
 import { verifyNativeAdminBadge } from './lounge-admin-badge-check.mjs';
 import { verifyNativeGestures } from './lounge-gestures-check.mjs';
+import { verifyNativeLoungeScroll } from './lounge-scroll-check.mjs';
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -264,6 +265,10 @@ try {
     await find('在线交流'); if (scale === 1.3) await tap('Light fixture');
     await find('1'); await screenshot(`discovery-${scale}`);
     await tap('在线交流'); await find('搜索聊天');
+    if (process.env.LOUNGE_SCROLL_ONLY === '1') {
+      await verifyNativeLoungeScroll({ adb, tap, find, nodes, screenshot, scale, broadcast, incoming, app });
+      continue;
+    }
     if (syncSource) {
       await verifyNativeSync({ adb, tap, find, screenshot, scale, source: syncSource, assertEventually, hideKeyboard });
       continue;

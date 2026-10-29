@@ -29,10 +29,12 @@ export function MobileLoungePage({ controller, onBack }: { controller: LoungeCon
   return <section className="lounge-page lounge-mobile">
     {model.chats ? <MobileLoungeChats model={model} controller={controller} onBack={onBack} /> : <>
       <MobileHeading model={model} />
-      <MobileLoungeThread key={`thread:${state.conversation}`} model={model} controller={controller}
-        mention={user => composer.current?.mention(user)} />
-      {(!model.atBottom || model.navigation.focus) && <button className="lounge-jump" type="button" onClick={model.latest}>
-        <ArrowDown size={16} />{t('client.lounge.latest')}</button>}
+      <div className="lounge-mobile-thread">
+        <MobileLoungeThread key={`thread:${state.conversation}`} model={model} controller={controller}
+          mention={user => composer.current?.mention(user)} />
+        {(model.showLatest || model.navigation.focus) && <button className="lounge-jump" type="button"
+          aria-label={t('client.lounge.latest')} onClick={model.latest}><ArrowDown size={20} aria-hidden /></button>}
+      </div>
       {model.muted && <p className="lounge-mute-notice" role="status">{t('client.lounge.mutedUntil', {
         time: new Date(state.policy.mutedUntil!).toLocaleString(),
       })}</p>}
@@ -41,8 +43,6 @@ export function MobileLoungePage({ controller, onBack }: { controller: LoungeCon
       {state.historyError && <p className="lounge-history-warning" role="alert">{t('client.lounge.historySaveFailed')}
         <button type="button" onClick={() => void controller.retryHistory()}>{t('client.lounge.historyRetry')}</button></p>}
       {model.navigation.error && <p className="lounge-mute-notice" role="status">{t(model.navigation.error)}</p>}
-      <button type="button" className="lounge-retention" onClick={() => model.setSheet('about')}>
-        <Info size={13} />{t(contact ? 'client.lounge.directRetention' : 'client.lounge.retention')}</button>
       <LoungeComposer direct={!!state.conversation} filesAvailable={state.attachmentsAvailable}
         key={`composer:${state.conversation}`} mobile draftState={model.draftState} composerRef={composer}
         onOverlayChange={model.setComposerOverlay}
@@ -50,6 +50,8 @@ export function MobileLoungePage({ controller, onBack }: { controller: LoungeCon
         connected={state.status === 'connected' && !model.muted && (!state.conversation || state.directAvailable)}
         send={draft => controller.send({ ...draft, to: state.conversation || undefined })}
         onHistory={() => model.setHistory(true)} extraActions={close => <>
+          <button type="button" className="lounge-about-trigger" onClick={() => { close(); model.setSheet('about'); }}>
+            <Info size={24} />{t('client.lounge.about')}</button>
           <button type="button" onClick={() => { close(); model.setAvatar(true); }}>
             <UserRound size={24} />{t('client.lounge.avatarSettings')}</button>
           {contact && state.directAvailable && <button type="button" onClick={() => {

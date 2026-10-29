@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { LoungeController } from './controller';
 import type { LoungeAccount, LoungeDraft, LoungeMessage } from './types';
 import { quoteMessage, type LoungeReply } from './reply';
@@ -7,6 +7,7 @@ import { useLoungeNotificationSettings } from './useLoungeNotificationSettings';
 
 export type LoungeSheet = 'members' | 'about' | 'extras' | 'new-chat' | undefined;
 const EMPTY_DRAFT: LoungeDraft = { text: '', images: [] };
+const FOLLOW_BOTTOM_DISTANCE = 48;
 
 /** Page-local navigation and drafts shared by native and mobile web. */
 export function useMobileLounge(controller: LoungeController) {
@@ -32,9 +33,16 @@ export function useMobileLounge(controller: LoungeController) {
   const setDeleting = (user?: LoungeAccount) => { setDeleteError(false); changeDeleting(user); };
   const [composerOverlay, setComposerOverlay] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
+  const [showLatest, setShowLatest] = useState(false);
   const [now, setNow] = useState(Date.now);
   const muted = !!state.policy.mutedUntil && Date.parse(state.policy.mutedUntil) > now;
   const conversation = state.conversation;
+  const updateScrollPosition = useCallback((offset: number, viewportHeight: number) => {
+    offsets.current.set(conversation, Math.max(0, offset));
+    setAtBottom(!navigation.focus && offset < FOLLOW_BOTTOM_DISTANCE);
+    // Following new messages and offering a one-page shortcut have different thresholds.
+    setShowLatest(viewportHeight > 0 && offset >= viewportHeight);
+  }, [conversation, navigation.focus]);
   const change = (draft: LoungeDraft) => setDrafts(current => ({ ...current, [conversation]: draft }));
   const draft = drafts[conversation] ?? EMPTY_DRAFT;
   const contact = state.contacts.find(value => value.user.id === conversation);
@@ -42,7 +50,8 @@ export function useMobileLounge(controller: LoungeController) {
     navigation.clear();
     controller.setViewing(false);
     controller.selectConversation(user);
-    setAtBottom((offsets.current.get(user?.id ?? '') ?? 0) < 48);
+    setAtBottom((offsets.current.get(user?.id ?? '') ?? 0) < FOLLOW_BOTTOM_DISTANCE);
+    setShowLatest(false);
     setSheet(undefined); setChats(false); setProfile(undefined); setHistory(false);
   };
   const deleteContact = async () => {
@@ -61,7 +70,7 @@ export function useMobileLounge(controller: LoungeController) {
     if (!await navigation.locate(reference)) return;
     setHistory(false); setChats(false); setSheet(undefined); setAtBottom(false);
   };
-  const latest = () => { navigation.clear(); setAtBottom(true); };
+  const latest = () => { navigation.clear(); setAtBottom(true); setShowLatest(false); };
   const cancelReply = () => change({ ...draft, reply: undefined });
   useEffect(() => {
     controller.setViewing(atBottom && !chats && !sheet && !history && !avatar && !preview
@@ -77,7 +86,8 @@ export function useMobileLounge(controller: LoungeController) {
   return { state, notifications, contact, chats, setChats, sheet, setSheet, drafts, draftState: { draft, change },
     offsets, scrollPositions, history, setHistory, avatar, setAvatar, preview, setPreview, moderating, setModerating,
     blocking, setBlocking, profile, setProfile, deleting, setDeleting, deleteBusy, deleteError, deleteContact,
-    atBottom, setAtBottom, muted, select, quote, cancelReply, setComposerOverlay, navigation, locate, latest };
+    atBottom, setAtBottom, showLatest, updateScrollPosition,
+    muted, select, quote, cancelReply, setComposerOverlay, navigation, locate, latest };
 }
 
 export type MobileLounge = ReturnType<typeof useMobileLounge>;
