@@ -9,7 +9,9 @@
   "client.lounge.nameLimit": "До {limit} символов. Оставьте поле пустым, чтобы удалить имя.",
   "client.lounge.nameInvalid": "Введите не более {limit} символов в одну строку.",
   "client.lounge.nameSaved": "Сохранено",
-  "client.lounge.saveName": "Сохранить",
+  "client.lounge.nameAutosaveHint": "Изменения сохраняются, когда вы покидаете поле.",
+  "client.lounge.nameSaving": "Сохранение…",
+  "client.lounge.nameRetry": "Повторить",
   "client.lounge.namesUnavailable": "Изменение сейчас недоступно. Попробуйте позже.",
   "client.lounge.nicknameSaveFailed": "Не удалось сохранить никнейм. Попробуйте ещё раз.",
   "client.lounge.remarkSaveFailed": "Не удалось сохранить имя контакта. Попробуйте ещё раз."

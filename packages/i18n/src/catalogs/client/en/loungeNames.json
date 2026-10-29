@@ -9,7 +9,9 @@
   "client.lounge.nameLimit": "Up to {limit} characters. Leave blank to clear.",
   "client.lounge.nameInvalid": "Use a single line of up to {limit} characters.",
   "client.lounge.nameSaved": "Saved",
-  "client.lounge.saveName": "Save",
+  "client.lounge.nameAutosaveHint": "Changes save when you leave the field.",
+  "client.lounge.nameSaving": "Saving…",
+  "client.lounge.nameRetry": "Retry",
   "client.lounge.namesUnavailable": "Editing is currently unavailable. Please try again later.",
   "client.lounge.nicknameSaveFailed": "Couldn't save your nickname. Please try again.",
   "client.lounge.remarkSaveFailed": "Couldn't save the contact name. Please try again."

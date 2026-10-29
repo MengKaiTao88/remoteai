@@ -4,7 +4,8 @@
 .lounge-name-fields p { margin: 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .lounge-name-fields .lounge-name-hint { color: var(--lounge-muted, var(--app-muted)); }
 .lounge-name-fields .ant-input { font-size: 16px; padding: 10px 12px; }
-.lounge-name-fields .ant-btn { margin-top: 6px; min-height: 44px; height: auto; white-space: normal; }
+.lounge-name-error { display: flex; align-items: center; gap: 8px; }
+.lounge-name-error .ant-btn { flex-shrink: 0; }
 .lounge-name-readonly { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px;
   font-size: 14px; line-height: 1.6; }
 .lounge-name-readonly strong { font-weight: 500; overflow-wrap: anywhere; }

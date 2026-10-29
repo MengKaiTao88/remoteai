@@ -15,20 +15,22 @@ export function LoungeNameFields(props: LoungeNameEditorOptions) {
     </View>}
     <Text style={styles.label}>{label}</Text>
     <Text style={styles.hint}>{t(editor.own ? 'client.lounge.nicknameHint' : 'client.lounge.remarkHint')}</Text>
-    <TextInput value={editor.value} onChangeText={editor.change} editable={!editor.busy} style={styles.input}
+    <TextInput value={editor.value} onChangeText={editor.change} onBlur={() => void editor.save()} style={styles.input}
       accessibilityLabel={label} placeholder={t('client.lounge.nameNotSet')} autoCorrect={false}
       placeholderTextColor={color('#687c89', 'muted')} returnKeyType="done" onSubmitEditing={() => void editor.save()} />
     <Text style={styles.hint}>{t('client.lounge.nameLimit', { limit: editor.limit })}</Text>
+    <Text style={styles.hint}>{t('client.lounge.nameAutosaveHint')}</Text>
     {!editor.available && <Text style={styles.hint}>{t('client.lounge.namesUnavailable')}</Text>}
     {editor.invalid && <Text accessibilityRole="alert" style={styles.error}>
       {t('client.lounge.nameInvalid', { limit: editor.limit })}</Text>}
-    {editor.error && <Text accessibilityRole="alert" style={styles.error}>{t(editor.error)}</Text>}
+    {editor.error && <View style={styles.failure}>
+      <Text accessibilityRole="alert" style={styles.error}>{t(editor.error)}</Text>
+      <Pressable accessibilityRole="button" disabled={!editor.available || editor.invalid}
+        accessibilityState={{ disabled: !editor.available || editor.invalid }} onPress={() => void editor.save()}>
+        <Text style={styles.retry}>{t('client.lounge.nameRetry')}</Text></Pressable>
+    </View>}
+    {editor.busy && <Text accessibilityLiveRegion="polite" style={styles.hint}>{t('client.lounge.nameSaving')}</Text>}
     {editor.saved && <Text accessibilityLiveRegion="polite" style={styles.hint}>{t('client.lounge.nameSaved')}</Text>}
-    <Pressable accessibilityRole="button" disabled={!editor.canSave}
-      accessibilityState={{ disabled: !editor.canSave, busy: editor.busy }} onPress={() => void editor.save()}
-      style={[styles.save, !editor.canSave && styles.disabled]}>
-      <Text style={styles.saveText}>{t('client.lounge.saveName')}</Text>
-    </Pressable>
   </View>;
 }
 
@@ -40,9 +42,7 @@ const useStyles = createLoungeStyles(color => ({
   hint: { ...textMetrics(12, 19), color: color('#687c89', 'muted') },
   input: { ...textMetrics(16, 24), minHeight: 48, borderRadius: 12, paddingHorizontal: 12,
     paddingVertical: 10, color: color('#202b33', 'ink'), backgroundColor: color('#e9eef1', 'elevated') },
-  error: { ...textMetrics(12, 19), color: color('#c14c51', 'danger') },
-  save: { minHeight: 44, marginTop: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: color('#456c96', 'info') },
-  saveText: { ...textMetrics(15, 22), color: color('#f5f7f8', 'canvas'), fontWeight: '600' },
-  disabled: { opacity: 0.4 },
+  error: { ...textMetrics(12, 19), color: color('#c14c51', 'danger'), flexShrink: 1 },
+  failure: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  retry: { ...textMetrics(14, 21), color: color('#456c96', 'info'), padding: 8 },
 }));

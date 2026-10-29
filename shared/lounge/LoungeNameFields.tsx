@@ -13,16 +13,18 @@ export function LoungeNameFields(props: LoungeNameEditorOptions) {
       <label htmlFor="lounge-profile-name">{label}</label>
       <p className="lounge-name-hint">{t(editor.own ? 'client.lounge.nicknameHint' : 'client.lounge.remarkHint')}</p>
       <Input id="lounge-profile-name" value={editor.value} onChange={event => editor.change(event.target.value)}
-        disabled={editor.busy} aria-label={label} autoComplete="off" status={editor.invalid ? 'error' : undefined}
+        onBlur={() => void editor.save()} aria-label={label} autoComplete="off"
+        status={editor.invalid ? 'error' : undefined}
         placeholder={t('client.lounge.nameNotSet')} />
       <p className="lounge-name-hint">{t('client.lounge.nameLimit', { limit: editor.limit })}</p>
+      <p className="lounge-name-hint">{t('client.lounge.nameAutosaveHint')}</p>
       {!editor.available && <p role="status">{t('client.lounge.namesUnavailable')}</p>}
       {editor.invalid && <p role="alert">{t('client.lounge.nameInvalid', { limit: editor.limit })}</p>}
-      {editor.error && <p role="alert">{t(editor.error)}</p>}
+      {editor.error && <div className="lounge-name-error"><p role="alert">{t(editor.error)}</p>
+        <Button type="link" onClick={() => void editor.save()} disabled={!editor.available || editor.invalid}>
+          {t('client.lounge.nameRetry')}</Button></div>}
+      {editor.busy && <p role="status">{t('client.lounge.nameSaving')}</p>}
       {editor.saved && <p role="status">{t('client.lounge.nameSaved')}</p>}
-      <Button type="primary" htmlType="submit" disabled={!editor.canSave} loading={editor.busy}
-        aria-label={t('client.lounge.saveName')}>
-        {t('client.lounge.saveName')}</Button>
     </form>
   </div>;
 }

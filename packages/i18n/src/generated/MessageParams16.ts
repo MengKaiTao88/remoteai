@@ -182,10 +182,13 @@ export interface MessageParams16 {
   "client.lounge.mutedUntil": { "time": string | number };
   "client.lounge.muteNotifications": Record<string, never>;
   "client.lounge.myAccount": Record<string, never>;
+  "client.lounge.nameAutosaveHint": Record<string, never>;
   "client.lounge.nameInvalid": { "limit": string | number };
   "client.lounge.nameLimit": { "limit": string | number };
   "client.lounge.nameNotSet": Record<string, never>;
+  "client.lounge.nameRetry": Record<string, never>;
   "client.lounge.nameSaved": Record<string, never>;
+  "client.lounge.nameSaving": Record<string, never>;
   "client.lounge.namesUnavailable": Record<string, never>;
   "client.lounge.newChat": Record<string, never>;
   "client.lounge.newChatClearRecent": Record<string, never>;
@@ -197,7 +200,4 @@ export interface MessageParams16 {
   "client.lounge.newChatSelectUser": Record<string, never>;
   "client.lounge.nickname": Record<string, never>;
   "client.lounge.nicknameHint": Record<string, never>;
-  "client.lounge.nicknameSaveFailed": Record<string, never>;
-  "client.lounge.noChats": Record<string, never>;
-  "client.lounge.noMembers": Record<string, never>;
 }

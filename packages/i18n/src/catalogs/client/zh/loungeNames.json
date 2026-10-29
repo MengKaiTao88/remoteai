@@ -9,7 +9,9 @@
   "client.lounge.nameLimit": "最多 {limit} 个字符，留空可清除。",
   "client.lounge.nameInvalid": "请使用单行文字，最多 {limit} 个字符。",
   "client.lounge.nameSaved": "已保存",
-  "client.lounge.saveName": "保存",
+  "client.lounge.nameAutosaveHint": "离开输入框后自动保存。",
+  "client.lounge.nameSaving": "正在保存…",
+  "client.lounge.nameRetry": "重试",
   "client.lounge.namesUnavailable": "暂时无法修改，请稍后重试。",
   "client.lounge.nicknameSaveFailed": "昵称保存失败，请稍后重试。",
   "client.lounge.remarkSaveFailed": "备注保存失败，请稍后重试。"

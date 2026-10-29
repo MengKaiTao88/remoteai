@@ -102,7 +102,8 @@ ordinary messages without badges, own messages, history, English copy and back n
 font scales 1.0 and 1.3. Inspect `admin-*.png` for complete glyphs, long nickname wrapping and
 light/dark appearance. Browser coverage is in `apps/desktop/e2e/lounge-admin-badge.pw.ts`.
 
-Set `LOUNGE_NAMES_ONLY=1` to verify nickname and owner-private contact remark editing, failed saves,
+Set `LOUNGE_NAMES_ONLY=1` to verify nickname and owner-private contact remarks saved on blur, failed-save retries,
+and saving before back navigation (keeping the profile open when saving fails),
 remote-device updates, clearing, long-press sheet labels and server recovery after clearing app data.
 The fixture runs at font scales 1.0 and 1.3; inspect `names-*.png` for Chinese glyphs and keyboard layout.
 `apps/desktop/e2e/lounge-names.pw.ts` covers desktop local/remote/Web and 320px/390px mobile Web.

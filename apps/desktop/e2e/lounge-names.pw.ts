@@ -37,7 +37,8 @@ for (const mode of ['local', 'remote', 'web', 'mobile-320', 'mobile-390']) {
     if (mobile) await button(page, '个人资料').click();
     else await openAccountSettings(page);
     const nickname = page.getByRole('textbox', { name: '昵称', exact: true });
-    await nickname.fill('我的昵称'); await button(page, '保存').click();
+    await expect(button(page, '保存')).toHaveCount(0);
+    await nickname.fill('我的昵称'); await nickname.blur();
     await expect(page.getByText('已保存', { exact: true })).toBeVisible();
     expect(relay.names.nicknames.get('alice')).toBe('我的昵称');
     await closeProfile(page, mobile);
@@ -45,10 +46,13 @@ for (const mode of ['local', 'remote', 'web', 'mobile-320', 'mobile-390']) {
     await openContact(page, mobile, '小明');
     const remark = page.getByRole('textbox', { name: '备注', exact: true });
     await expect(nickname).toHaveCount(0);
-    await remark.fill('工作伙伴'); relay.names.reject = true; await button(page, '保存').click();
+    await remark.fill('工作伙伴'); relay.names.reject = true; await remark.blur();
     await expect(page.getByRole('alert')).toHaveText('备注保存失败，请稍后重试。');
     await expect(remark).toHaveValue('工作伙伴');
-    relay.names.reject = false; await button(page, '保存').click();
+    await closeProfile(page, mobile);
+    await expect(remark).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveText('备注保存失败，请稍后重试。');
+    relay.names.reject = false; await button(page, '重试').click();
     await expect(page.getByText('已保存', { exact: true })).toBeVisible();
     expect(relay.names.remarks.get('bob')).toBe('工作伙伴');
     for (const theme of ['light', 'dark']) {
@@ -81,7 +85,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile-320', 'mobile-390']) {
     await expect(remark).toHaveValue('工作伙伴');
     relay.names.update('remark', 'bob', '另一设备的备注');
     await expect(remark).toHaveValue('另一设备的备注');
-    await remark.fill(''); await button(page, '保存').click();
+    await remark.fill(''); await remark.press('Tab');
     await expect(page.getByText('已保存', { exact: true })).toBeVisible();
     await closeProfile(page, mobile);
     await expect(button(page, '与 小明 私聊')).toBeVisible();
@@ -92,8 +96,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile-320', 'mobile-390']) {
     if (mobile) await button(page, '个人资料').click();
     else await openAccountSettings(page);
     await expect(nickname).toHaveValue('我的昵称');
-    await nickname.fill(''); await button(page, '保存').click();
-    await expect(page.getByText('已保存', { exact: true })).toBeVisible();
-    expect(relay.names.nicknames.get('alice')).toBe('');
+    await nickname.fill(''); await closeProfile(page, mobile);
+    await expect.poll(() => relay.names.nicknames.get('alice')).toBe('');
   });
 }
