@@ -13,11 +13,12 @@ import type { LoungeAccount, LoungeMessage } from './types';
 import type { LoungeReply } from './reply';
 
 export function LoungeHistory({ controller, open, close, preview, reply, direct, profile, mention, locate,
-  navigationError }: {
+  navigationError, mobile = false }: {
   controller: LoungeController; open: boolean; close: () => void; preview: (source: string) => void;
   reply: (message: LoungeMessage) => void; direct: (user: LoungeAccount) => void;
   profile?: (user: LoungeAccount) => void;
   mention?: (user: LoungeAccount) => void;
+  mobile?: boolean;
   locate?: (reference: LoungeReply) => void; navigationError?: string;
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot);
@@ -48,11 +49,14 @@ export function LoungeHistory({ controller, open, close, preview, reply, direct,
         return <article key={`${message.sender.id}:${message.id}`}
           className="lounge-history-message">
           <LoungeAvatar user={message.sender} onDirect={startDirect}
-            onMention={mention && message.sender.id !== state.user?.id ? () => mention(message.sender) : undefined}
+            onMention={!mobile && mention && message.sender.id !== state.user?.id
+              ? () => mention(message.sender) : undefined}
+            onLongPress={mobile && mention && message.sender.id !== state.user?.id
+              ? () => mention(message.sender) : undefined}
             onProfile={profile ? () => profile(message.sender) : undefined} />
           <div className="lounge-history-message-main"><LoungeSender user={message.sender} />
             <time dateTime={message.sentAt}>{format.format(new Date(message.sentAt))}</time>
-            <LoungeMessageBody message={message} preview={preview} actions={{ reply, direct: startDirect }}
+            <LoungeMessageBody mobile={mobile} message={message} preview={preview} actions={{ reply, direct: startDirect }}
               controller={controller} locate={locate} />
           </div>
         </article>;

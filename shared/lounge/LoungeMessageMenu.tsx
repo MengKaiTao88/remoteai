@@ -4,6 +4,8 @@ import { ThreadContextMenu } from '../chat/ThreadContextMenu';
 import { displayText as t } from '../localization/messages';
 import type { LoungeMessage } from './types';
 import { copyLoungeMessage } from './clipboard';
+import { MobileLoungeMessageMenu } from './MobileLoungeMessageMenu';
+import { messageMenuActions } from './messageMenuActions';
 import './contextMenu.css';
 
 export interface LoungeMessageMenuActions {
@@ -11,8 +13,9 @@ export interface LoungeMessageMenuActions {
   direct?: () => void; block?: () => void; blocked?: boolean;
 }
 
-export function LoungeMessageMenu({ message, reply, children, direct, block, blocked }: LoungeMessageMenuActions & {
+export function LoungeMessageMenu({ message, reply, children, direct, block, blocked, mobile }: LoungeMessageMenuActions & {
   message: LoungeMessage;
+  mobile?: boolean;
   children: ReactElement<HTMLAttributes<HTMLElement>>;
 }) {
   const [open, setOpen] = useState(false);
@@ -25,16 +28,16 @@ export function LoungeMessageMenu({ message, reply, children, direct, block, blo
       void notice.error({ content: t('client.lounge.messageCopyFailed'), className: 'lounge-copy-notice' });
     }
   };
+  const select = (key: string) => {
+    setOpen(false);
+    if (key === 'copy') void copy();
+    else if (key === 'direct') direct?.();
+    else if (key === 'block') block?.();
+    else reply(message);
+  };
+  if (mobile) return <>{holder}<MobileLoungeMessageMenu reply={reply} direct={direct} block={block}
+    blocked={blocked} select={select}>{children}</MobileLoungeMessageMenu></>;
   return <>{holder}<ThreadContextMenu open={open} onOpenChange={setOpen} overlayClassName="lounge-context-menu"
-    menu={{ items: [{ key: 'copy', label: t('client.lounge.copyMessage') },
-      { key: 'reply', label: t('client.lounge.quoteReply') },
-      ...(direct ? [{ key: 'direct', label: t('client.lounge.directChat') }] : []),
-      ...(block ? [{ key: 'block', label: t(blocked ? 'client.lounge.unblockUser' : 'client.lounge.blockUser') }] : [])],
-      onClick: ({ key }) => {
-        setOpen(false);
-        if (key === 'copy') void copy();
-        else if (key === 'direct') direct?.();
-        else if (key === 'block') block?.();
-        else reply(message);
-      } }}>{children}</ThreadContextMenu></>;
+    menu={{ items: messageMenuActions({ direct, block, blocked }).map(action => ({ ...action, label: t(action.label) })),
+      onClick: ({ key }) => select(key) }}>{children}</ThreadContextMenu></>;
 }

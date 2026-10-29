@@ -22,6 +22,7 @@ import { LoungeDeleteDialog } from './LoungeDeleteDialog';
 import { LoungeNewChat } from './LoungeNewChat';
 import { historyKey } from '../../../../shared/lounge/archive';
 import { useLoungeListFocus } from './useLoungeListFocus';
+import type { LoungeComposerHandle } from '../../../../shared/lounge/mention';
 
 export function LoungePage({ controller, onBack }: { controller: LoungeController; onBack: () => void }) {
   useLanguage();
@@ -30,6 +31,7 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
   const model = useMobileLounge(controller);
   const { state, contact } = model;
   const list = useRef<FlatList<Message>>(null);
+  const composer = useRef<LoungeComposerHandle>(null);
   const messages = [...model.navigation.messages].reverse();
   const focus = useLoungeListFocus({ list, messages, focus: model.navigation.focus });
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -59,6 +61,7 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
           reply={model.quote} blocked={state.blocked.includes(item.sender.id)}
           direct={item.sender.id !== state.user?.id && state.directAvailable ? () => model.select(item.sender) : undefined}
           profile={() => model.setProfile(item.sender)} controller={controller} locate={model.locate}
+          mention={item.sender.id !== state.user?.id ? () => composer.current?.mention(item.sender) : undefined}
           highlighted={model.navigation.highlight === historyKey(item)}
           block={item.sender.id !== state.user?.id && state.directAvailable ? () => model.setBlocking(item.sender) : undefined}
           manage={state.policy.moderator ? model.setModerating : undefined}
@@ -92,7 +95,7 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
         <Text style={styles.retentionText}>{t(contact ? 'client.lounge.directRetention' : 'client.lounge.retention')}</Text>
       </Pressable>
       <LoungeComposer key={`composer:${state.conversation}`} draftState={model.draftState} reply={model.draftState.draft.reply}
-        viewportHeight={viewportHeight}
+        viewportHeight={viewportHeight} composerRef={composer}
         onOverlayChange={model.setComposerOverlay}
         cancelReply={model.cancelReply}
         connected={state.status === 'connected' && !model.muted && (!state.conversation || state.directAvailable)}
@@ -115,6 +118,7 @@ export function LoungePage({ controller, onBack }: { controller: LoungeControlle
       select={model.select} close={() => model.setSheet(undefined)} />}
     {model.sheet === 'about' && <LoungeAbout direct={!!contact} close={() => model.setSheet(undefined)} />}
     {model.history && <LoungeHistory controller={controller} close={() => model.setHistory(false)}
+      mention={user => { model.setHistory(false); composer.current?.mention(user); }}
       reply={model.quote} direct={model.select} profile={model.setProfile} locate={model.locate}
       navigationError={model.navigation.error} />}
     {model.avatar && !model.profile && state.user && <LoungeAvatarSettings user={state.user} controller={controller}

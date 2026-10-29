@@ -1,7 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent, type ReactNode, type Ref } from 'react';
 import { ArrowUp, History, ImagePlus, Keyboard, Plus, Send, Smile } from 'lucide-react';
 import { displayText as t } from '../localization/messages';
-import { MAX_IMAGES, MAX_TEXT, type LoungeAccount, type LoungeDraft } from './types';
+import { MAX_IMAGES, MAX_TEXT, type LoungeDraft } from './types';
 import { prepareImage } from './images';
 import { LoungeEmojiPicker } from './LoungeEmojiPicker';
 import { sendError } from './contacts';
@@ -12,8 +12,9 @@ import { MobileLoungeSheet } from './MobileLoungeSheet';
 import { MobileLoungeEmojiPanel, useMobileEmojiHeight } from './MobileLoungeEmojiPanel';
 import { insertLoungeEmoji } from './emoji';
 import { LoungeImageAttachments } from './LoungeImageAttachments';
+import { loungeMention, type LoungeComposerHandle } from './mention';
 
-export interface LoungeComposerHandle { mention: (user: LoungeAccount) => void }
+export type { LoungeComposerHandle } from './mention';
 
 export function LoungeComposer({ connected, send, onHistory, mobile = false, reply, cancelReply,
   draftState, extraActions, onOverlayChange, composerRef, assistance }: {
@@ -108,7 +109,9 @@ export function LoungeComposer({ connected, send, onHistory, mobile = false, rep
     if (textarea.current) selection.current = {
       start: textarea.current.selectionStart, end: textarea.current.selectionEnd,
     };
-    insertEmoji(`@${user.account} `);
+    setEmojiOpen(false); setExtras(false);
+    textarea.current?.focus();
+    insertEmoji(loungeMention(user));
   } }));
   const paste = (event: ClipboardEvent) => {
     const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));

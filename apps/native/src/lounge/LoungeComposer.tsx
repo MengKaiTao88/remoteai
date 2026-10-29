@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MAX_IMAGES, MAX_TEXT, type LoungeDraft } from '../../../../shared/lounge/types';
@@ -14,14 +14,16 @@ import { LoungeSheet } from './LoungeSheet';
 import { LoungeEmojiPanel } from './LoungeEmojiPanel';
 import { useLoungeEmoji } from './useLoungeEmoji';
 import { LoungeImageAttachments } from './LoungeImageAttachments';
+import { loungeMention, type LoungeComposerHandle } from '../../../../shared/lounge/mention';
 
 export function LoungeComposer({ connected, send, onHistory, reply, cancelReply, draftState, extraActions,
-  onOverlayChange, viewportHeight }: {
+  onOverlayChange, viewportHeight, composerRef }: {
   connected: boolean; send: (draft: LoungeDraft) => Promise<void>; onHistory: () => void;
   reply?: LoungeReply; cancelReply: (sent?: LoungeReply) => void;
   draftState: ComposerDraftState; extraActions: (close: () => void) => ReactNode;
   onOverlayChange: (open: boolean) => void;
   viewportHeight: number;
+  composerRef?: Ref<LoungeComposerHandle>;
 }) {
   const styles = useLoungeStyles();
   const color = useLoungeColor();
@@ -34,12 +36,15 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
     onOverlayChange(extras || editingImage);
     return () => onOverlayChange(false);
   }, [extras, editingImage, onOverlayChange]);
-  const [inputHeight, setInputHeight] = useState(44);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(false);
   const locked = useRef(false);
   const input = useRef<TextInput>(null);
   const emoji = useLoungeEmoji({ input, text, setText, viewportHeight });
+  useImperativeHandle(composerRef, () => ({ mention: user => {
+    setExtras(false); emoji.close(); emoji.insert(loungeMention(user));
+    requestAnimationFrame(() => input.current?.focus());
+  } }));
   useEffect(() => { if (reply) input.current?.focus(); }, [reply]);
   const addImages = async () => {
     if (locked.current || editingImage) return;
@@ -76,8 +81,7 @@ export function LoungeComposer({ connected, send, onHistory, reply, cancelReply,
           color={emoji.open ? color('#456c96', 'info') : color('#687c89', 'muted')} /></Pressable>
     <TextInput ref={input} multiline value={text} onChangeText={setText}
       selection={emoji.selection} onFocus={emoji.close}
-      style={[styles.input, { height: inputHeight }]}
-      onContentSizeChange={event => setInputHeight(Math.max(44, Math.min(132, event.nativeEvent.contentSize.height)))}
+      style={styles.input}
       onSelectionChange={event => emoji.changeSelection(event.nativeEvent.selection)}
       accessibilityLabel={t('client.lounge.message')} placeholder={t('client.lounge.mobilePlaceholder')}
       placeholderTextColor={color('#838892', 'muted')} />

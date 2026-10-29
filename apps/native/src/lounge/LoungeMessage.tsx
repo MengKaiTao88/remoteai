@@ -1,6 +1,6 @@
 import { accountName } from '../../../../shared/lounge/names';
 import { Image, Pressable, Text, View, useWindowDimensions } from 'react-native';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { initials, type LoungeAccount, type LoungeMessage as Message } from '../../../../shared/lounge/types';
 import { getLocale, t } from '../i18n';
 import { UNREAD_BADGE_FONT_SIZE, UNREAD_BADGE_HORIZONTAL_PADDING, useLoungeStyles } from './styles';
@@ -12,14 +12,16 @@ import { messageMinimumWidth } from './messageLayout';
 import { LoungeSender } from './LoungeSender';
 import type { LoungeReply } from '../../../../shared/lounge/reply';
 import type { LoungeController } from '../../../../shared/lounge/controller';
+import type { MenuAnchor } from '../../../../shared/lounge/messageMenuLayout';
 
 const MESSAGE_AVATAR_TOUCH_PADDING = 7;
 
-export function LoungeAvatar({ user, size, onDirect, onProfile, onLongPress }: {
+export function LoungeAvatar({ user, size, onDirect, onProfile, onLongPress, onMention }: {
   user: LoungeAccount; size?: 'small' | 'profile'; onDirect?: () => void;
-  onProfile?: () => void; onLongPress?: () => void;
+  onProfile?: () => void; onLongPress?: () => void; onMention?: () => void;
 }) {
   const styles = useLoungeStyles();
+  const mentionPending = useRef(false);
   const small = size === 'small';
   const avatarStyle = [styles.avatar, small && styles.messageAvatar, size === 'profile' && styles.profileAvatar];
   const avatar = user.avatar ? <Image source={{ uri: user.avatar }}
@@ -28,7 +30,12 @@ export function LoungeAvatar({ user, size, onDirect, onProfile, onLongPress }: {
       <Text style={[small ? styles.messageName : styles.initials, size === 'profile' && styles.profileInitials]}>
         {initials(accountName(user))}</Text></View>;
   const action = onProfile ?? onDirect;
-  return action ? <Pressable accessibilityRole="button" onPress={action} onLongPress={onLongPress}
+  return action ? <Pressable accessibilityRole="button" onPress={action}
+    onLongPress={onMention ? () => { mentionPending.current = true; } : onLongPress}
+    onPressOut={() => {
+      // Finish the touch before a history mention removes its modal and focuses the composer.
+      if (mentionPending.current) { mentionPending.current = false; onMention?.(); }
+    }}
     hitSlop={small ? MESSAGE_AVATAR_TOUCH_PADDING : 0}
     accessibilityLabel={t(onProfile ? 'client.lounge.viewProfile' : 'client.lounge.directWith', {
       account: accountName(user) })}>{avatar}</Pressable> : avatar;
@@ -50,23 +57,26 @@ interface Props {
   preview: (uri: string) => void; onImageLoad?: () => void;
   reply?: (message: Message) => void;
   direct?: () => void; block?: () => void; blocked?: boolean;
-  profile?: () => void;
+  profile?: () => void; mention?: () => void;
   controller: LoungeController; locate?: (reference: LoungeReply) => void; highlighted?: boolean;
 }
 export function LoungeMessage({ message, own, manage, preview, onImageLoad, reply, direct, block, blocked,
-  profile, controller, locate, highlighted }: Props) {
+  profile, mention, controller, locate, highlighted }: Props) {
   const styles = useLoungeStyles();
-  const [menu, setMenu] = useState(false);
+  const [menu, setMenu] = useState<MenuAnchor>();
+  const bubble = useRef<View>(null);
   const [availableWidth, setAvailableWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
   const minWidth = Math.min(availableWidth, messageMinimumWidth(message.text, fontScale));
-  const openMenu = reply ? () => setMenu(true) : undefined;
+  const openMenu = reply ? () => bubble.current?.measureInWindow((x, y, width, height) => {
+    if (width && height) setMenu({ x, y, width, height });
+  }) : undefined;
   return <View style={[styles.message, own && styles.own, highlighted && styles.highlighted]}>
-    <LoungeAvatar user={message.sender} size="small" onDirect={direct} onProfile={profile} />
+    <LoungeAvatar user={message.sender} size="small" onDirect={direct} onProfile={profile} onMention={mention} />
     <View style={[styles.messageMain, own && styles.ownMain]}
       onLayout={event => setAvailableWidth(event.nativeEvent.layout.width)}>
       <LoungeSender user={message.sender} manage={!own && manage ? () => manage(message.sender) : undefined} />
-      <Pressable onLongPress={openMenu} style={[styles.bubble, own && styles.ownBubble,
+      <Pressable ref={bubble} onLongPress={openMenu} style={[styles.bubble, own && styles.ownBubble,
         { minWidth }, message.reply && styles.quotedBubble,
         !message.text.trim() && !message.reply && styles.imageOnly]}>
         {message.reply && <LoungeReplyPreview reply={message.reply} controller={controller}
@@ -79,7 +89,7 @@ export function LoungeMessage({ message, own, manage, preview, onImageLoad, repl
         { hour: '2-digit', minute: '2-digit' })}</Text>
       <LoungeDeliveryStatus delivery={message.delivery} />
     </View>
-    {menu && reply && <LoungeMessageActions message={message} reply={reply} close={() => setMenu(false)}
+    {menu && reply && <LoungeMessageActions anchor={menu} message={message} reply={reply} close={() => setMenu(undefined)}
       direct={direct} block={block} blocked={blocked} />}
   </View>;
 }

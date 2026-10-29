@@ -1,6 +1,6 @@
 import { accountName } from './names';
 import { LoungeSyncNotice } from './LoungeSyncNotice';
-import { useSyncExternalStore } from 'react';
+import { useRef, useSyncExternalStore } from 'react';
 import { ArrowDown, Ban, ChevronLeft, Info, MessagesSquare, UserRound } from 'lucide-react';
 import { displayText as t } from '../localization/messages';
 import { getInterfaceLanguage, subscribeInterfaceLanguage } from '../localization/interfaceLanguage';
@@ -8,6 +8,7 @@ import type { LoungeController } from './controller';
 import { useMobileLounge, type MobileLounge } from './useMobileLounge';
 import { contactStatus } from './contacts';
 import { LoungeComposer } from './LoungeComposer';
+import type { LoungeComposerHandle } from './mention';
 import { LoungeHistory } from './LoungeHistory';
 import { LoungePreview } from './LoungePreview';
 import { LoungeAvatarSettings } from './LoungeAvatarSettings';
@@ -23,11 +24,13 @@ import './mobile.css';
 export function MobileLoungePage({ controller, onBack }: { controller: LoungeController; onBack?: () => void }) {
   useSyncExternalStore(subscribeInterfaceLanguage, getInterfaceLanguage);
   const model = useMobileLounge(controller);
+  const composer = useRef<LoungeComposerHandle>(null);
   const { state, contact } = model;
   return <section className="lounge-page lounge-mobile">
     {model.chats ? <MobileLoungeChats model={model} controller={controller} onBack={onBack} /> : <>
       <MobileHeading model={model} />
-      <MobileLoungeThread key={`thread:${state.conversation}`} model={model} controller={controller} />
+      <MobileLoungeThread key={`thread:${state.conversation}`} model={model} controller={controller}
+        mention={user => composer.current?.mention(user)} />
       {(!model.atBottom || model.navigation.focus) && <button className="lounge-jump" type="button" onClick={model.latest}>
         <ArrowDown size={16} />{t('client.lounge.latest')}</button>}
       {model.muted && <p className="lounge-mute-notice" role="status">{t('client.lounge.mutedUntil', {
@@ -40,7 +43,7 @@ export function MobileLoungePage({ controller, onBack }: { controller: LoungeCon
       {model.navigation.error && <p className="lounge-mute-notice" role="status">{t(model.navigation.error)}</p>}
       <button type="button" className="lounge-retention" onClick={() => model.setSheet('about')}>
         <Info size={13} />{t(contact ? 'client.lounge.directRetention' : 'client.lounge.retention')}</button>
-      <LoungeComposer key={`composer:${state.conversation}`} mobile draftState={model.draftState}
+      <LoungeComposer key={`composer:${state.conversation}`} mobile draftState={model.draftState} composerRef={composer}
         onOverlayChange={model.setComposerOverlay}
         reply={model.draftState.draft.reply} cancelReply={model.cancelReply}
         connected={state.status === 'connected' && !model.muted && (!state.conversation || state.directAvailable)}
@@ -59,7 +62,8 @@ export function MobileLoungePage({ controller, onBack }: { controller: LoungeCon
     {model.sheet === 'new-chat' && <MobileLoungeNewChat controller={controller} state={state}
       select={model.select} close={() => model.setSheet(undefined)} />}
     {model.sheet === 'about' && <LoungeAbout direct={!!contact} close={() => model.setSheet(undefined)} />}
-    <LoungeHistory open={model.history} close={() => model.setHistory(false)} controller={controller}
+    <LoungeHistory mobile open={model.history} close={() => model.setHistory(false)} controller={controller}
+      mention={user => { model.setHistory(false); composer.current?.mention(user); }}
       preview={model.setPreview} reply={model.quote} direct={model.select} profile={model.setProfile}
       locate={model.locate} navigationError={model.navigation.error} />
     {model.avatar && state.user && <LoungeAvatarSettings user={state.user} controller={controller}

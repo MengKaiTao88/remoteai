@@ -8,8 +8,11 @@ import { LoungeMessageBody } from './LoungeMessageBody';
 import type { LoungeController } from './controller';
 import { historyKey } from './archive';
 import { scrollToLoungeMessage } from './scrollToMessage';
+import type { LoungeAccount } from './types';
 
-export function MobileLoungeThread({ model, controller }: { model: MobileLounge; controller: LoungeController }) {
+export function MobileLoungeThread({ model, controller, mention }: {
+  model: MobileLounge; controller: LoungeController; mention: (user: LoungeAccount) => void;
+}) {
   const { state, offsets, scrollPositions, atBottom, setAtBottom } = model;
   const list = useRef<HTMLDivElement>(null);
   const restoring = useRef(true);
@@ -55,11 +58,12 @@ export function MobileLoungeThread({ model, controller }: { model: MobileLounge;
       const own = message.sender.id === state.user?.id;
       return <article key={historyKey(message)} data-lounge-message-key={historyKey(message)}
         className={`lounge-message${own ? ' is-own' : ''}${highlight === historyKey(message) ? ' is-highlighted' : ''}`}>
-        <LoungeAvatar user={message.sender} onProfile={() => model.setProfile(message.sender)} />
+        <LoungeAvatar user={message.sender} onProfile={() => model.setProfile(message.sender)}
+          onLongPress={!own ? () => mention(message.sender) : undefined} />
         <div className="lounge-message-main">
           <LoungeSender user={message.sender} manage={state.policy.moderator && !own
             ? () => model.setModerating(message.sender) : undefined} />
-          <LoungeMessageBody message={message} preview={model.setPreview} onImageLoad={scrollBottom}
+          <LoungeMessageBody mobile message={message} preview={model.setPreview} onImageLoad={scrollBottom}
             controller={controller} locate={model.locate}
             actions={{ reply: model.quote, blocked: state.blocked.includes(message.sender.id),
               direct: !own && state.directAvailable ? () => model.select(message.sender) : undefined,

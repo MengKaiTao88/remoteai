@@ -23,6 +23,7 @@ import { verifyNativeContacts } from './lounge-contacts-check.mjs';
 import { loadHistorySource, verifyNativeSync } from './lounge-sync-check.mjs';
 import { verifyNativeNotifications } from './lounge-notifications-check.mjs';
 import { verifyNativeAdminBadge } from './lounge-admin-badge-check.mjs';
+import { verifyNativeGestures } from './lounge-gestures-check.mjs';
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -30,7 +31,7 @@ const serial = process.env.ANDROID_SERIAL;
 assert.ok(serial, 'Set ANDROID_SERIAL to a physical test device');
 const output = path.join(root, process.env.LOUNGE_TEXT_ONLY === '1'
   ? `.codex-tmp/lounge-text-${serial}` : '.codex-tmp/lounge-android');
-const app = 'com.codexswitch.mobile.loungetest';
+const app = process.env.LOUNGE_TEST_APP ?? 'com.codexswitch.mobile.loungetest';
 const adb = async (...args) => (await exec('adb', ['-s', serial, ...args], {
   encoding: 'utf8', timeout: 60_000, windowsHide: true, maxBuffer: 4 * 1024 * 1024,
 })).stdout.trim();
@@ -161,7 +162,18 @@ sockets.on('connection', socket => socket.on('message', raw => {
 }));
 
 async function nodes() {
-  await adb('shell', 'uiautomator', 'dump', '/sdcard/lounge-layout.xml');
+  let dumped = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      dumped = await adb('shell', 'uiautomator', 'dump', '/sdcard/lounge-layout.xml');
+    } catch (failure) {
+      if (failure.code !== 137 || attempt === 2) throw failure;
+      // Android can reclaim the dumper during app startup; retry without using stale coordinates.
+    }
+    if (dumped.includes('dumped to:')) break;
+    await delay(750);
+  }
+  assert.ok(dumped.includes('dumped to:'), 'UI hierarchy dump failed; never read stale touch coordinates');
   const xml = await adb('shell', 'cat', '/sdcard/lounge-layout.xml');
   return [...xml.matchAll(/<node\b([^>]*)>/g)].map(match => Object.fromEntries(
     [...match[1].matchAll(/([\w-]+)="([^"]*)"/g)].map(attribute => [attribute[1], attribute[2]
@@ -182,11 +194,16 @@ async function find(label) {
 async function tap(label) {
   const node = await find(label);
   const [left, top, right, bottom] = [...node.bounds.matchAll(/\d+/g)].map(value => Number(value[0]));
-  await adb('shell', 'input', 'tap', String(Math.round((left + right) / 2)), String(Math.round((top + bottom) / 2)));
+  const x = String(Math.round((left + right) / 2)); const y = String(Math.round((top + bottom) / 2));
+  // Give the native responder a frame between down/up, as a real finger tap does.
+  await adb('shell', 'input', 'touchscreen', 'motionevent', 'DOWN', x, y);
+  await delay(100);
+  await adb('shell', 'input', 'touchscreen', 'motionevent', 'UP', x, y);
   await delay(350);
 }
 async function longPress(label) {
   const node = await find(label);
+  console.log(`Long press ${label}: ${node.bounds}`);
   const [left, top, right, bottom] = [...node.bounds.matchAll(/\d+/g)].map(value => Number(value[0]));
   const x = String(Math.round((left + right) / 2)); const y = String(Math.round((top + bottom) / 2));
   await adb('shell', 'input', 'swipe', x, y, x, y, '750'); await delay(350);
@@ -323,6 +340,11 @@ try {
       continue;
     }
     await tap('群聊'); await find('真机中文测试：忙里偷闲，聊点轻松的 ☕');
+    if (process.env.LOUNGE_GESTURES_ONLY === '1') {
+      await verifyNativeGestures({ adb, tap, find, nodes, screenshot, hideKeyboard, longPress,
+        scale, sent, broadcast, incoming });
+      continue;
+    }
     if (process.env.LOUNGE_ADMIN_BADGE_ONLY === '1') {
       await verifyNativeAdminBadge({ adb, tap, find, nodes, screenshot, hideKeyboard, scale, broadcast, incoming });
       continue;
