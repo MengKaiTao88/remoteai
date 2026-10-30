@@ -39,7 +39,6 @@ export function MarketView({ client, language, initialId }: {
             ? market.setEditor('new') : market.setError('market.signIn')}>{t('market.publish')}</Button></Space></div>
       <Input.Search aria-label={t('market.search')} placeholder={t('market.search')}
         allowClear onSearch={market.find} maxLength={160} />
-      <p className="pm-muted">{t('market.statsNotice')}</p>
       {market.loading ? <div role="status" className="pm-loading"><Spin /> {t('market.loading')}</div>
         : !market.result.items.length ? <Empty description={t('market.empty')} />
           : <div className="pm-list">{market.result.items.map((item) => <article className="pm-card" key={item.id}>
