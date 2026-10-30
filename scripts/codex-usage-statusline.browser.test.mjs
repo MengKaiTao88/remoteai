@@ -3,9 +3,10 @@ import { after, before, test } from "node:test";
 import { chromium, expect } from "@playwright/test";
 import { join } from 'node:path';
 import { composerUsageOverlay, usageStatuslineScript as script } from "./fixtures/usage-statusline-source.mjs";
+import { testBrowserLaunchOptions } from './test-browser.mjs';
 
 let browser;
-before(async () => { browser = await chromium.launch({ headless: true }); });
+before(async () => { browser = await chromium.launch(testBrowserLaunchOptions({ headless: true })); });
 after(async () => { await browser?.close(); });
 
 async function setup(page, dark) {
@@ -126,8 +127,10 @@ test("Japanese and usage toggles stay responsive while conversation timings are 
       await page.screenshot({ path: process.env.CODEX_USAGE_STATUSLINE_JAPANESE_SCREENSHOT });
     }
     await page.evaluate(() => window.__CODEX_SWITCH_SPEED_SELECTOR__.updateUsage({ enabled: false }));
-    await expect(bar).toHaveCount(0);
-    assert.equal(await page.evaluate(() => window.__CODEX_SWITCH_USAGE_STATUSLINE__ === undefined), true);
+    await expect(bar).toBeVisible();
+    await expect(bar.locator('[data-usage-metric]')).toHaveCount(3);
+    await expect(page.locator('[data-today-usage]')).toBeHidden();
+    assert.equal(await page.evaluate(() => window.__CODEX_SWITCH_USAGE_STATUSLINE__ !== undefined), true);
     await page.evaluate(() => window.__CODEX_SWITCH_SPEED_SELECTOR__.updateUsage({ enabled: true }));
     await expect(bar).toHaveCount(1);
     await expect(page.locator("[contenteditable]")).toHaveText("入力中のメッセージ");
@@ -158,6 +161,16 @@ for (const dark of [false, true]) {
       await expect(daily).toBeVisible();
       await expect(daily).toHaveText('今日19.06M·28.2 USD·97%');
       await expect(page.locator('#toolbar [data-today-usage]')).toHaveCount(0);
+      await page.evaluate(() => window.__CODEX_SWITCH_SPEED_SELECTOR__.updateUsage({ enabled: false }));
+      await expect(daily).toBeHidden();
+      for (const metric of await metrics.all()) await expect(metric).toBeVisible();
+      await expect(metrics.nth(0)).toHaveText('51.0 tok/s');
+      await expect(metrics.nth(1)).toHaveText('缓存命中 99.9%');
+      await expect(metrics.nth(2)).toHaveText('19.0%');
+      await page.evaluate(() => window.__CODEX_SWITCH_SPEED_SELECTOR__.updateUsage({
+        enabled: true, totalTokens: 19060000, estimatedCostUsd: 28.2, primaryRemainingPercent: 97,
+      }));
+      await expect(daily).toBeVisible();
       const checkFits = async () => {
         const last = await metrics.last().boundingBox();
         const box = await daily.boundingBox();
