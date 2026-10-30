@@ -14,12 +14,14 @@ export function LoungeNameFields(props: LoungeNameEditorOptions) {
       <Text style={styles.value}>{props.user.nickname || t('client.lounge.nameNotSet')}</Text>
     </View>}
     <Text style={styles.label}>{label}</Text>
-    <Text style={styles.hint}>{t(editor.own ? 'client.lounge.nicknameHint' : 'client.lounge.remarkHint')}</Text>
+    {editor.own && <Text style={styles.hint}>{t('client.lounge.nicknameHint')}</Text>}
     <TextInput value={editor.value} onChangeText={editor.change} onBlur={() => void editor.save()} style={styles.input}
       accessibilityLabel={label} placeholder={t('client.lounge.nameNotSet')} autoCorrect={false}
       placeholderTextColor={color('#687c89', 'muted')} returnKeyType="done" onSubmitEditing={() => void editor.save()} />
-    <Text style={styles.hint}>{t('client.lounge.nameLimit', { limit: editor.limit })}</Text>
-    <Text style={styles.hint}>{t('client.lounge.nameAutosaveHint')}</Text>
+    {editor.own && <>
+      <Text style={styles.hint}>{t('client.lounge.nameLimit', { limit: editor.limit })}</Text>
+      <Text style={styles.hint}>{t('client.lounge.nameAutosaveHint')}</Text>
+    </>}
     {!editor.available && <Text style={styles.hint}>{t('client.lounge.namesUnavailable')}</Text>}
     {editor.invalid && <Text accessibilityRole="alert" style={styles.error}>
       {t('client.lounge.nameInvalid', { limit: editor.limit })}</Text>}

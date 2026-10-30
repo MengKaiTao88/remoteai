@@ -11,13 +11,15 @@ export function LoungeNameFields(props: LoungeNameEditorOptions) {
       <strong>{props.user.nickname || t('client.lounge.nameNotSet')}</strong></div>}
     <form onSubmit={event => { event.preventDefault(); void editor.save(); }}>
       <label htmlFor="lounge-profile-name">{label}</label>
-      <p className="lounge-name-hint">{t(editor.own ? 'client.lounge.nicknameHint' : 'client.lounge.remarkHint')}</p>
+      {editor.own && <p className="lounge-name-hint">{t('client.lounge.nicknameHint')}</p>}
       <Input id="lounge-profile-name" value={editor.value} onChange={event => editor.change(event.target.value)}
         onBlur={() => void editor.save()} aria-label={label} autoComplete="off"
         status={editor.invalid ? 'error' : undefined}
         placeholder={t('client.lounge.nameNotSet')} />
-      <p className="lounge-name-hint">{t('client.lounge.nameLimit', { limit: editor.limit })}</p>
-      <p className="lounge-name-hint">{t('client.lounge.nameAutosaveHint')}</p>
+      {editor.own && <>
+        <p className="lounge-name-hint">{t('client.lounge.nameLimit', { limit: editor.limit })}</p>
+        <p className="lounge-name-hint">{t('client.lounge.nameAutosaveHint')}</p>
+      </>}
       {!editor.available && <p role="status">{t('client.lounge.namesUnavailable')}</p>}
       {editor.invalid && <p role="alert">{t('client.lounge.nameInvalid', { limit: editor.limit })}</p>}
       {editor.error && <div className="lounge-name-error"><p role="alert">{t(editor.error)}</p>

@@ -8,7 +8,7 @@ export async function verifyNativeNames({ adb, tap, find, nodes, screenshot, hid
     if (value) await adb('shell', 'input', 'text', value);
   }
   async function blur(kind) {
-    await tap(kind === 'nickname' ? '昵称会显示给其他用户。' : '备注仅你可见，会同步到你的其他设备。');
+    await tap(kind === 'nickname' ? '昵称会显示给其他用户。' : '昵称');
     await hideKeyboard();
   }
   await tap('个人资料'); await find('昵称');
