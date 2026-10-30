@@ -2,7 +2,6 @@ import { textMetrics } from '../../theme/text';
 import { createThemedStyles } from '../../theme/styles';
 
 export const useMappingStyles = createThemedStyles(color => ({
-  pageTitle: { ...textMetrics(22, 30), fontWeight: '600', color: color('#111827', 'ink') },
   content: { gap: 12, paddingHorizontal: 16, paddingBottom: 20 },
   fill: { flex: 1, minWidth: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 9 },

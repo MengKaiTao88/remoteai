@@ -1294,9 +1294,10 @@ function AppContent() {
       onLogout={handleLogout} totpManager={totpManager} />,
     }}>
     {activePage === 'downloads' && <DownloadManagerPage session={session} onBack={() => setActivePage('discover')} />}
-    {isDiscoveryPage(activePage) && activePage !== 'downloads' && activePage !== 'token-summary' && activePage !== 'lounge'
+    {isDiscoveryPage(activePage) && !['downloads', 'token-summary', 'lounge', 'port-mappings'].includes(activePage)
       && <DiscoveryBackButton onBack={() => setActivePage('discover')} />}
-    {activePage === 'port-mappings' && <PortMappingPage devices={devices} />}
+    {activePage === 'port-mappings'
+      && <PortMappingPage devices={devices} onBack={() => setActivePage('discover')} />}
     {activePage === 'lounge' && <LoungePage controller={lounge.controller} onBack={() => setActivePage('discover')} />}
     {activePage === 'devices'
         ? <DeviceManagementPage session={session} accounts={accounts} providers={providers} devices={devices}

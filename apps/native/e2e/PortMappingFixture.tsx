@@ -3,13 +3,13 @@ import { registerRootComponent } from 'expo';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { BackHandler, Pressable, Text, View } from 'react-native';
+import { BackHandler, Pressable, StatusBar, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Storage from 'expo-sqlite/kv-store';
 import { DeviceMappingProvider } from '../../../shared/port-mapping/deviceRegistry';
 import { mappingFixture } from '../../../shared/port-mapping/testing/fixture';
 import { NativeMappingTunnel } from '../src/chat/portMapping/tunnel';
-import { DiscoveryPage, DiscoveryBackButton } from '../src/discovery/DiscoveryPage';
+import { DiscoveryPage } from '../src/discovery/DiscoveryPage';
 import { PortMappingPage } from '../src/portMapping/PortMappingPage';
 import { setInterfaceLanguage } from '../../../shared/localization/interfaceLanguage';
 import { textMetrics } from '../src/theme/text';
@@ -33,11 +33,12 @@ function PortMappingFixture() {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => { setPage('discover'); return true; });
     return () => listener.remove();
   }, []);
-  return <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+  return <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+    <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
     <DeviceMappingProvider registry={fixture.registry} deviceIds={devices.map(device => device.deviceId)}>
-      {fonts && (page === 'port-mappings' ? <View style={{ flex: 1 }}>
-        <DiscoveryBackButton onBack={() => setPage('discover')} /><PortMappingPage devices={devices} />
-      </View> : <DiscoveryPage onOpen={setPage} />)}
+      {fonts && (page === 'port-mappings'
+        ? <PortMappingPage devices={devices} onBack={() => setPage('discover')} />
+        : <DiscoveryPage onOpen={setPage} />)}
       <View style={{ flexDirection: 'row', gap: 20, padding: 8 }}>
         <Pressable onPress={() => fixture.controls.forEach(control => control.ready(false))}>
           <Text style={textMetrics(14, 22)}>Disconnect fixture</Text></Pressable>

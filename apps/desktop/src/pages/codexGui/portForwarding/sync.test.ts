@@ -38,8 +38,12 @@ it('syncs additions, protocols, stable IDs, edits and removals between phone, de
   const cloud = server();
   const phone = device(cloud), desktop = device(cloud), web = device(cloud);
   await flush();
+  expect(phone.sync.isSynced()).toBe(true);
   phone.service.setConnected(true);
-  phone.service.add(3000, 13000, '192.168.1.20', 'udp'); await flush();
+  phone.service.add(3000, 13000, '192.168.1.20', 'udp');
+  expect(phone.sync.isSynced()).toBe(false);
+  await flush();
+  expect(phone.sync.isSynced()).toBe(true);
   await desktop.sync.refresh(); await web.sync.refresh();
   const original = phone.service.snapshot()[0];
   expect(desktop.service.snapshot()[0].protocol).toBe('udp');
@@ -66,12 +70,14 @@ it('retains UDP locally and retries when an older server silently drops the prot
   phone.service.setConnected(true); phone.service.add(53, 1053, '', 'udp'); await flush();
   expect(phone.service.snapshot()[0]).toMatchObject({ protocol: 'udp', status: 'running' });
   expect(phone.sync.snapshot()).toContain('协议设置暂未同步');
+  expect(phone.sync.isSynced()).toBe(false);
   phone.stop();
   const restarted = device({ exchange, cache, saved: phone.service.snapshot() });
   await flush();
   expect(restarted.service.snapshot()[0].protocol).toBe('udp');
   legacy = false; await restarted.sync.refresh();
   expect(restarted.sync.snapshot()).toBe('配置已自动同步');
+  expect(restarted.sync.isSynced()).toBe(true);
   expect((await cloud.exchange()).mappings[0].protocol).toBe('udp');
 });
 

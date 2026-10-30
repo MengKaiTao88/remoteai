@@ -39,6 +39,8 @@ async function tap(label, options = {}) {
   throw new Error(`Could not find ${label}`);
 }
 async function screenshot(name) {
+  await nodes();
+  await delay(500);
   const image = await exec('adb', ['-s', serial, 'exec-out', 'screencap', '-p'],
     { encoding: 'buffer', windowsHide: true, maxBuffer: 10 * 1024 * 1024 });
   await writeFile(`${output}/${name}.png`, image.stdout);
@@ -79,6 +81,20 @@ try {
   await add('家用电脑', 18082);
   await reachable(18082, 'two');
   await screenshot('mappings-1.0');
+  await tap('编辑映射', { class: 'android.widget.Button' });
+  assert.ok((await nodes()).some(node => node.text === '保存修改'));
+  await tap('取消');
+  await tap('更多操作');
+  assert.ok((await nodes()).some(node => node.text === '删除映射'));
+  await screenshot('mapping-actions');
+  await tap('更多操作');
+  await tap('复制本地地址');
+  assert.ok((await nodes()).some(node => node.text === '本地地址已复制'));
+  await tap('打开');
+  await delay(500);
+  assert.ok((await nodes()).some(node => node.text === 'http://127.0.0.1:18082'));
+  await tap('关闭');
+  console.log('Edit, menu, copy and open actions work from the redesigned card');
   await tap('返回发现');
   await reachable(18081, 'one'); await reachable(18082, 'two');
   console.log('Both listeners survive leaving the page');

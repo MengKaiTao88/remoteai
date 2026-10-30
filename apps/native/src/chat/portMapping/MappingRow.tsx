@@ -1,14 +1,13 @@
 import type { MessageKey } from '@remoteai/i18n';
 import { displayError } from '../../i18n/index';
-import { useState } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import type { ForwardingEntry, PortForwardingService } from '../../../../../shared/port-mapping/service';
 import { DEFAULT_MAPPING_HOST } from '../../../../../shared/port-mapping/target';
 import { protocolLabel } from '../../../../../shared/port-mapping/settings';
 import { t, useLanguage } from '../../i18n';
 import { useMappingStyles } from './mappingStyles';
+import { useMappingRowActions } from './useMappingRowActions';
 
 export function MappingRow({ entry, service, connected, open, edit, deviceName, connectionError, syncStatus }: {
   entry: ForwardingEntry; service: PortForwardingService; connected: boolean; open: () => void; edit: () => void;
@@ -16,16 +15,7 @@ export function MappingRow({ entry, service, connected, open, edit, deviceName, 
 }) {
   const styles = useMappingStyles();
   useLanguage();
-  const [notice, setNotice] = useState('');
-  const [menu, setMenu] = useState(false);
-  const running = entry.status === 'running';
-  const canOpen = running && entry.protocol !== 'udp';
-  const busy = entry.status === 'starting' || entry.status === 'stopping';
-  const enabled = entry.enabled ?? (running || busy);
-  const copy = async () => {
-    try { await Clipboard.setStringAsync(`127.0.0.1:${entry.localPort}`); setNotice('本地地址已复制'); }
-    catch { setNotice('复制失败，请重试。'); }
-  };
+  const { notice, menu, setMenu, running, canOpen, busy, enabled, copy } = useMappingRowActions(entry);
   const details: Array<[MessageKey, string | number]> = [["client.portForwarding.protocol", protocolLabel(entry.protocol)], ["client.portForwarding.targetIp", entry.remoteHost || DEFAULT_MAPPING_HOST],
     ["client.portForwarding.remotePort", entry.remotePort],
     ["client.portForwarding.localPort", entry.localPort], ["client.portMappingEditing.lastEdited.4f04ab", entry.updatedAt
@@ -76,6 +66,6 @@ export function MappingRow({ entry, service, connected, open, edit, deviceName, 
     {!!entry.error && <Text accessibilityRole="alert" style={styles.error}>{displayError(entry.error)}</Text>}
     {!!entry.enabled && !!connectionError && <Text style={styles.error}>{displayError(connectionError)}</Text>}
     {!!syncStatus && <Text style={styles.sync}>{displayError(syncStatus)}</Text>}
-    {!!notice && <Text style={styles.muted}>{displayError(notice)}</Text>}
+    {!!notice && <Text style={styles.muted}>{t(notice)}</Text>}
   </View>;
 }

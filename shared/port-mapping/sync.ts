@@ -17,6 +17,7 @@ export class MappingSync {
   private timer?: ReturnType<typeof setInterval>;
   private unsubscribe?: () => void;
   private status = '';
+  private synced = false;
   private readonly listeners = new Set<() => void>();
   private readonly key: string;
 
@@ -28,6 +29,7 @@ export class MappingSync {
   }
 
   snapshot = () => this.status;
+  isSynced = () => this.synced;
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };
@@ -109,7 +111,8 @@ export class MappingSync {
       this.setStatus(CAPACITY_CONFLICT);
       return;
     }
-    this.setStatus(Object.keys(this.pending).length ? '配置正在同步…' : '配置已自动同步');
+    const synced = Object.keys(this.pending).length === 0;
+    this.setStatus(synced ? '配置已自动同步' : '配置正在同步…', synced);
   }
 
   private persist() {
@@ -117,8 +120,9 @@ export class MappingSync {
     catch { this.setStatus('配置未能保存到本机，请检查存储空间。'); return false; }
   }
 
-  private setStatus(value: string) {
+  private setStatus(value: string, synced = false) {
     this.status = value;
+    this.synced = synced;
     for (const listener of this.listeners) listener();
   }
 }
