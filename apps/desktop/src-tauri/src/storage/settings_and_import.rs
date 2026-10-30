@@ -155,7 +155,11 @@ pub(crate) fn write_app_settings<R: Runtime>(
         .lock()
         .map_err(|_| "Application settings are unavailable".to_string())?;
     let path = app_settings_path(app)?;
-    let value = serde_json::to_value(settings).map_err(|error| error.to_string())?;
+    let mut value = serde_json::to_value(settings).map_err(|error| error.to_string())?;
+    // Only the dedicated setter may authorize quota spending. Stale snapshots from
+    // unrelated preference changes must not re-enable (or disable) synchronization.
+    value["quotaWindowSyncEnabled"] =
+        serde_json::json!(read_app_settings(app)?.quota_window_sync_enabled);
     write_json_atomic(&path, &value)?;
     crate::cloud::remember_push_routing(app, settings);
     Ok(())

@@ -8,6 +8,26 @@ fn test_app() -> tauri::App<tauri::test::MockRuntime> {
 }
 
 #[test]
+fn quota_window_sync_opt_in_survives_stale_writes_and_can_be_disabled() {
+    let app = test_app();
+    let settings = AppSettings::default();
+    write_app_settings(app.handle(), &settings).unwrap();
+    update_quota_window_sync(app.handle(), true).unwrap();
+    write_app_settings(app.handle(), &settings).unwrap();
+    let stale_enabled = read_app_settings(app.handle()).unwrap();
+    assert!(stale_enabled.quota_window_sync_enabled);
+    update_quota_window_sync(app.handle(), false).unwrap();
+    write_app_settings(app.handle(), &stale_enabled).unwrap();
+    assert!(
+        !read_app_settings(app.handle())
+            .unwrap()
+            .quota_window_sync_enabled
+    );
+    let path = app_settings_path(app.handle()).unwrap();
+    fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}
+
+#[test]
 fn language_changes_do_not_overwrite_business_settings_or_lose_to_stale_snapshots() {
     let app = test_app();
     let path = app_settings_path(app.handle()).unwrap();
