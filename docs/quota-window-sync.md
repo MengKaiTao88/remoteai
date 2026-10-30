@@ -49,3 +49,16 @@ already sent may still finish.
 Live service verification requires test accounts with an idle five-hour window. Confirm that using
 one account activates only the eligible others and that the service subsequently reports their
 reset times. Browser fixtures and unit tests cannot establish the provider's live quota semantics.
+
+## Interface screenshots
+
+Captured from the running browser fixtures at a 1100 × 800 desktop viewport, using the real UI
+components and mocked backend responses. These screenshots do not represent live quota consumption.
+
+Desktop local settings, enabled:
+
+![Desktop local settings with five-hour synchronization enabled](assets/quota-window-sync/local-enabled.png)
+
+Independent cloud Web settings, per-computer setup guidance:
+
+![Cloud Web setup guidance](assets/quota-window-sync/cloud-web-guidance.png)
