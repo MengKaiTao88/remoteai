@@ -20,7 +20,11 @@ it('reads the independent GUI account and sends only picker fields from this com
           primary: { remainingPercent: 82.4 }, secondary: { remainingPercent: 0 },
         } },
     ];
-    if (command === 'list_providers') return [{ id: 'provider', name: 'Provider', model: 'model', apiKey: 'secret' }];
+    if (command === 'list_providers') return [{ id: 'provider', name: 'Provider', model: 'model', apiKey: 'secret',
+      baseUrl: 'https://api.example.test/v1?key=secret', marketSource: { id: 'market', page: {
+        url: 'https://www.example.test/account?token=secret', query: 'privateDetails=secret',
+        headers: { Authorization: 'Bearer secret' },
+      } } }];
     if (command === 'list_aggregate_apis') return [];
     throw new Error('Unexpected command');
   });
@@ -35,7 +39,7 @@ it('reads the independent GUI account and sends only picker fields from this com
     { kind: 'account', id: 'gui', name: 'gui@example.test',
       detail: 'pro · 主剩余 82% · 次剩余 0%', plan: 'pro', primaryRemainingPercent: 82.4,
       secondaryRemainingPercent: 0, searchDetail: '工作', available: true },
-    { kind: 'provider', id: 'provider', name: 'Provider',
+    { kind: 'provider', id: 'provider', name: 'Provider', websiteUrl: 'https://www.example.test',
       detail: '钱包余额 暂无余额', searchDetail: 'model', available: true },
   ]);
   expect(JSON.stringify(snapshot)).not.toMatch(/secret|privateDetails|password|apiKey/);

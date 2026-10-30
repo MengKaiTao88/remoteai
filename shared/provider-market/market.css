@@ -31,11 +31,18 @@
 .pm-card-title { background: none; border: 0; color: inherit; text-align: start; font-size: 18px;
   font-weight: 700; cursor: pointer; padding: 0; margin-bottom: 12px; }
 .pm-card-title:hover { color: #4096ff; }
+.pm-card-title, .pm-detail-title { display: flex; align-items: center; gap: 10px; }
+.pm-card-title > span:last-child, .pm-detail-title > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.pm-detail-title { margin: 0; }
+.pm-provider-icon {
+  display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 9px;
+  color: var(--green-dark, #168348); background: var(--green-soft, color-mix(in srgb, #168348 10%, transparent));
+}
 .pm-card-header {
   display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
   gap: 12px; margin-bottom: 12px;
 }
-.pm-card-header .pm-card-title { flex: 1 1 120px; min-width: 0; margin: 0; }
+.pm-card-header .pm-card-title { flex: 1 1 160px; min-width: 0; margin: 0; }
 .pm-card-actions.ant-space { margin-inline-start: auto; justify-content: flex-end; }
 .pm-feed-tail { min-height: 1px; }
 .pm-feed-tail > [role="status"] { padding: 12px; text-align: center; }

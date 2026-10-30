@@ -2,6 +2,7 @@ import { Button, Popconfirm, Space, Tag } from 'antd';
 import type { MarketText } from './i18n';
 import { publicDraft, type MarketItem, type MarketRequest } from './types';
 import { validPageLink } from './pageLink';
+import { ProviderWebsiteIcon } from './ProviderWebsiteIcon';
 
 export function MarketCard({ item, owned, busy, t, onSelect, onEdit, onWrite }: {
   item: MarketItem; owned: boolean; busy: boolean; t: MarketText;
@@ -10,7 +11,10 @@ export function MarketCard({ item, owned, busy, t, onSelect, onEdit, onWrite }: 
 }) {
   return <article className="pm-card">
     <div className="pm-card-header">
-      <button className="pm-card-title" onClick={() => onSelect(item)}>{item.name}</button>
+      <button className="pm-card-title" onClick={() => onSelect(item)}>
+        <span className="pm-provider-icon"><ProviderWebsiteIcon url={item.pageLink?.url || item.baseUrl} /></span>
+        <span>{item.name}</span>
+      </button>
       {owned && <Space wrap className="pm-card-actions">
         <Button disabled={busy} onClick={() => onEdit(item)}>{t('market.edit')}</Button>
         <Button disabled={busy} onClick={() => {

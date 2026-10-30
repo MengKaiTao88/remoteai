@@ -3,6 +3,7 @@ import type { FileClient } from '../../../../shared/remote-chat/fileDownload';
 import type { ConnectionMode } from '../../../../shared/remote-chat/protocol';
 
 export interface DownloadSource extends DownloadLocation {
+  attachment?: import('../../../../shared/lounge/attachments').LoungeAttachment;
   owner: string;
   deviceId: string;
   deviceName: string;

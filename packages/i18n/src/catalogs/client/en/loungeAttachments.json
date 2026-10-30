@@ -6,5 +6,9 @@
   "client.lounge.fileLimitHint": "Up to {size} MB per file",
   "client.lounge.attachmentLimit": "This attachment exceeds the size limit. Choose a smaller file or image.",
   "client.lounge.fileUnavailable": "Unable to receive this file. Check that the sender is online and try again.",
-  "client.lounge.fileOnlineHint": "Download while the sender is online and save a copy."
+  "client.lounge.fileOnlineHint": "Download while the sender is online and save a copy.",
+  "client.lounge.fileActions": "View file: {name}",
+  "client.lounge.downloadAdded": "Added to Downloads. Track progress there.",
+  "client.lounge.downloadFailed": "Could not add the download. Please try again.",
+  "client.lounge.previewLinkedFile": "This link points to another file. Ask the sender to share it first."
 }

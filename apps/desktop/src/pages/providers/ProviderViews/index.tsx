@@ -3,10 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Button, Checkbox, Dropdown, Popconfirm, Space, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { Activity, CircleOff, Columns3, ExternalLink, Pencil, Server, Shuffle, Trash2 } from "lucide-react";
+import { Activity, CircleOff, Columns3, ExternalLink, Pencil, Shuffle, Trash2 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { hasMarketPage } from '../../../../../../shared/provider-market/pageLink';
 import { marketText } from '../../../../../../shared/provider-market/i18n';
+import { ProviderWebsiteIcon } from '../../../../../../shared/provider-market/ProviderWebsiteIcon';
+import { providerWebsiteOrigin } from '../../../../../../shared/provider-market/providerWebsite';
 import { remoteErrorText } from "../../../../../../shared/localization/errors";
 import { ImageModelRouteSelect } from "../../../components/ImageModelRouteSelect";
 import { TokenCostColumnTitle, useTokenCostDisplaySettings } from "../../../components/TokenCostUnitSettings";
@@ -154,7 +156,7 @@ function ProviderIdentityCell({ provider, error, successLatencyMs, conversationC
 }) {
   const providerBaseUrl = providerHomepageUrl(provider.baseUrl);
   return <div className="provider-cell">
-    <ProviderAvatar conversationCount={conversationCount} iconSize={15} t={t} />
+    <ProviderAvatar provider={provider} conversationCount={conversationCount} iconSize={20} t={t} />
     <button type="button" className="provider-link" title={hasMarketPage(provider) ? visitLabel : t("providers.openBaseUrl")}
       onClick={() => hasMarketPage(provider) ? onOpenPage?.(provider) : void openUrl(providerBaseUrl)}>
       <span className="provider-link-name">
@@ -182,14 +184,15 @@ function providerHomepageUrl(baseUrl: string) {
   }
 }
 
-function ProviderAvatar({ conversationCount, iconSize, t }: {
+function ProviderAvatar({ provider, conversationCount, iconSize, t }: {
+  provider: Provider;
   conversationCount: number;
   iconSize: number;
   t: Translate;
 }) {
   const countLabel = t("table.conversationCount", { count: conversationCount });
   return <div className="table-avatar-wrap">
-    <div className="provider-avatar"><Server size={iconSize} /></div>
+    <div className="provider-avatar"><ProviderWebsiteIcon url={providerWebsiteOrigin(provider)} size={iconSize} /></div>
     {conversationCount > 0 && <span className="account-conversation-count"
       title={countLabel} aria-label={countLabel}>
       {conversationCount > 99 ? "99+" : conversationCount}
@@ -388,7 +391,7 @@ function ProviderCard({ provider, options, tokenCostDisplay }: {
   }}>
     <div className="card-topline" />
     <header className="provider-card-head">
-      <ProviderAvatar conversationCount={aggregateConversationCount} iconSize={18} t={t} />
+      <ProviderAvatar provider={provider} conversationCount={aggregateConversationCount} iconSize={22} t={t} />
       <div>{hasMarketPage(provider) ? <button className="provider-link" type="button"
         onClick={() => options.onOpenPage?.(provider)}><strong>{provider.name}</strong></button>
         : <strong>{provider.name}</strong>}<span title={provider.baseUrl}>{provider.baseUrl}</span></div>

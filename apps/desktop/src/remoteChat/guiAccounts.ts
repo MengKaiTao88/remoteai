@@ -3,6 +3,7 @@ import type { Account, AggregateApi, Provider } from '../types';
 import { object } from '../../../../shared/remote-chat/protocol';
 import type { GuiAccountSelection, GuiAccountsSnapshot } from '../../../../shared/remote-chat/guiAccounts';
 import { guiAccountBalances } from './guiAccountBalances';
+import { providerWebsiteOrigin } from '../../../../shared/provider-market/providerWebsite';
 import { switchGuiAccount } from '../pages/codexGui/session';
 import { uiText } from "../i18n/uiText";
 
@@ -43,6 +44,7 @@ export async function readGuiAccounts(): Promise<GuiAccountsSnapshot> {
       ...providers.map((provider) => ({
         kind: 'provider' as const, id: provider.id, name: provider.name,
         detail: guiAccountBalances.detail(provider), searchDetail: provider.model, available: true,
+        websiteUrl: providerWebsiteOrigin(provider),
       })),
       ...(aggregates ?? []).map((aggregate) => ({
         kind: 'aggregate' as const, id: aggregate.id, name: aggregate.name,

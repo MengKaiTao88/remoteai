@@ -21,6 +21,7 @@ async function openFile(options: {
   const { source, taskId, requestId } = request;
   const info = await client.open({ transferId: taskId, scope: source.scope,
     threadId: source.threadId, cwd: source.cwd, path: source.path, preview: source.preview,
+    ...(source.attachment && { attachment: source.attachment }),
     ...(source.gitCommit && { gitCommit: source.gitCommit }) }, {
     signal, progress: progress => native.preparationProgress?.(requestId, JSON.stringify(progress)),
   });

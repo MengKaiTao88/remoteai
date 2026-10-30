@@ -41,7 +41,8 @@ export function useDownloadTasks(session: AuthSession) {
       else await downloadManager.resume(task.id);
     } catch {
       setError(operation === 'share' ? t("client.downloads.couldNotShareTheFileCheckThatItIsStill")
-        : t("client.mobile.couldNotFinishCheckTheComputerConnectionPhoneStorageAnd"));
+        : task.source.attachment ? t('client.lounge.downloadFailed')
+          : t("client.mobile.couldNotFinishCheckTheComputerConnectionPhoneStorageAnd"));
     } finally {
       pending.current = false;
       setBusy('');

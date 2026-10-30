@@ -13,6 +13,7 @@ import { useDownloadTasks } from './useDownloadTasks';
 import { useStyles } from './styles';
 import { useDownloadSelection } from '../../../../shared/downloads/useDownloadSelection';
 import { DownloadTaskHeading } from './DownloadTaskHeading';
+import { downloadManager } from './manager';
 
 export function DownloadManagerPage({ session, onBack }: { session: AuthSession; onBack: () => void }) {
   const styles = useStyles();
@@ -45,7 +46,7 @@ export function DownloadManagerPage({ session, onBack }: { session: AuthSession;
       </>}
       renderItem={({ item }) => <DownloadCard task={item} busy={!!busy}
         selected={selected.has(item.id)} toggleSelection={() => toggle(item.id)}
-        connected={!!connection?.ready && connection.deviceId === item.source.deviceId}
+        connected={!!downloadManager.connectionForSource(item.source)?.ready}
         action={() => { void run(item, 'action'); }} share={() => { void run(item, 'share'); }}
         remove={() => setDeleting([item])} />}
       ListEmptyComponent={<DownloadEmptyState />} />

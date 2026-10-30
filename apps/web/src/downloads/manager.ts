@@ -23,6 +23,7 @@ export class WebDownloadManager {
   private listeners = new Set<() => void>();
   private current?: DownloadConnection;
   private connections = new Map<DownloadConnection['files'], DownloadConnection>();
+  private loungeConnections = new Map<string, Omit<DownloadConnection, 'files'>>();
   private initialization?: Promise<void>;
   private failure = '';
   private flights = new Map<string, { controller: AbortController; done: Promise<void> }>();
@@ -39,8 +40,20 @@ export class WebDownloadManager {
   connectionForSsh = (ssh: NonNullable<DownloadConnection['ssh']>) =>
     [...this.connections.values()].find(connection => connection.ssh === ssh);
   connectionForSource = (source: Pick<DownloadSource, 'owner' | 'deviceId'>) =>
-    [...this.connections.values()].find(connection => connection.owner === source.owner
+    [...this.connections.values(), ...this.loungeConnections.values()].find(connection => connection.owner === source.owner
       && connection.deviceId === source.deviceId);
+  registerLounge(connection: Omit<DownloadConnection, 'files'>) {
+    const previous = this.loungeConnections.get(connection.owner);
+    if (previous?.ready === connection.ready && previous.client === connection.client
+      && previous.deviceName === connection.deviceName) return;
+    this.loungeConnections.set(connection.owner, connection);
+    // Subscribers derive each task's action availability from its connection.
+    this.tasks = [...this.tasks];
+    this.pauseDisconnected(); this.emit(); this.schedule();
+  }
+  unbindLounge(owner: string) {
+    this.loungeConnections.delete(owner); this.tasks = [...this.tasks]; this.pauseDisconnected(); this.emit();
+  }
   error = () => this.failure;
   retryAttempt = (id: string) => this.retryTimers.has(id) ? this.retries.attempt(id) : 0;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -98,6 +111,7 @@ export class WebDownloadManager {
       && task.source.preview === source.preview
       && task.source.gitCommit === source.gitCommit
       && task.source.sshSessionId === source.sshSessionId
+      && task.source.attachment?.id === source.attachment?.id
       && ['queued', 'preparing', 'downloading', 'verifying', 'saving', 'paused'].includes(task.status));
     if (existing) { await this.resume(existing.id); return existing.id; }
     if (this.tasks.length >= MAX_DOWNLOAD_RECORDS) throw new Error('下载记录已满，请删除不再需要的记录后重试。');
@@ -186,7 +200,7 @@ export class WebDownloadManager {
       this.flights.set(task.id, { controller, done });
     }
   }
-  private async run(task: DownloadTask, connection: DownloadConnection, signal: AbortSignal) {
+  private async run(task: DownloadTask, connection: Omit<DownloadConnection, 'files'>, signal: AbortSignal) {
     const speed = monitorDownloadSpeed(value => { task = value; this.update(value); });
     try {
       task = { ...task, status: 'preparing', preparation: undefined, completedAt: undefined };

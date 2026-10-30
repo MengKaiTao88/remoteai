@@ -45,6 +45,29 @@ it('shares a completed local file offline by task ID and ignores unfinished file
   expect(mocks.bridge.connection).not.toHaveBeenCalled();
 });
 
+it('keeps lounge transfers available without a computer and never routes them to another account', async () => {
+  const { downloadManager } = await import('./manager');
+  const lounge = { ...connection(), deviceId: 'lounge-attachments' };
+  vi.mocked(lounge.client.read).mockResolvedValue({ offset: 0, data: 'AA==' });
+  downloadManager.registerLounge(lounge); await downloadManager.initialize();
+  await vi.waitFor(() => expect(mocks.bridge.connection).toHaveBeenCalledWith('owner', 'lounge-attachments', 1));
+  const previous = downloadManager.snapshot();
+  downloadManager.registerLounge({ ...lounge, ready: false });
+  expect(downloadManager.snapshot()).not.toBe(previous);
+  downloadManager.registerLounge(lounge);
+  const source = { owner: 'owner', deviceId: 'lounge-attachments', deviceName: 'Lounge', scope: 'computer',
+    path: 'file.pdf', attachment: { id: 'attachment' } };
+  mocks.events.get('downloadRequest')!(JSON.stringify({ requestId: 'lounge', taskId: 'task', operation: 'read',
+    source, remoteId: 'handle', offset: 0, length: 1 }));
+  await vi.waitFor(() => expect(lounge.client.read).toHaveBeenCalledOnce());
+  const computer = connection(); downloadManager.bind(computer);
+  downloadManager.unbindLounge('owner');
+  mocks.events.get('downloadRequest')!(JSON.stringify({ requestId: 'late-lounge', taskId: 'task', operation: 'read',
+    source, remoteId: 'handle', offset: 0, length: 1 }));
+  await vi.waitFor(() => expect(mocks.bridge.accept).toHaveBeenCalledWith('late-lounge', null, true));
+  expect(computer.client.read).not.toHaveBeenCalled();
+});
+
 it('continues forwarding native task requests after the last download view unsubscribes', async () => {
   const { downloadManager } = await import('./manager');
   const current = connection();

@@ -50,7 +50,8 @@ export function DownloadCard({ task, busy, connected, action, open, share, remov
     {completion?.summary && <p className="download-completion">{completion.summary}</p>}
     {task.message && task.status !== 'completed' && <p role="status" className="download-notice">
       {displayError(task.message)}</p>}
-    {!connected && !completed && <p className="download-notice">{text("client.downloads.reconnectToTheOriginalComputerToResume")}</p>}
+    {!connected && !completed && <p className="download-notice">{text(task.source.attachment
+      ? 'client.lounge.fileUnavailable' : 'client.downloads.reconnectToTheOriginalComputerToResume')}</p>}
     <div className="download-actions">
       {completed && <button type="button" className="download-button" onClick={open}
         disabled={busy || task.status === 'saving'}><ExternalLink size={17} />{text("client.portForwarding.open")}</button>}

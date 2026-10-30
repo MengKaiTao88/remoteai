@@ -4,6 +4,7 @@ import { Settings } from "lucide-react";
 import type { Account, AggregateApi, Provider } from "../../types";
 import { maskAccountEmail } from "../../utils/accountPrivacy";
 import { GuiAccountList } from "./GuiAccountList";
+import { providerWebsiteOrigin } from '../../../../../shared/provider-market/providerWebsite';
 import { GuiAccountMenu } from "./GuiAccountMenu";
 import type { GuiComputerNavigation } from "./remote/types";
 import { ProxyAccountSummary } from "./ProxyAccountSummary";
@@ -49,6 +50,7 @@ export function ProxyAccountPicker(props: ProxyAccountPickerProps) {
   }));
   const providers = props.providers.map((entry) => ({
     kind: "provider" as const, id: entry.id, name: entry.name, detail: entry.group || entry.model,
+    websiteUrl: providerWebsiteOrigin(entry),
     selected: !aggregate && entry.active,
   }));
   const aggregates = props.aggregateApis.map((entry) => ({

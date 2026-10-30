@@ -13,6 +13,9 @@ import { saveProviderProfile } from '../src/api/backend';
 import { translate } from '../src/i18n';
 import type { GuiAccountsClient } from '../../../shared/remote-chat/guiAccounts';
 import { browserProviders } from './provider-browser-fixture';
+import { iconProviders } from './provider-icons-fixture';
+import { providerWebsiteOrigin } from '../../../shared/provider-market/providerWebsite';
+import { ChatDesktopAccountPicker } from '../../web/src/chat/ChatDesktopAccountPicker';
 import 'antd/dist/reset.css';
 import '../src/styles.css';
 
@@ -28,7 +31,10 @@ const nothing = () => {};
 const done = async () => {};
 const yes = async () => true;
 const guiClient: GuiAccountsClient = {
-  read: async () => ({ choices: [], selection: { kind: 'none' }, running: true }),
+  read: async () => ({ choices: query.has('icons') ? iconProviders().map(provider => ({
+    kind: 'provider' as const, id: provider.id, name: provider.name, detail: provider.model,
+    websiteUrl: providerWebsiteOrigin(provider), available: true,
+  })) : [], selection: { kind: 'none' }, running: true }),
   select: async (selection) => selection, subscribe: () => nothing,
 };
 const adminApi = async <T,>(path: string, options?: RequestInit): Promise<T> => {
@@ -46,7 +52,7 @@ function Harness() {
     <output data-testid="beats">{beats}</output>
     {mode === 'local' || mode === 'hosted' ? <>
       <div id="provider-topbar-actions" />
-      <ProvidersPage providers={query.has('browser') ? browserProviders() : []}
+      <ProvidersPage providers={query.has('icons') ? iconProviders() : query.has('browser') ? browserProviders() : []}
         aggregateApis={[]} providerGroups={[]} accounts={[]} active
         loading={false} saving={false} busyProviderId={null} localProxy={null} proxyBusy={false}
         onStartProxy={nothing} onSave={saveProviderProfile} onSaveAggregateApi={async () => null}
@@ -58,7 +64,9 @@ function Harness() {
         displayMode={query.has('cards') ? 'cards' : 'table'} privacyMode={false}
         tokenUsageRefreshSeconds={2} language={language}
         t={(key, values) => translate(language, key, values)} />
-    </> : mode === 'remote' ? <aside style={{ width: 340, marginTop: 400 }}>
+    </> : mode === 'web' && query.has('icons') ? <aside style={{ width: 340, marginTop: 400 }}>
+      <ChatDesktopAccountPicker client={guiClient} ready active devices={[]} chooseDevice={nothing} />
+    </aside> : mode === 'remote' ? <aside style={{ width: 340, marginTop: 400 }}>
       <RemoteAccountPicker active ready client={guiClient} privacyMode={false}
         computers={{ current: null, devices: [], authenticated: true, loading: false, error: '',
           refresh: nothing, choose: nothing, login: nothing }} />

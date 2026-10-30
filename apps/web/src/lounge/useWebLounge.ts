@@ -8,6 +8,8 @@ import { useLounge } from '../../../../shared/lounge/useLounge';
 import { browserLoungeSync } from '../../../../shared/lounge/browserSync';
 import { apiJson, getActiveSession } from '../api';
 import type { AuthSession } from '../types';
+import { useBrowserLoungeDownloads } from '../../../../shared/lounge/useBrowserLoungeDownloads';
+import { downloadOwner } from '../downloads/manager';
 
 export function useWebLounge(session: AuthSession | null) {
   const baseUrl = session?.baseUrl;
@@ -28,5 +30,6 @@ export function useWebLounge(session: AuthSession | null) {
     },
   } : undefined), [baseUrl, email]);
   const state = useLounge(controller);
+  useBrowserLoungeDownloads(controller, session ? downloadOwner(session) : '');
   return { controller, state };
 }
