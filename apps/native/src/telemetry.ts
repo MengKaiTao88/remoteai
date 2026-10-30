@@ -5,6 +5,7 @@ import { mobileDeviceId } from './telemetryIdentity';
 
 const INSTALLATION_KEY = 'codex-switch.mobile.installation.v1';
 const REQUEST_TIMEOUT_MS = 10_000;
+const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1_000;
 
 interface InstallationState {
   deviceId: string;
@@ -70,7 +71,8 @@ async function report(baseUrl: string) {
     state.reportedVersions[baseUrl] = appVersion;
     await SecureStore.setItemAsync(INSTALLATION_KEY, JSON.stringify(state));
   }
-  const day = new Date().toISOString().slice(0, 10);
+  // Match the server's Beijing day regardless of the phone's timezone.
+  const day = new Date(Date.now() + BEIJING_OFFSET_MS).toISOString().slice(0, 10);
   if (state.reportedActivityDays[baseUrl] === day) return;
   await postEvent(baseUrl, state, 'activity');
   state.reportedActivityDays[baseUrl] = day;

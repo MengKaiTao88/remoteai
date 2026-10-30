@@ -37,7 +37,7 @@ beforeEach(() => {
   mocks.fetch.mockReset().mockResolvedValue({ ok: true });
   vi.stubGlobal('fetch', mocks.fetch);
   vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-09-15T23:59:00Z'));
+  vi.setSystemTime(new Date('2026-09-15T15:59:59Z'));
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -49,14 +49,37 @@ describe('mobile activity telemetry', () => {
     expect(events().every((event) => event.platform === 'android')).toBe(true);
   });
 
-  it('reports again after UTC midnight and tracks each server separately', async () => {
+  it.each(['android', 'ios'])('reports at Beijing midnight on %s and tracks servers separately', async (platform) => {
+    mocks.platform.OS = platform;
     await reportMobileActivity(BASE_URL);
-    vi.setSystemTime(new Date('2026-09-16T00:00:00Z'));
+    vi.setSystemTime(new Date('2026-09-15T16:00:00Z'));
     await reportMobileActivity(BASE_URL);
     await reportMobileActivity('https://second.test');
     expect(events().map((event) => event.eventType)).toEqual([
       'installation', 'activity', 'activity', 'installation', 'activity',
     ]);
+  });
+
+  it('keeps the same activity day across UTC midnight', async () => {
+    vi.setSystemTime(new Date('2026-09-15T23:59:59Z'));
+    await reportMobileActivity(BASE_URL);
+    vi.setSystemTime(new Date('2026-09-16T00:00:00Z'));
+    await reportMobileActivity(BASE_URL);
+    expect(events().map((event) => event.eventType)).toEqual(['installation', 'activity']);
+  });
+
+  it('reports again at Beijing New Year', async () => {
+    vi.setSystemTime(new Date('2026-12-31T15:59:59Z'));
+    await reportMobileActivity(BASE_URL);
+    vi.setSystemTime(new Date('2026-12-31T16:00:00Z'));
+    await reportMobileActivity(BASE_URL);
+    expect(events().map((event) => event.eventType)).toEqual(['installation', 'activity', 'activity']);
+  });
+
+  it('does not register browser visits as native device activity', async () => {
+    mocks.platform.OS = 'web';
+    await reportMobileActivity(BASE_URL);
+    expect(events()).toEqual([]);
   });
 
   it('retries failed activity without resending a successful installation', async () => {
