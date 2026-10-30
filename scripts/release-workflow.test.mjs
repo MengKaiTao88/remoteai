@@ -66,3 +66,14 @@ test("a failed release lookup does not create a duplicate draft", async () => {
   await assert.rejects(run.run(), /Release lookup failed/);
   assert.deepEqual(run.calls, []);
 });
+
+test("Coze keeps its complete check when excluded from concurrent workspace checks", () => {
+  const start = workflow.indexOf("      - name: Check Coze UI");
+  assert.notEqual(start, -1);
+  const end = workflow.indexOf("\n      - name:", start + 1);
+  const cozeCheck = workflow.slice(start, end);
+  assert.match(cozeCheck, /working-directory: apps\/coze/);
+  assert.match(cozeCheck, /npm run build\s+npm run test -- --testTimeout 30000/);
+  assert.doesNotMatch(cozeCheck, /\bif:|continue-on-error|\|\| true/);
+  assert.equal(workflow.match(/--ignore @codex-switch\/coze --stream/g)?.length, 2);
+});

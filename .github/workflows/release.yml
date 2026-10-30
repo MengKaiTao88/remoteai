@@ -291,6 +291,16 @@ jobs:
           npm run test -- --testTimeout 30000
           npm run build
 
+      # Coze's antd/jsdom language-switch fixture also exceeds five seconds on shared macOS runners.
+      # Run the complete workspace check separately, preserving its build and every test assertion.
+      - name: Check Coze UI
+        shell: bash
+        working-directory: apps/coze
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run test -- --testTimeout 30000
+
       - name: Run checks in isolated test processes
         if: runner.os != 'Windows'
         shell: bash
@@ -301,7 +311,8 @@ jobs:
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             sudo sysctl -w net.inet.udp.maxdgram=65535
           fi
-          npx lerna run check --ignore @codex-switch/backend --ignore @codex-switch/admin-ui --stream
+          npx lerna run check --ignore @codex-switch/backend --ignore @codex-switch/admin-ui \
+            --ignore @codex-switch/coze --stream
           npm run check:backend
           cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
           cargo nextest run --locked --manifest-path apps/desktop/src-tauri/Cargo.toml \
@@ -315,7 +326,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          npx lerna run check --ignore @codex-switch/backend --ignore @codex-switch/admin-ui --stream
+          npx lerna run check --ignore @codex-switch/backend --ignore @codex-switch/admin-ui `
+            --ignore @codex-switch/coze --stream
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run check:backend
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
