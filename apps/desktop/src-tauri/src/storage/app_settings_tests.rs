@@ -28,6 +28,28 @@ fn quota_window_sync_opt_in_survives_stale_writes_and_can_be_disabled() {
 }
 
 #[test]
+fn quota_window_sync_preference_survives_writes_with_invalid_context_sidecar() {
+    let app = test_app();
+    let settings_path = app_settings_path(app.handle()).unwrap();
+    update_quota_window_sync(app.handle(), true).unwrap();
+    let context_path = settings_path.with_file_name("model-context-settings.json");
+    fs::write(&context_path, "invalid settings").unwrap();
+
+    write_app_settings(app.handle(), &AppSettings::default()).unwrap();
+
+    assert_eq!(
+        read_json(&settings_path).unwrap()["quotaWindowSyncEnabled"],
+        true
+    );
+    assert_eq!(
+        fs::read_to_string(&context_path).unwrap(),
+        "invalid settings"
+    );
+    assert!(read_app_settings(app.handle()).is_err());
+    fs::remove_dir_all(settings_path.parent().unwrap()).unwrap();
+}
+
+#[test]
 fn language_changes_do_not_overwrite_business_settings_or_lose_to_stale_snapshots() {
     let app = test_app();
     let path = app_settings_path(app.handle()).unwrap();
