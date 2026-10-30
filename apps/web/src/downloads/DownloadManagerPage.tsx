@@ -11,6 +11,7 @@ import { DownloadBatchActions } from './DownloadBatchActions';
 import { DownloadWorkspace } from './desktop/DownloadWorkspace';
 import { useDesktopLayout } from '../useDesktopLayout';
 import './styles.css';
+import { downloadManager } from './manager';
 
 export function DownloadManagerPage({ owner, onBack }: { owner: string; onBack: () => void }) {
   useLanguage();
@@ -53,7 +54,7 @@ export function DownloadManagerPage({ owner, onBack }: { owner: string; onBack: 
     </div>
     <div className="download-tasks">{tasks.map(task => <DownloadCard key={task.id} task={task} busy={!!busy}
       selected={selected.has(task.id)} toggleSelection={() => toggle(task.id)}
-      connected={!!connection?.ready && connection.deviceId === task.source.deviceId}
+      connected={!!downloadManager.connectionForSource(task.source)?.ready}
       action={() => { void run(task); }} open={() => { void run(task, 'open'); }}
       share={() => { void run(task, 'share'); }}
       remove={() => { void run(task, 'remove'); }} />)}</div>

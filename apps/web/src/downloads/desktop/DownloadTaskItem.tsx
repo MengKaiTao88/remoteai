@@ -56,7 +56,8 @@ function TaskNotice({ task, connected, text }: DownloadItemProps) {
     {task.message && task.status !== 'completed' && <p role="status" className="dw-notice">
       {displayError(task.message)}</p>}
     {!connected && !isDownloadReady(task) && <p className="dw-notice">
-      {text('client.downloads.reconnectToTheOriginalComputerToResume')}</p>}
+      {text(task.source.attachment ? 'client.lounge.fileUnavailable'
+        : 'client.downloads.reconnectToTheOriginalComputerToResume')}</p>}
   </>;
 }
 

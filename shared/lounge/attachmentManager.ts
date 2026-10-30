@@ -27,6 +27,20 @@ export class LoungeAttachmentManager {
       source: id => this.sources.get(id) });
   }
   readonly device: string;
+  /** The app binds its persistent download manager for the lifetime of the signed-in lounge. */
+  enqueue?: (file: LoungeAttachment) => Promise<string>;
+  async openReader(file: LoungeAttachment, signal?: AbortSignal) {
+    const source = file.device === this.device ? this.sources.get(file.id) : undefined;
+    if (signal?.aborted) throw new Error('client.lounge.fileUnavailable');
+    if (source) return { read: source.read, close: () => {} };
+    const connection = this.connection;
+    if (!connection) throw new Error('client.lounge.fileUnavailable');
+    const peer = await connection.open(file, signal);
+    const close = () => { signal?.removeEventListener('abort', close); connection.release(peer); };
+    signal?.addEventListener('abort', close, { once: true });
+    if (signal?.aborted) { close(); throw new Error('client.lounge.fileUnavailable'); }
+    return { read: (offset: number, length: number) => peer.exchange.read(offset, length), close };
+  }
   image(file: LoungeAttachment): Promise<string> {
     const previous = this.images.get(file.id);
     if (previous) return previous;

@@ -64,8 +64,9 @@ export function DownloadCard({ task, connected, busy, action, share, remove, sel
       <Text style={styles.completionText}>{completion.summary}</Text>
     </ScrollView>}
     {!complete && !!task.message && <Text style={failed ? styles.error : styles.text}>
-      {displayError(task.message)}</Text>}
-    {!connected && !complete && !task.readyToSave && <Text style={styles.text}>{t("client.mobile.connectToThisComputerToContinue")}</Text>}
+      {task.source.attachment ? t('client.lounge.fileUnavailable') : displayError(task.message)}</Text>}
+    {!connected && !complete && !task.readyToSave && <Text style={styles.text}>
+      {t(task.source.attachment ? 'client.lounge.fileUnavailable' : 'client.mobile.connectToThisComputerToContinue')}</Text>}
     <View style={[styles.toolbar, styles.cardActions]}>
       <Pressable accessibilityRole="button" accessibilityLabel={t("client.projectBrowser.deleted")} disabled={busy}
         onPress={event => { event.stopPropagation(); remove(); }}

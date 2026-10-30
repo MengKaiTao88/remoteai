@@ -11,6 +11,7 @@ import type { AuthSession } from '../types';
 import { nativeLoungeHistory } from './historyStore';
 import { nativeLoungeSync } from './syncTransport';
 import { nativeAttachmentImages } from './attachments';
+import { useLoungeDownloads } from './useLoungeDownloads';
 
 export const nativeLoungeRuntime: LoungeRuntime = {
   randomId: randomUUID,
@@ -51,5 +52,6 @@ export function useNativeLounge(session: AuthSession | null) {
     },
   } : undefined, nativeLoungeRuntime), [session]);
   const state = useLounge(controller);
+  useLoungeDownloads(controller, session);
   return { controller, state };
 }

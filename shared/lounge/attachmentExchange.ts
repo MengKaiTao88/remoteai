@@ -57,11 +57,7 @@ export class AttachmentExchange {
       for (let offset = 0; offset < file.size; offset += ATTACHMENT_CHUNK_BYTES) {
         if (this.closed || options.signal?.aborted) throw new Error('client.lounge.fileUnavailable');
         const length = Math.min(ATTACHMENT_CHUNK_BYTES, file.size - offset);
-        const data = await this.rpc.request<unknown>('request', { protocol: PROTOCOL, offset, length });
-        if (typeof data !== 'string' || data.length > Math.ceil(length / 3) * 4
-          || !/^[A-Za-z0-9+/]*={0,2}$/.test(data) || base64Bytes(data) !== length) {
-          throw new Error('client.lounge.fileUnavailable');
-        }
+        const data = await this.read(offset, length);
         await sink.write(data);
         options.progress?.((offset + length) / file.size);
       }
@@ -69,6 +65,15 @@ export class AttachmentExchange {
       return await sink.finish();
     } catch (error) { await sink.abort(); throw error; }
     finally { options.signal?.removeEventListener('abort', cancel); }
+  }
+  async read(offset: number, length: number): Promise<string> {
+    if (this.closed) throw new Error('client.lounge.fileUnavailable');
+    const data = await this.rpc.request<unknown>('request', { protocol: PROTOCOL, offset, length });
+    if (typeof data !== 'string' || data.length > Math.ceil(length / 3) * 4
+      || !/^[A-Za-z0-9+/]*={0,2}$/.test(data) || base64Bytes(data) !== length) {
+      throw new Error('client.lounge.fileUnavailable');
+    }
+    return data;
   }
   close() { this.closed = true; this.requests.length = 0; this.rpc.close(); }
 }

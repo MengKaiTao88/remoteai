@@ -5,8 +5,15 @@ import type { LoungeController } from './controller';
 import { browserAttachmentSink, saveAttachmentUrl } from './browserAttachments';
 import { displayText as t } from '../localization/messages';
 import './attachments.css';
+import { LoungeFileCard } from './LoungeFileCard';
 
-export function LoungeAttachment({ file, controller, preview, onLoad }: {
+export function LoungeAttachment(props: {
+  file: Attachment; controller: LoungeController; preview: (uri: string) => void; onLoad?: () => void;
+  mobile?: boolean;
+}) {
+  return props.file.kind === 'file' ? <LoungeFileCard {...props} /> : <ImageAttachment {...props} />;
+}
+function ImageAttachment({ file, controller, preview, onLoad }: {
   file: Attachment; controller: LoungeController; preview: (uri: string) => void; onLoad?: () => void;
 }) {
   const [uri, setUri] = useState(''), [busy, setBusy] = useState(false);
@@ -31,7 +38,7 @@ export function LoungeAttachment({ file, controller, preview, onLoad }: {
   }, [file.id, controller]);
   if (uri) return <button type="button" className="lounge-image" aria-label={t('client.lounge.previewImage')}
     onClick={() => preview(uri)}><img src={uri} alt={t('client.lounge.image')} onLoad={onLoad} /></button>;
-  return <div className="lounge-file-card">
+  return <div className="lounge-image-transfer">
     <button type="button" disabled={busy} onClick={() => void download()}>
       <File size={24} /><span><strong>{file.name}</strong><small>{(file.size / 1024 / 1024).toFixed(2)} MB</small></span>
       <Download size={18} aria-label={t('client.lounge.downloadFile')} />

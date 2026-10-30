@@ -6,5 +6,9 @@
   "client.lounge.fileLimitHint": "每个文件最大 {size} MB",
   "client.lounge.attachmentLimit": "附件超出大小限制，请选择更小的文件或图片。",
   "client.lounge.fileUnavailable": "暂时无法接收，请确认发送方在线后重试。",
-  "client.lounge.fileOnlineHint": "发送方在线时可下载，请及时保存。"
+  "client.lounge.fileOnlineHint": "发送方在线时可下载，请及时保存。",
+  "client.lounge.fileActions": "查看文件：{name}",
+  "client.lounge.downloadAdded": "已加入下载管理，可在那里查看进度。",
+  "client.lounge.downloadFailed": "未能添加下载，请稍后重试。",
+  "client.lounge.previewLinkedFile": "此链接指向另一个文件，请先让对方发送该文件。"
 }

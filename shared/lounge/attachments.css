@@ -5,11 +5,11 @@
 .lounge-file-error { position: absolute; bottom: 100%; width: max-content; max-width: min(400px, 80vw);
   padding: 8px 10px; border-radius: 8px; background: var(--color-bg-container, #fff); color: #b43d43;
   box-shadow: 0 2px 12px #0002; white-space: normal; overflow-wrap: anywhere; z-index: 3; }
-.lounge-file-card { width: min(290px, 100%); min-width: 0; padding: 8px; }
-.lounge-file-card > button { display: flex; gap: 10px; align-items: center; width: 100%; padding: 4px;
+.lounge-image-transfer { width: min(290px, 100%); min-width: 0; padding: 8px; }
+.lounge-image-transfer > button { display: flex; gap: 10px; align-items: center; width: 100%; padding: 4px;
   border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
-.lounge-file-card > button > span { min-width: 0; flex: 1; }
-.lounge-file-card strong { display: block; overflow-wrap: anywhere; font-size: 14px; }
-.lounge-file-card small { display: block; font-size: 12px; opacity: .75; max-width: 400px; white-space: normal; }
-.lounge-file-card svg { flex-shrink: 0; }
-.lounge-file-card progress { width: 100%; height: 6px; }
+.lounge-image-transfer > button > span { min-width: 0; flex: 1; }
+.lounge-image-transfer strong { display: block; overflow-wrap: anywhere; font-size: 14px; }
+.lounge-image-transfer small { display: block; font-size: 12px; opacity: .75; max-width: 400px; white-space: normal; }
+.lounge-image-transfer svg { flex-shrink: 0; }
+.lounge-image-transfer progress { width: 100%; height: 6px; }

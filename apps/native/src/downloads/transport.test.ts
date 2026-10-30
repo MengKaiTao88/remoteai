@@ -16,6 +16,16 @@ function setup() {
   return { client, native };
 }
 
+it('preserves attachment authorization when opening a persisted lounge task', async () => {
+  const { client, native } = setup();
+  const attachment = { id: 'file', device: 'sender', name: 'invoice.pdf', size: 5,
+    mime: 'application/pdf', kind: 'file' as const, grant: 'signed' };
+  vi.mocked(client.open).mockResolvedValue({ id: 'handle', name: attachment.name, size: 5, mimeType: attachment.mime });
+  await forwardDownloadRequest({ request: { ...request, source: { ...source, path: attachment.name, attachment } },
+    client, native });
+  expect(client.open).toHaveBeenCalledWith(expect.objectContaining({ attachment }), expect.anything());
+});
+
 it('preserves the commit when opening a patch from a native download task', async () => {
   const { client, native } = setup();
   vi.mocked(client.open).mockResolvedValue({ id: 'handle', name: 'commit.patch', size: 5, mimeType: 'text/plain' });

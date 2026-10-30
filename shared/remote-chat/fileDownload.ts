@@ -29,14 +29,14 @@ export class DownloadValidationError extends Error {}
 function checkCancelled(signal: AbortSignal) {
   if (signal.aborted) throw new DownloadCancelled();
 }
-export function validateFileInfo(info: FileInfo, mode?: ConnectionMode) {
+export function validateFileInfo(info: FileInfo, mode?: ConnectionMode, checkSize = checkDownloadSize) {
   if (!info || typeof info.id !== 'string' || !/^[a-z\d-]{36}$/i.test(info.id)
     || !Number.isSafeInteger(info.size) || info.size < 0
     || typeof info.name !== 'string' || !info.name || /[\\/\x00-\x1f\x7f]/.test(info.name)
     || info.name === '.' || info.name === '..' || typeof info.mimeType !== 'string') {
     throw new DownloadValidationError('文件信息无效，请重试。');
   }
-  checkDownloadSize(info.size, mode);
+  checkSize(info.size, mode);
   return info;
 }
 export function validateChunk(chunk: FileChunk, offset: number, length: number) {
@@ -56,6 +56,7 @@ interface ChunkTransferOptions {
   client: Pick<FileClient, 'read'>; threadId: string; info: FileInfo; signal: AbortSignal; offset?: number;
   write: (chunk: FileChunk, received: number) => Promise<void>;
   mode?: () => ConnectionMode;
+  checkSize?: (size: number) => void;
 }
 /** Bound both outstanding reads and buffered replies; commit resumed ranges in file order. */
 export async function transferFileChunks(options: ChunkTransferOptions) {
@@ -67,7 +68,7 @@ export async function transferFileChunks(options: ChunkTransferOptions) {
   }
   const fill = () => {
     checkCancelled(signal);
-    checkDownloadSize(info.size, options.mode?.());
+    (options.checkSize ?? checkDownloadSize)(info.size, options.mode?.());
     const window = getChatPolicy(options.mode?.()).fileDownloadWindowSize;
     while (pending.length < window && nextOffset < info.size) {
       const length = Math.min(FILE_CHUNK_BYTES, info.size - nextOffset);
@@ -80,7 +81,7 @@ export async function transferFileChunks(options: ChunkTransferOptions) {
     const read = pending.shift()!;
     const result = await read.result;
     checkCancelled(signal);
-    checkDownloadSize(info.size, options.mode?.());
+    (options.checkSize ?? checkDownloadSize)(info.size, options.mode?.());
     if ('error' in result) throw result.error;
     validateChunk(result.chunk, read.offset, read.length);
     await write(result.chunk, read.offset + read.length);

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
+import { managedAttachmentBytes } from './lounge-managed-downloads';
 import { pixel, setupLounge } from './lounge-support';
 import { AttachmentBroker } from './lounge-attachments-support';
 import type { LoungeAttachment } from '../../../shared/lounge/attachments';
@@ -95,7 +95,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
 }
 
 for (const mode of ['local', 'remote', 'web', 'mobile', 'mobile-320']) {
-  test(`${mode}: file picker, encrypted relay transfer and saved bytes`, async ({ page, context }) => {
+  test(`${mode}: file picker, encrypted relay transfer and managed bytes`, async ({ page, context }) => {
     const broker = new AttachmentBroker(); await broker.install(context);
     const sender = await openPrivate(page, mode);
     if (mode.startsWith('mobile')) await page.getByRole('button', { name: '添加内容', exact: true }).click();
@@ -116,14 +116,12 @@ for (const mode of ['local', 'remote', 'web', 'mobile', 'mobile-320']) {
     const card = receiving.locator('.lounge-message:not(.is-own) .lounge-file-card').filter({ hasText: file.name });
     await expect(card).toBeVisible();
     await receiving.screenshot({ path: `../../.codex-tmp/lounge-files/${mode}-file.png` });
-    const download = receiving.waitForEvent('download', { timeout: 20_000 }).catch(async error => {
-      console.log('attachment trace', broker.events, await card.innerText());
-      await receiving.screenshot({ path: `../../.codex-tmp/lounge-files/${mode}-failure.png` });
-      throw error;
-    });
-    await card.getByRole('button').first().click();
-    const saved = await download;
-    expect(await readFile((await saved.path())!)).toEqual(body);
+    if (mode.startsWith('mobile')) await card.getByRole('button').click();
+    const actions = mode.startsWith('mobile') ? receiving.locator('.lounge-file-sheet') : card;
+    await actions.getByRole('button', { name: '下载', exact: true }).click();
+    await expect.poll(async () => (await managedAttachmentBytes(receiving, file.id))?.length,
+      { timeout: 30_000 }).toBe(body.length);
+    expect(Buffer.from((await managedAttachmentBytes(receiving, file.id))!)).toEqual(body);
     expect(broker.relayFrames).toBeGreaterThan(0); expect(broker.signalFrames).toBeGreaterThan(0);
     expect(await receiving.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await receiving.close();

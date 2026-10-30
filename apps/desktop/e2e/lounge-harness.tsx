@@ -13,6 +13,7 @@ import { RemoteAssistance } from '../src/remoteAssistance/RemoteAssistance';
 import { assistanceStore } from '../src/remoteAssistance/store';
 import 'antd/dist/reset.css';
 import '../src/styles.css';
+import { DownloadsPage } from '../src/pages/DownloadsPage';
 
 const parameters = new URLSearchParams(location.search);
 const dark = parameters.has('dark');
@@ -43,7 +44,8 @@ function Fixture() {
       <main className="lounge-desktop-main">{page === 'lounge' ? <LoungePage controller={lounge.controller}
         onAssistance={parameters.has('assistance') ? assistanceStore.request : undefined}
         mobile={parameters.has('mobile')} onBack={() => setPage('accounts')} />
-        : <div style={{ padding: 32 }} data-testid="other-page">{parameters.get('mode') ?? 'local'}</div>}</main>
+        : page === 'downloads' ? <DownloadsPage auth={auth} />
+          : <div style={{ padding: 32 }} data-testid="other-page">{parameters.get('mode') ?? 'local'}</div>}</main>
     </div>
     {parameters.has('assistance') && <RemoteAssistance auth={auth} onLogin={() => {}} />}
   </ConfigProvider>;

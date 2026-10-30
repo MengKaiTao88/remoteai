@@ -16,6 +16,7 @@ export interface DownloadLocation {
   cwd?: string;
 }
 export interface DownloadOpen extends DownloadLocation {
+  attachment?: import('../lounge/attachments').LoungeAttachment;
   transferId: string;
   path: string;
   preview?: PreviewKind;
@@ -23,6 +24,7 @@ export interface DownloadOpen extends DownloadLocation {
 }
 export interface DownloadBrowse extends DownloadLocation { directory: string }
 export interface DownloadClient {
+  checkSize?: (size: number) => void;
   bulk?: import('./bulkControl').BulkClient;
   open: (options: DownloadOpen, controls?: import('./archiveDownload').DownloadPreparationOptions) => Promise<FileInfo>;
   browse: (options: DownloadBrowse) => Promise<ProjectFilesResponse>;

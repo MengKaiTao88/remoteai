@@ -123,6 +123,8 @@ export interface MessageParams16 {
   "client.lounge.directUpgrade": Record<string, never>;
   "client.lounge.directWith": { "account": string | number };
   "client.lounge.done": Record<string, never>;
+  "client.lounge.downloadAdded": Record<string, never>;
+  "client.lounge.downloadFailed": Record<string, never>;
   "client.lounge.downloadFile": Record<string, never>;
   "client.lounge.draftPreview": { "text": string | number };
   "client.lounge.duration": Record<string, never>;
@@ -132,6 +134,7 @@ export interface MessageParams16 {
   "client.lounge.empty": Record<string, never>;
   "client.lounge.emptyHint": Record<string, never>;
   "client.lounge.ephemeral": Record<string, never>;
+  "client.lounge.fileActions": { "name": string | number };
   "client.lounge.fileLimitHint": { "size": string | number };
   "client.lounge.fileOnlineHint": Record<string, never>;
   "client.lounge.fileProgress": { "percent": string | number };
@@ -197,7 +200,4 @@ export interface MessageParams16 {
   "client.lounge.newChatNoRecent": Record<string, never>;
   "client.lounge.newChatRecentUsers": Record<string, never>;
   "client.lounge.newChatSearchPlaceholder": Record<string, never>;
-  "client.lounge.newChatSelectUser": Record<string, never>;
-  "client.lounge.nickname": Record<string, never>;
-  "client.lounge.nicknameHint": Record<string, never>;
 }

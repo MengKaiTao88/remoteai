@@ -8,6 +8,8 @@ import { useLounge } from '../../../../shared/lounge/useLounge';
 import { browserLoungeSync } from '../../../../shared/lounge/browserSync';
 import { invoke } from '../api/backend';
 import type { CloudAuthState } from '../types';
+import { useBrowserLoungeDownloads } from '../../../../shared/lounge/useBrowserLoungeDownloads';
+import { authenticatedDownloadOwner } from '../downloads/useDesktopDownloads';
 
 export function useDesktopLounge(auth: CloudAuthState) {
   const { authenticated, baseUrl, userId, userEmail } = auth;
@@ -19,5 +21,6 @@ export function useDesktopLounge(auth: CloudAuthState) {
     authorize: () => invoke<{ ticket: string }>('cloud_lounge_ticket', { identity: { baseUrl, userId } }),
   } : undefined), [authenticated, baseUrl, userId, userEmail]);
   const state = useLounge(controller);
+  useBrowserLoungeDownloads(controller, authenticatedDownloadOwner(auth));
   return { controller, state };
 }

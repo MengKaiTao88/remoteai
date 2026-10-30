@@ -7,8 +7,15 @@ import { LoungeImage } from './LoungeImage';
 import { useLoungeStyles } from './styles';
 import { t } from '../i18n';
 import { textMetrics } from '../theme/text';
+import { LoungeFileCard } from './LoungeFileCard';
 
-export function LoungeAttachment({ file, controller, preview, onLoad, onLongPress }: {
+export function LoungeAttachment(props: {
+  file: Attachment; controller: LoungeController; preview: (uri: string) => void; onLoad?: () => void;
+  onLongPress?: () => void;
+}) {
+  return props.file.kind === 'file' ? <LoungeFileCard {...props} /> : <ImageAttachment {...props} />;
+}
+function ImageAttachment({ file, controller, preview, onLoad, onLongPress }: {
   file: Attachment; controller: LoungeController; preview: (uri: string) => void; onLoad?: () => void;
   onLongPress?: () => void;
 }) {
