@@ -12,6 +12,7 @@ export interface GuiAccountChoice {
   name: string;
   detail: string;
   searchDetail?: string;
+  websiteUrl?: string;
   plan?: string;
   primaryRemainingPercent?: number | null;
   secondaryRemainingPercent?: number | null;
@@ -63,5 +64,5 @@ function isChoice(value: unknown): value is GuiAccountChoice {
   return isAccountKind(choice.kind) && isAccountId(choice.id)
     && typeof choice.name === 'string' && typeof choice.detail === 'string'
     && typeof choice.available === 'boolean'
-    && [choice.searchDetail, choice.plan].every(text => text === undefined || typeof text === 'string');
+    && [choice.searchDetail, choice.plan, choice.websiteUrl].every(text => text === undefined || typeof text === 'string');
 }

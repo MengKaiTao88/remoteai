@@ -1,5 +1,6 @@
 import { uiText } from "../../i18n/uiText";
 import { Check, Server } from 'lucide-react';
+import { ProviderWebsiteIcon } from '../../../../../shared/provider-market/ProviderWebsiteIcon';
 import { ProxyAccountDetails, type ProxyAccountDetailsProps } from './ProxyAccountDetails';
 import styles from './ProxyAccountPicker.module.less';
 
@@ -7,6 +8,7 @@ export interface GuiAccountChoice {
   kind: 'account' | 'provider' | 'aggregate';
   id: string; name: string; detail: string; selected: boolean; disabled?: boolean;
   accountDetails?: ProxyAccountDetailsProps; searchDetail?: string;
+  websiteUrl?: string;
 }
 
 export function GuiAccountGroup({ choices, onSelect, disabled }: {
@@ -19,7 +21,8 @@ export function GuiAccountGroup({ choices, onSelect, disabled }: {
       onClick={() => { if (!choice.selected) onSelect(choice); }}>
       <span className={`${styles.avatar} ${choice.kind !== 'account' ? styles.providerAvatar : ''}`}
         role="img" aria-label={choice.kind !== 'account' ? uiText("client.app.thirdPartyProvider") : uiText("client.mobile.officialAccounts")}>
-        {choice.kind !== 'account' ? <Server size={16} aria-hidden="true" />
+        {choice.kind === 'provider' ? <ProviderWebsiteIcon url={choice.websiteUrl} size={18} />
+        : choice.kind === 'aggregate' ? <Server size={16} aria-hidden="true" />
         : Array.from(choice.name.trim())[0]?.toUpperCase() || '?'}</span>
       <span className={styles.accountBody}>
         <span className={styles.optionName} title={choice.name}>{choice.name}</span>
