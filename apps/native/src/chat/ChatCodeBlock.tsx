@@ -25,7 +25,7 @@ export function ChatCodeBlock({ text, label = t("client.chat.code"), language = 
   const displayed = lineNumbers
     ? visible.split('\n').map((line, index) => `${index + 1}  ${line}`).join('\n') : visible;
   const actions = [{ text, label: copyLabel }, ...replyCopy ? [replyCopy] : []];
-  const content = <SelectableChatText style={[styles.code, codeStyles.content]} copy={actions}>
+  const content = <SelectableChatText style={[styles.code, codeStyles.content]} copy={actions} layoutKey={displayed}>
     <HighlightedCode text={displayed.trimEnd() || t("client.chat.emptyFile")} language={language} />
   </SelectableChatText>;
   return <View style={codeStyles.block}>

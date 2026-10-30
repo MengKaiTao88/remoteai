@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   measurement: undefined as unknown,
   content: { current: undefined as unknown },
   mounted: false,
+  fontScale: 1,
   cleanup: undefined as (() => void) | undefined,
   listen: vi.fn(), remove: vi.fn(), platform: { OS: 'android' },
 }));
@@ -22,6 +23,7 @@ vi.mock('react', () => ({
 }));
 vi.mock('react-native', () => ({
   Platform: state.platform, findNodeHandle: () => 42,
+  useWindowDimensions: () => ({ fontScale: state.fontScale }),
   DeviceEventEmitter: { addListener: state.listen },
 }));
 
@@ -34,6 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.measurement = undefined;
   state.mounted = false;
+  state.fontScale = 1;
   state.platform.OS = 'android';
   state.listen.mockReturnValue({ remove: state.remove });
 });
@@ -72,4 +75,15 @@ it('does not subscribe to Android layout corrections on iOS', () => {
   state.platform.OS = 'ios';
   expect(render().height).toBeUndefined();
   expect(state.listen).not.toHaveBeenCalled();
+});
+
+it('remeasures after the system font scale changes in either direction', () => {
+  render();
+  receive(overflow);
+  state.fontScale = 1.3;
+  expect(render().height).toBeUndefined();
+  receive({ ...overflow, height: 70 });
+  expect(render().height).toBe(70);
+  state.fontScale = 1;
+  expect(render().height).toBeUndefined();
 });

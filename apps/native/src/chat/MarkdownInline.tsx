@@ -97,7 +97,9 @@ export function MarkdownParagraph({ nodes, heading, context = {} }: {
       fontSize={heading ? headingStyles[heading]?.fontSize : undefined} copy={copy} compact={context.compact}
       flushTop={(context.listItemStart || context.flushTop) && index === 0}
       flushBottom={context.flushBottom && index === parts.length - 1} />;
-    return <SelectableChatText key={index} copy={copy} accessibilityRole={heading ? 'header' : undefined}
+    // Parsed nodes stay immutable until the message changes; the Inline element is new on every render.
+    return <SelectableChatText key={index} copy={copy} layoutKey={first}
+      accessibilityRole={heading ? 'header' : undefined}
       style={[styles.messageText, markdownStyles.paragraph, context.compact && markdownStyles.compact,
         context.tone === 'process' && markdownStyles.process,
         context.muted && markdownStyles.muted, (heading || context.header) && markdownStyles.bold,

@@ -6,12 +6,14 @@ import { CopyTextButton, type CopyAction } from './CopyTextButton';
 import { nativeTextSelection as bridge } from './nativeTextSelection';
 import { useChatTextLayout } from './useChatTextLayout';
 
-export function SelectableChatText({ onLayout, children, copy, ...props }: TextProps & {
+export function SelectableChatText({ onLayout, children, copy, layoutKey, ...props }: TextProps & {
   copy?: CopyAction | CopyAction[];
+  /** Stable source identity for rich text whose JSX is recreated during an unrelated render. */
+  layoutKey?: unknown;
 }) {
   const actions = copy ? Array.isArray(copy) ? copy : [copy] : [];
   const ref = useRef<Text>(null);
-  const layout = useChatTextLayout(ref, children);
+  const layout = useChatTextLayout(ref, layoutKey ?? children);
   const source = useContext(QuoteSourceContext);
   const quotes = useChatQuotes();
   const enabled = Boolean(source && quotes?.enabled);
@@ -41,7 +43,8 @@ export function SelectableChatText({ onLayout, children, copy, ...props }: TextP
     return false;
   } };
   return <Text {...props} {...responder} ref={ref} selectable
-    style={[props.style, layout.height === undefined ? undefined : { height: layout.height }]}
+    // A fixed height also constrains Fabric's intrinsic width measurement and can start a resize loop.
+    style={[props.style, layout.height === undefined ? undefined : { height: 'auto', minHeight: layout.height }]}
     onLayout={(event) => {
       layout.onLayout(event);
       configure();

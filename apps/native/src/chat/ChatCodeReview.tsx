@@ -25,7 +25,7 @@ export function ChatCodeReview({ comment, copy }: { comment: ReviewComment; copy
       <Text selectable style={[reviewStyles.text, reviewStyles.titleText, styles.fill]}>{comment.title}</Text>
     </View>
     <Text selectable style={[reviewStyles.text, reviewStyles.body]}>{comment.body}</Text>
-    <SelectableChatText style={reviewStyles.text} copy={copy}>
+    <SelectableChatText style={reviewStyles.text} copy={copy} layoutKey={label}>
       <Text accessibilityRole={open ? 'link' : undefined} onPress={open}
         style={open && reviewStyles.link}>{label}</Text>
     </SelectableChatText>

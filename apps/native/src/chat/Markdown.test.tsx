@@ -3,6 +3,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { answer } from '../../../../shared/chat/lineBreakFixture.json';
 import userMessages from '../../../../shared/chat/userMessageFixture.json';
 import { ChatMarkdown } from './Markdown';
+import { MarkdownParagraph } from './MarkdownInline';
+import { parseMarkdown } from './markdownTree';
 
 vi.mock('react', async importOriginal => ({ ...await importOriginal<typeof React>(),
   memo: <T,>(component: T) => component,
@@ -54,6 +56,22 @@ it.each([false, true])('keeps every model separator and answer line (user=%s)', 
 
 it.each(Object.entries(userMessages))('preserves every character of the %s user message', (_name, text) => {
   expect(textContent(<ChatMarkdown text={text} user />)).toBe(text);
+});
+
+it('keeps the corrected layout of unchanged rich text across new JSX renders', () => {
+  const nodes = parseMarkdown(userMessages.flicker)[0].children.flatMap(node => node.children);
+  const paragraph = (source = nodes) => {
+    const rendered = MarkdownParagraph({ nodes: [...source] });
+    return Children.toArray(rendered.props.children)
+      .find(isValidElement<{ children: ReactNode; layoutKey?: unknown }>)!;
+  };
+  const before = paragraph();
+  const refreshed = paragraph();
+  expect(refreshed.props.children).not.toBe(before.props.children);
+  expect(before.props.layoutKey).toBeDefined();
+  expect(refreshed.props.layoutKey).toBe(before.props.layoutKey);
+  const edited = parseMarkdown('修改后的消息')[0].children.flatMap(node => node.children);
+  expect(paragraph(edited).props.layoutKey).not.toBe(before.props.layoutKey);
 });
 
 it('keeps soft and explicit breaks across inline formatting without inserting blank lines', () => {

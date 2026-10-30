@@ -32,7 +32,8 @@ function UnifiedRow({ line, language, wrap, copy, onComment }: {
     <Text style={[styles.code, diffStyles.number]}>{line.oldLine ?? ''}</Text>
     <Text style={[styles.code, diffStyles.number]}>{line.newLine ?? ''}</Text>
     <Text style={[styles.code, diffStyles.sign]}>{marker}</Text>
-    <SelectableChatText copy={copy} style={[styles.code, wrap ? diffStyles.wrappedText : diffStyles.unwrappedText]}>
+    <SelectableChatText copy={copy} layoutKey={line.text}
+      style={[styles.code, wrap ? diffStyles.wrappedText : diffStyles.unwrappedText]}>
       <HighlightedCode text={line.text || ' '} language={heading ? '' : language} /></SelectableChatText>
   </View>;
 }
@@ -46,7 +47,8 @@ function SplitCell({ line, side, language, column, wrap, copy }: {
   useLanguage();
   return <View style={[diffStyles.cell, column, line && diffStyles[line.kind]]}>
     <Text style={[styles.code, diffStyles.number]}>{side === 'left' ? line?.oldLine : line?.newLine}</Text>
-    <SelectableChatText copy={copy} style={[styles.code, wrap ? diffStyles.wrappedText : diffStyles.unwrappedText]}>
+    <SelectableChatText copy={copy} layoutKey={line?.text ?? ''}
+      style={[styles.code, wrap ? diffStyles.wrappedText : diffStyles.unwrappedText]}>
       <HighlightedCode text={line?.text || ' '} language={language} /></SelectableChatText>
   </View>;
 }

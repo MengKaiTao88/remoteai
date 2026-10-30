@@ -12,13 +12,14 @@ const { parseMarkdown, renderMathParagraph }: typeof import('../../native/src/ch
 const { mathDocument }: typeof import('../../native/src/chat/mathDocument') = require('../../native/src/chat/mathDocument');
 
 test('shows every user message character inside its bubble at different widths', async ({ page }, info) => {
-  await page.route('**/display-fixture.json', route => route.fulfill({ json: {
+  const thread = {
     id: 'user-text', cwd: '', preview: '', updatedAt: 1, turns: [{ id: 'turn', status: 'completed',
       items: Object.entries(userMessages).map(([id, text]) => ({ id, type: 'userMessage', text })),
     }],
-  } }));
+  };
+  await page.route('**/display-fixture.json', route => route.fulfill({ json: thread }));
   await page.goto('e2e/chat-display-harness.html');
-  const widths = info.project.name === 'mobile' ? [390, 320] : [1280, 900];
+  const widths = info.project.name.includes('mobile') ? [390, 320] : [1280, 900];
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(() => document.fonts.ready);
@@ -52,18 +53,23 @@ test('shows every user message character inside its bubble at different widths',
         expect(lines, `${id} stays on one line at ${width}px`).toBe(1);
       }
     }
-    const sizes = await page.locator('[data-message-id="build"] .chat-user-message').evaluate(async node => {
+    const bubble = page.locator('[data-message-id="flicker"] .chat-user-message');
+    await bubble.scrollIntoViewIfNeeded();
+    const sizes = await bubble.evaluate(async (node, snapshot) => {
       const samples = new Set<string>();
       const until = performance.now() + 1_200;
-      while (performance.now() < until) {
-        await new Promise(requestAnimationFrame);
-        const { x, y, width, height } = node.getBoundingClientRect();
-        const origin = node.closest('.chat-message-content')!.getBoundingClientRect();
-        samples.add(JSON.stringify([x - origin.x, y - origin.y, width, height]));
-      }
+      const refresh = setInterval(() => window.dispatchEvent(
+        new CustomEvent('display-fixture', { detail: structuredClone(snapshot) })), 200);
+      try {
+        while (performance.now() < until) {
+          await new Promise(requestAnimationFrame);
+          const { x, y, width, height } = node.getBoundingClientRect();
+          samples.add(JSON.stringify([x, y, width, height]));
+        }
+      } finally { clearInterval(refresh); }
       return samples.size;
-    });
-    expect(sizes, `Idle bubble remains stable at ${width}px`).toBe(1);
+    }, thread);
+    expect(sizes, `Refreshing the same message remains stable at ${width}px`).toBe(1);
     expect(await page.locator('.chat-messages').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
     await screenshot(page, info, `user-text-${width}`);
   }
