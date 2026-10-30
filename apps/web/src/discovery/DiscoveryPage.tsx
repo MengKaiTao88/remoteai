@@ -10,13 +10,13 @@ const entryIcons = { lounge: Coffee, devices: Server, totp: ShieldCheck, downloa
 export function DiscoveryPage({ owner, loungeUnread = 0, onOpen }: {
   owner?: string;
   loungeUnread?: number;
-  onOpen: (page: DiscoveryDestination) => void;
+  onOpen: (page: Exclude<DiscoveryDestination, 'port-mappings'>) => void;
 }) {
   useLanguage();
   return <section className="discovery-page" aria-labelledby="discovery-title">
     <header className="discovery-header"><h1 id="discovery-title">{t('client.discovery.title')}</h1></header>
     <div className="discovery-list">
-      {discoveryEntries.map(entry => {
+      {discoveryEntries.filter(entry => entry.page !== 'port-mappings').map(entry => {
         const Icon = entryIcons[entry.page];
         return <button key={entry.page} type="button" className={`discovery-row discovery-${entry.page}`}
           onClick={() => onOpen(entry.page)}>

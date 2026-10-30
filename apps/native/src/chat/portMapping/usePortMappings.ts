@@ -11,6 +11,7 @@ import { adminRequest } from '../../api/client';
 import type { AuthSession } from '../../types';
 import { mappingSyncScope, type MappingDocument } from '../../../../../shared/port-mapping/sync';
 import { useMappingSync } from '../../../../../shared/port-mapping/useMappingSync';
+import { useDeviceMapping } from '../../../../../shared/port-mapping/deviceRegistry';
 
 const storage = { getItem: (key: string) => Storage.getItemSync(key),
   setItem: (key: string, value: string) => Storage.setItemSync(key, value) };
@@ -19,24 +20,35 @@ export function usePortMappings(options: {
   client: ForwardingClient; scope: string; connected: boolean; session?: AuthSession;
 }) {
   const { client, scope, connected } = options;
-  const service = useMemo(() => new PortForwardingService(client, readPortMappings(scope, storage, randomUUID), {
+  const managed = useDeviceMapping(mappingSyncScope(scope)?.deviceId ?? '');
+  const managedConnection = useSyncExternalStore(managed?.connection.subscribe ?? noSubscribe,
+    managed?.connection.snapshot ?? noConnection);
+  const managedSync = useSyncExternalStore(managed?.sync.subscribe ?? noSubscribe, managed?.sync.snapshot ?? noStatus);
+  const service = useMemo(() => managed?.service ?? new PortForwardingService(client,
+    readPortMappings(scope, storage, randomUUID), {
     createId: randomUUID, createTunnel: (connection, config) => protocolTunnel(config.protocol, {
       tcp: () => new NativeMappingTunnel(connection, config),
       udp: () => new UdpMappingTunnel(connection, config, listenUdp),
     }),
-  }), [client, scope]);
+  }), [client, scope, managed]);
   const entries = useSyncExternalStore(service.subscribe, service.snapshot);
   const exchange = useMemo(() => {
     const identity = mappingSyncScope(scope);
     const session = options.session;
-    if (!identity || !session || session.baseUrl !== identity.baseUrl || session.email !== identity.account) return;
+    if (managed || !identity || !session || session.baseUrl !== identity.baseUrl || session.email !== identity.account) return;
     return (document?: MappingDocument) => adminRequest<MappingDocument>(session,
       `/devices/${encodeURIComponent(identity.deviceId)}/port-mappings`,
       document ? { method: 'PUT', body: JSON.stringify(document) } : {});
-  }, [scope, options.session]);
+  }, [scope, options.session, managed]);
   const syncStatus = useMappingSync(service, { scope, storage, exchange });
-  useEffect(() => { service.setConnected(connected); }, [service, connected]);
-  useEffect(() => service.dispose, [service]);
-  useEffect(() => { savePortMappings(scope, entries, storage); }, [scope, entries]);
-  return { entries, service, syncStatus };
+  useEffect(() => { if (!managed) service.setConnected(connected); }, [service, connected, managed]);
+  useEffect(() => managed ? undefined : service.dispose, [service, managed]);
+  useEffect(() => { if (!managed) savePortMappings(scope, entries, storage); }, [scope, entries, managed]);
+  return { entries, service, syncStatus: managed ? managedSync : syncStatus,
+    connected: managed ? managedConnection.ready : connected };
 }
+
+const noSubscribe = () => () => {};
+const disconnected = { ready: false, error: '' };
+const noConnection = () => disconnected;
+const noStatus = () => '';

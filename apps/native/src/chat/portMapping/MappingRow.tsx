@@ -10,8 +10,9 @@ import { protocolLabel } from '../../../../../shared/port-mapping/settings';
 import { t, useLanguage } from '../../i18n';
 import { useMappingStyles } from './mappingStyles';
 
-export function MappingRow({ entry, service, connected, open, edit }: {
+export function MappingRow({ entry, service, connected, open, edit, deviceName, connectionError, syncStatus }: {
   entry: ForwardingEntry; service: PortForwardingService; connected: boolean; open: () => void; edit: () => void;
+  deviceName?: string; connectionError?: string; syncStatus?: string;
 }) {
   const styles = useMappingStyles();
   useLanguage();
@@ -20,6 +21,7 @@ export function MappingRow({ entry, service, connected, open, edit }: {
   const running = entry.status === 'running';
   const canOpen = running && entry.protocol !== 'udp';
   const busy = entry.status === 'starting' || entry.status === 'stopping';
+  const enabled = entry.enabled ?? (running || busy);
   const copy = async () => {
     try { await Clipboard.setStringAsync(`127.0.0.1:${entry.localPort}`); setNotice('本地地址已复制'); }
     catch { setNotice('复制失败，请重试。'); }
@@ -32,14 +34,18 @@ export function MappingRow({ entry, service, connected, open, edit }: {
   return <View style={styles.card}>
     <View style={styles.accessSection}>
       <View style={styles.row}>
-        <Text style={styles.addressLabel}>{t("client.portMappingEditing.accessAddress")}</Text>
-        <Switch accessibilityLabel={t(running || busy ? "client.portForwarding.stopMapping" : "client.portForwarding.startMapping")} value={running || busy}
-          disabled={entry.status === 'stopping' || (!connected && !running && !busy)}
-          trackColor={{ false: '#ccd5dc', true: '#008b73' }} thumbColor="#fff"
-          onValueChange={() => { void (running || busy ? service.stop(entry.id) : service.start(entry.id)); }} />
-        <Pressable accessibilityRole="button" accessibilityLabel={t("client.portMappingEditing.moreActions")} accessibilityState={{ expanded: menu }}
-          style={styles.iconButton} onPress={() => setMenu(!menu)}>
+        <View style={styles.fill}>
+          {!!deviceName && <Text style={styles.title}>{deviceName}</Text>}
+          <Text style={styles.addressLabel}>{t("client.portMappingEditing.accessAddress")}</Text>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("client.portMappingEditing.moreActions")}
+          accessibilityState={{ expanded: menu }} style={styles.iconButton} onPress={() => setMenu(!menu)}>
           <Ionicons name="ellipsis-vertical" size={20} color="#718078" /></Pressable>
+        <Switch accessibilityLabel={t(enabled ? "client.portForwarding.stopMapping" : "client.portForwarding.startMapping")}
+          value={enabled}
+          disabled={entry.status === 'stopping' || (entry.enabled === undefined && !connected && !running && !busy)}
+          trackColor={{ false: '#ccd5dc', true: '#008b73' }} thumbColor="#fff"
+          onValueChange={() => { void (enabled ? service.stop(entry.id) : service.start(entry.id)); }} />
       </View>
       {menu && <View style={styles.menu}>
         <Pressable accessibilityRole="button" style={styles.button} disabled={busy}
@@ -64,7 +70,12 @@ export function MappingRow({ entry, service, connected, open, edit }: {
     </View>
     <View style={styles.metadata}>{details.map(([label, value]) => <View key={label} style={styles.detail}>
       <Text style={styles.muted}>{t(label)}</Text><Text style={styles.value}>{value}</Text></View>)}</View>
+    {entry.enabled !== undefined && <Text style={styles.muted} accessibilityLiveRegion="polite">
+      {t(running ? 'client.portForwarding.active' : enabled ? 'client.mappingHub.retrying' : 'client.chat.stopped')}
+    </Text>}
     {!!entry.error && <Text accessibilityRole="alert" style={styles.error}>{displayError(entry.error)}</Text>}
+    {!!entry.enabled && !!connectionError && <Text style={styles.error}>{displayError(connectionError)}</Text>}
+    {!!syncStatus && <Text style={styles.sync}>{displayError(syncStatus)}</Text>}
     {!!notice && <Text style={styles.muted}>{displayError(notice)}</Text>}
   </View>;
 }

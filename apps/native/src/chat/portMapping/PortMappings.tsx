@@ -20,7 +20,7 @@ export function PortMappings(props: {
   open: boolean; close: () => void; deviceName?: string;
 }) {
   const styles = useMappingStyles();
-  const { entries, service, syncStatus } = usePortMappings(props);
+  const { entries, service, syncStatus, connected = props.connected } = usePortMappings(props);
   const [selection, setSelection] = useState<{ id: string; view: 'actions' | 'preview' }>();
   const [editing, setEditing] = useState<ForwardingEntry>();
   const [newestFirst, setNewestFirst] = useState(false);
@@ -48,7 +48,7 @@ export function PortMappings(props: {
         <View style={styles.notice}><Ionicons name="information-circle" size={21} color="#008b73" />
           <Text style={[styles.muted, styles.fill]}>
             {t("client.portForwarding.chooseAProtocolToAddAMappingTapTcpWeb")}</Text></View>
-        {!props.connected && <Text style={styles.muted}>{t("client.portForwarding.disconnectedReconnectToStartMappingAgain")}</Text>}
+        {!connected && <Text style={styles.muted}>{t("client.portForwarding.disconnectedReconnectToStartMappingAgain")}</Text>}
         <View style={styles.row}><Text style={[styles.sectionTitle, styles.fill]}>
           {t("client.portMappingEditing.currentMappings")} ({entries.length})</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={t("client.portMappingEditing.sortByLastEdit")}
@@ -58,13 +58,13 @@ export function PortMappings(props: {
         {!entries.length && <Text style={styles.empty}>{t("client.portForwarding.noPortMappingsYet")}</Text>}
         {sorted.map(entry => editing?.id === entry.id
           ? <MappingForm key={entry.id} service={service} entry={editing} done={() => setEditing(undefined)} />
-          : <MappingRow key={entry.id} entry={entry} service={service} connected={props.connected}
+          : <MappingRow key={entry.id} entry={entry} service={service} connected={connected}
             edit={() => setEditing(entry)} open={() => setSelection({ id: entry.id, view: 'actions' })} />)}
         {editing && !entries.some(entry => entry.id === editing.id) && <Pressable accessibilityRole="button"
           onPress={() => setEditing(undefined)}><Text style={styles.muted}>
           {t("client.portMappingEditing.thisMappingWasRemovedAddItAgainToContinue")}</Text></Pressable>}
         {!editing && <MappingForm service={service} disabled={entries.length >= MAX_PORT_MAPPINGS}
-          connected={props.connected} />}
+          connected={connected} />}
         <Text style={styles.footer}>{t("client.portForwarding.tcpAndUdpAccessibleOnlyOnThisDevice")}</Text>
         {!!syncStatus && <Text style={styles.sync} accessibilityLiveRegion="polite">{displayError(syncStatus)}</Text>}
         {Platform.OS === 'ios' && <Text style={styles.muted}>

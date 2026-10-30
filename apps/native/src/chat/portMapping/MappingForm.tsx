@@ -1,13 +1,14 @@
 import { displayError } from '../../i18n/index';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import type { ForwardingEntry, PortForwardingService } from '../../../../../shared/port-mapping/service';
 import { t } from '../../i18n';
 import { useMappingStyles } from './mappingStyles';
 import { MAPPING_PROTOCOLS, type MappingProtocol } from '../../../../../shared/port-mapping/settings';
 
-export function MappingForm({ service, disabled, connected = true, entry, done }: {
+export function MappingForm({ service, disabled, connected = true, entry, done, devicePicker }: {
   service: PortForwardingService; disabled?: boolean; connected?: boolean; entry?: ForwardingEntry; done?: () => void;
+  devicePicker?: ReactNode;
 }) {
   const styles = useMappingStyles();
   const [remoteHost, setRemoteHost] = useState(entry?.remoteHost ?? '');
@@ -31,6 +32,7 @@ export function MappingForm({ service, disabled, connected = true, entry, done }
   const locked = disabled || saving;
   return <View style={styles.form}>
     <Text style={styles.title}>{t(entry ? "client.portMappingEditing.editMapping" : "client.portMappingEditing.addMapping")}</Text>
+    {devicePicker}
     <View style={styles.fields} accessibilityRole="radiogroup" accessibilityLabel={t("client.portForwarding.protocol")}>
       {MAPPING_PROTOCOLS.map(value => <Pressable key={value} accessibilityRole="radio"
         accessibilityLabel={value === 'both' ? t("client.portForwarding.bothTcpUdp") : value.toUpperCase()}

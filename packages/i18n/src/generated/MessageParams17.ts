@@ -63,6 +63,10 @@ export interface MessageParams17 {
   "client.lounge.userUnavailable": Record<string, never>;
   "client.lounge.viewOriginal": Record<string, never>;
   "client.lounge.viewProfile": { "account": string | number };
+  "client.mappingHub.device": Record<string, never>;
+  "client.mappingHub.noDevices": Record<string, never>;
+  "client.mappingHub.portConflict": Record<string, never>;
+  "client.mappingHub.retrying": Record<string, never>;
   "client.messageEditing.deleteMessage": Record<string, never>;
   "client.messageEditing.deleteThisMessage": Record<string, never>;
   "client.messageEditing.thisFollowUpCannotBeDeletedSeparatelyWithoutRemovingEarlier": Record<string, never>;
@@ -196,8 +200,4 @@ export interface MessageParams17 {
   "client.mobile.codexRequestTimedOutTryAgainLater": Record<string, never>;
   "client.mobile.codexReturnedInvalidResetCreditData": Record<string, never>;
   "client.mobile.computerFiles": Record<string, never>;
-  "client.mobile.computerPhotos": Record<string, never>;
-  "client.mobile.confirmDeletion": Record<string, never>;
-  "client.mobile.confirmRevocation": Record<string, never>;
-  "client.mobile.connected": Record<string, never>;
 }
