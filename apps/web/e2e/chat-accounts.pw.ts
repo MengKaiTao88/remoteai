@@ -80,6 +80,7 @@ for (const mode of ['web', 'remote']) test(`${mode} desktop opens the shared acc
     const trigger = page.getByRole('button', { name: /^切换 GUI 账户：/ });
     await expect(trigger.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '66');
     await trigger.click();
+    await expect(page.locator('.provider-market-button')).toHaveCount(mode === 'web' ? 0 : 1);
     const accounts = page.getByRole('region', { name: '账户列表' });
     await expectAccountAppearance(page);
     await page.screenshot({ path: info.outputPath(`${mode}-account-popup.png`), animations: 'disabled' });

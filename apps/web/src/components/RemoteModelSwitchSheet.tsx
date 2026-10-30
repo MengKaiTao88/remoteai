@@ -4,7 +4,6 @@ import { isRemoteAggregateId, remoteModelOptions, type RemoteModelTarget } from 
 import { ChevronRight } from "lucide-react";
 import type { AccountSummary, RemoteDevice, RemoteProviderSummary } from "../types";
 import { AdaptiveSheet } from "./AdaptiveSheet";
-import { WebProviderMarket } from '../providerMarket/WebProviderMarket';
 
 interface RemoteModelSwitchSheetProps {
   device: RemoteDevice | null;
@@ -81,7 +80,6 @@ export function RemoteModelSwitchSheet({
 
     <div className="model-switch-section">
       <div className="model-switch-heading"><h3>{t("client.app.thirdPartyProvider")}</h3>
-        <WebProviderMarket />
         {!providerSupported ? <span>{t("client.app.updateTheDesktopAppFirst")}</span>
           : !providerAvailable ? <span>{t("client.app.startTheLocalProxyOnYourComputerFirst")}</span> : null}</div>
       {!providers.length ? <p className="model-switch-empty">{t("client.app.noThirdPartyProvidersSyncedYet")}</p>

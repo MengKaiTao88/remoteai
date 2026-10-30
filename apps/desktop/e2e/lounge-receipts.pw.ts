@@ -1,4 +1,4 @@
-import { openLoungeAction } from './lounge-mobile-actions';
+import { openLoungeAction, expectLoungePresence } from './lounge-mobile-actions';
 import { expect, test } from '@playwright/test';
 import { setupLounge } from './lounge-support';
 
@@ -31,7 +31,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
     await expect(page.getByRole('img', { name: '等待对方接收', exact: true })).toBeVisible();
     await expect.poll(() => relay.sent.length).toBe(1);
     const id = relay.sent[0].id;
-    relay.contact(false); await expect(page.locator('.lounge-peer-status')).toHaveText('离线');
+    relay.contact(false); await expectLoungePresence(page, '离线');
     await page.waitForTimeout(5500); expect(relay.sent).toHaveLength(1);
     await page.reload(); await enter(); await selectBob();
     await expect(page.getByRole('img', { name: '等待对方接收', exact: true })).toBeVisible();

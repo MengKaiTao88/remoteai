@@ -1,7 +1,7 @@
 import { accountName } from './names';
 import { LoungeSyncNotice } from './LoungeSyncNotice';
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowDown, Ban, Coffee, Users } from 'lucide-react';
+import { ArrowDown, Coffee, Users } from 'lucide-react';
 import { Drawer } from 'antd';
 import { displayText as t } from '../localization/messages';
 import { getInterfaceLanguage, subscribeInterfaceLanguage } from '../localization/interfaceLanguage';
@@ -102,14 +102,11 @@ function DesktopLoungePage({ controller, onLogin, mobile = false }: {
     <header className="lounge-heading"><div className="lounge-heading-title">
       <button className="lounge-people-toggle" type="button" aria-label={t('client.lounge.people')}
         onClick={() => setPeopleOpen(true)}><Users size={21} /></button>
-      {!contact && <Coffee size={21} />}<h1>{contact ? accountName(contact.user) : t('client.lounge.title')}</h1></div>
+      {contact ? <span role="img" aria-label={t(contactStatus(contact))}
+        className={`lounge-peer-presence${state.status === 'connected' && contact.online === true ? ' is-online' : ''}`} />
+        : <Coffee size={21} />}<h1>{contact ? accountName(contact.user) : t('client.lounge.title')}</h1></div>
       <div className="lounge-heading-actions"><span className={`lounge-connection is-${state.status}`} role="status">
         <i />{t(`client.lounge.${state.status}`)}</span>
-        {contact && <span className="lounge-peer-status">{t(contactStatus(contact))}</span>}
-        {contact && state.directAvailable && <button type="button" className="lounge-block-button"
-          aria-label={t(state.blocked.includes(contact.user.id) ? 'client.lounge.unblockUser' : 'client.lounge.blockUser')}
-          title={t(state.blocked.includes(contact.user.id) ? 'client.lounge.unblockUser' : 'client.lounge.blockUser')}
-          onClick={() => setBlocking(contact.user)}><Ban size={18} /></button>}
         {state.policy.moderator && state.onlineCount !== undefined && <span className="lounge-online-count">
           {t('client.lounge.onlineCount', { count: state.onlineCount })}</span>}
         {!state.conversation && <LoungeAssistanceButton />}

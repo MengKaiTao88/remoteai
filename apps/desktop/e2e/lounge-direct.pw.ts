@@ -1,4 +1,4 @@
-import { openLoungeAction, expectLoungeAction } from './lounge-mobile-actions';
+import { openLoungeAction, expectLoungeAction, expectLoungePresence } from './lounge-mobile-actions';
 import { expect, test } from '@playwright/test';
 import { setupLounge, pixel } from './lounge-support';
 
@@ -37,7 +37,10 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
     await page.getByRole('menuitem', { name: '发起私聊' }).click();
     await people();
     await expect(person).toBeVisible();
-    if (!mobile) await expect(person.locator('small')).toHaveText('在线');
+    if (!mobile) {
+      await expect(person.locator('small')).toHaveCount(0);
+      await expect(person).toHaveAccessibleDescription('在线');
+    }
     if (mobile) {
       // Wait for the sliding drawer to settle before synthesizing viewport touch coordinates.
       await person.hover();
@@ -51,7 +54,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
     } else await person.click({ button: 'right' });
     await expect(page.getByRole('menuitem', { name: '屏蔽此人', exact: true })).toBeVisible();
     await page.getByRole('menuitem', { name: '发起私聊' }).click();
-    await expect(page.locator('.lounge-peer-status')).toHaveText('在线');
+    await expectLoungePresence(page, '在线');
     await expect(page.getByRole('menuitem', { name: '发起私聊' })).toBeHidden();
     await expect(page.locator('.lounge-message')).toHaveCount(0);
     const input = page.getByRole('textbox', { name: '消息', exact: true });
@@ -69,16 +72,16 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
     await openLoungeAction(page, '屏蔽此人');
     await page.getByRole('dialog').getByRole('button', { name: '屏蔽此人', exact: true }).click();
     await expectLoungeAction(page, '取消屏蔽');
-    await expect(page.locator('.lounge-peer-status')).toHaveText('在线');
+    await expectLoungePresence(page, '在线');
     relay.private('blocked-private'); relay.push('blocked-group');
     await input.fill('blocker-can-send'); await page.getByRole('button', { name: '发送', exact: true }).click();
     await expect(input).toHaveValue(''); expect(relay.sent.at(-1)?.to).toBe('bob');
     await expect(page.getByText('blocked-private', { exact: true })).toHaveCount(0);
-    relay.contact(false); await expect(page.locator('.lounge-peer-status')).toHaveText('离线');
-    relay.contact(null); await expect(page.locator('.lounge-peer-status')).toHaveText('在线状态不可见');
+    relay.contact(false); await expectLoungePresence(page, '离线');
+    relay.contact(null); await expectLoungePresence(page, '在线状态不可见');
     await page.screenshot({ path: `../../.codex-tmp/lounge-direct-${mode}.png` });
     await people();
-    await page.getByRole('button', { name: /^群聊/ }).filter({ visible: true }).click();
+    await page.getByRole('button', { name: /群聊$/ }).filter({ visible: true }).click();
     await expect(page.getByText('group-before-private', { exact: true })).toBeVisible();
     await expect(page.getByText('blocked-group', { exact: true })).toHaveCount(0);
     await expect(page.getByText('private-reply', { exact: true })).toHaveCount(0);

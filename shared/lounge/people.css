@@ -1,6 +1,7 @@
 .lounge-layout { display: flex; flex: 1; min-width: 0; min-height: 0; height: 100%; }
 .lounge-sidebar { width: 240px; flex: 0 0 240px; border-right: 1px solid var(--app-border, var(--line, #e6e8ec)); }
 .lounge-people { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 8px; padding: 12px;
+  --lounge-presence-border: var(--app-surface, var(--panel, #fff));
   box-sizing: border-box; color: var(--app-ink, var(--ink, #24262c)); background: var(--app-surface, var(--panel, #fff)); }
 .lounge-people h2 { font-size: 14px; margin: 4px 0; }
 .lounge-people-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -30,11 +31,10 @@
 .lounge-pin { color: var(--app-muted, var(--muted, #838892)); flex-shrink: 0; }
 .lounge-person-copy > span { font-size: 13px; }
 .lounge-person-copy small, .lounge-peer-status { color: var(--app-muted, var(--muted, #838892)); font-size: 12px; }
-.lounge-person-copy small.is-online { color: #268c64; }
 .lounge-heading-title { min-width: 0; flex: 1; }
 .lounge-heading-title h1 { overflow-wrap: anywhere; }
 .lounge-heading-title > svg { flex-shrink: 0; }
-.lounge-people-toggle, .lounge-block-button { border: 0; background: transparent; color: inherit;
+.lounge-people-toggle { border: 0; background: transparent; color: inherit;
   cursor: pointer; padding: 5px; flex-shrink: 0; }
 .lounge-people-toggle { display: none; }
 @media (max-width: 900px) {

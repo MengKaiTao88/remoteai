@@ -43,7 +43,6 @@ import { useDesktopLayout, usePanelVisibility } from "./useDesktopLayout";
 import { useChatViewport } from './chat/useChatViewport';
 import { AgreementConsent } from '../../../shared/legal/AgreementConsent';
 import { useAgreementConsent } from '../../../shared/legal/useAgreementConsent';
-import { WebProviderMarket } from './providerMarket/WebProviderMarket';
 
 const PULL_REFRESH_TEXT = {
   get pulling() { return t("client.accounts.pullToRefresh"); },
@@ -134,7 +133,6 @@ function LoginView() {
           {error ? <div className="form-error" role="alert">{displayError(error)}</div> : null}
         </Form>
         <div className="login-security"><ShieldCheck size={16} /><span>{t("client.app.aSecureConnectionForYourAccounts")}</span></div>
-        <WebProviderMarket initialId={new URLSearchParams(window.location.search).get('providerMarket') ?? undefined} />
       </div>
     </section>
     <RegistrationSheet open={showRegistration} onClose={() => setShowRegistration(false)} />
@@ -295,12 +293,6 @@ function AppShell() {
   const openAccounts = useCallback(() => changePrimaryPage('accounts'), [changePrimaryPage]);
 
   useEffect(() => {
-    const refreshProviders = () => { if (session) void dispatch(refreshAll()); };
-    window.addEventListener('provider-market-added', refreshProviders);
-    return () => window.removeEventListener('provider-market-added', refreshProviders);
-  }, [dispatch, session]);
-
-  useEffect(() => {
     if (!error) return;
     Toast.show({ icon: "fail", content: displayError(error) });
     dispatch(clearDataError());
@@ -425,8 +417,6 @@ function AppShell() {
           </button>
         </Tooltip>
       </nav>
-      <div className="sidebar-live"><span><i />  {t("client.app.connected")}</span><p>{t("client.app.manageYourAccountsAndDevices")}</p></div>
-      <WebProviderMarket initialId={new URLSearchParams(window.location.search).get('providerMarket') ?? undefined} />
       <Tooltip placement="right" title={menuVisible ? undefined : t("client.app.accountMenu")}>
         <Dropdown menu={{ items: userMenu }} trigger={["click"]}>
           <button type="button" className="sidebar-profile" aria-label={t("client.app.accountMenu")}>

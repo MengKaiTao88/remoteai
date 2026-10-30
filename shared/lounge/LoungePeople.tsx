@@ -67,12 +67,14 @@ export function LoungePeople({ state, controller, select, block, newChat, pin, p
         <button type="button"
           className={`lounge-person${state.conversation === contact.user.id ? ' is-selected' : ''}`}
           aria-label={t('client.lounge.directWith', { account: accountName(contact.user) })}
+          aria-description={t(contactStatus(contact))}
           aria-current={state.conversation === contact.user.id ? 'page' : undefined} onClick={() => select(contact.user)}>
           <span className="lounge-unread-avatar"><LoungeAvatar user={contact.user} />
+            <span aria-hidden className={`lounge-avatar-presence${state.status === 'connected'
+              && contact.online === true ? ' is-online' : ''}`} />
             <LoungeUnreadBadge count={state.unreadByConversation[contact.user.id]} /></span>
           <span className="lounge-person-copy">
             <span>{accountName(contact.user)}</span>
-            {contact.direct && <small className={contact.online ? 'is-online' : ''}>{t(contactStatus(contact))}</small>}
             {state.blocked.includes(contact.user.id) && <small>{t('client.lounge.blocked')}</small>}
           </span>{contact.pinned && <Pin size={14} className="lounge-pin" role="img"
             aria-label={t('client.lounge.pinned')} />}

@@ -2,11 +2,21 @@ import { expect, test } from '@playwright/test';
 import { setupMarket } from './provider-market-support';
 
 for (const mode of ['local', 'hosted', 'remote', 'web']) {
-  test(`${mode}: browse independently, review prices and explicitly add without activation`, async ({ page }, info) => {
+  test(`${mode}: market availability and explicit addition without activation`, async ({ page }, info) => {
     const state = await setupMarket(page, mode);
     await page.goto(`/e2e/provider-market-harness.html?mode=${mode}`, { waitUntil: 'domcontentloaded' });
     if (mode === 'remote') await page.locator('button[aria-expanded]').first().click();
     const launcher = page.getByRole('button', { name: 'Provider market', exact: true }).first();
+    if (mode === 'web') {
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await expect(page.getByRole('heading', { name: 'Third-party provider', exact: true })).toBeVisible();
+        await expect(launcher).toHaveCount(0);
+        await page.screenshot({ path: info.outputPath(`web-${width}-no-market.png`) });
+      }
+      expect(state.saved).toHaveLength(0);
+      return;
+    }
     await expect(launcher).toBeVisible();
     const gradient = await launcher.locator('span').last().evaluate((node) => getComputedStyle(node).backgroundImage);
     expect(gradient).toContain('linear-gradient');
