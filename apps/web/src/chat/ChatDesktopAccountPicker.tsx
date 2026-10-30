@@ -15,7 +15,6 @@ export function ChatDesktopAccountPicker(props: Props) {
   useLanguage();
   return <div className="chat-desktop-account-picker">
     <RemoteAccountPicker client={props.client} ready={props.ready} active={props.active} privacyMode={false}
-      showProviderMarket={false}
       computers={{ current: props.device ?? null, devices: props.devices,
         allowLocal: Boolean(props.chooseLocal), authenticated: true,
         loading: props.deviceRefresh?.loading ?? false, error: props.deviceRefresh?.error ?? '',

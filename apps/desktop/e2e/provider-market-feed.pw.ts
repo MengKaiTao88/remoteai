@@ -14,7 +14,6 @@ const resultFor = (page: number): MarketPage => ({ total: TOTAL,
 
 async function openMarket(page: Page, mode: string) {
   await page.goto(`/e2e/provider-market-harness.html?mode=${mode}`);
-  if (mode === 'remote') await page.locator('button[aria-expanded]').first().click();
   await page.locator('.provider-market-button').first().click();
 }
 
@@ -28,7 +27,7 @@ async function captureMarket(page: Page, info: TestInfo, name: string) {
   await page.locator('.provider-market-modal .ant-modal-content').screenshot({ path: info.outputPath(name) });
 }
 
-for (const mode of ['local', 'hosted', 'remote']) {
+for (const mode of ['local', 'hosted']) {
   test(`${mode}: preloads at the bottom, appends once, and places actions at the top right`, async ({ page }, info) => {
     const requests: ListRequest[] = [];
     let completeNext!: (value: MarketPage) => void;

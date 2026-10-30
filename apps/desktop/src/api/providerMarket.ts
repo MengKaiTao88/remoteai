@@ -2,7 +2,6 @@ import { invoke, loadCloudAuthState } from './backend';
 import { copyText } from '../utils/clipboard';
 import type { Provider, ProviderInput } from '../types';
 import type { MarketClient, MarketIdentity, MarketReply } from '../../../../shared/provider-market/types';
-import { publicDraft } from '../../../../shared/provider-market/types';
 import { personalProviderFields } from '../../../../shared/provider-market/install';
 import { sameIdentity } from '../../../../shared/provider-market/useMarket';
 
@@ -12,16 +11,6 @@ async function identity(): Promise<MarketIdentity | null> {
     ? { userId: state.userId, baseUrl: state.baseUrl } : null;
 }
 
-export const desktopRemoteProviderMarket: MarketClient = {
-  ...desktopProviderMarket(async () => null),
-  addition: () => 'cloud',
-  add: async (item, apiKey, expected) => {
-    if (!expected || !sameIdentity(expected, await identity())) throw new Error('market.signIn');
-    await invoke('cloud_install_market_provider', { identity: expected,
-      input: { entryId: item.id, draft: publicDraft(item), apiKey } });
-    return 'added';
-  },
-};
 export function desktopProviderMarket(
   onSave: (input: ProviderInput, identity?: MarketIdentity | null) => Promise<Provider | null>,
 ): MarketClient {

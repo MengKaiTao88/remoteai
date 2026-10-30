@@ -7,6 +7,13 @@ for (const mode of ['local', 'hosted', 'remote', 'web']) {
     await page.goto(`/e2e/provider-market-harness.html?mode=${mode}`, { waitUntil: 'domcontentloaded' });
     if (mode === 'remote') await page.locator('button[aria-expanded]').first().click();
     const launcher = page.getByRole('button', { name: 'Provider market', exact: true }).first();
+    if (mode === 'remote') {
+      await expect(page.getByRole('region', { name: 'Accounts', exact: true })).toBeVisible();
+      await expect(launcher).toHaveCount(0);
+      await page.screenshot({ path: info.outputPath('remote-account-no-market.png') });
+      expect(state.saved).toHaveLength(0);
+      return;
+    }
     if (mode === 'web') {
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 900 });
