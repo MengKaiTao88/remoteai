@@ -43,6 +43,8 @@ pub(crate) enum GuiRequest {
     ProjectEntryAction(super::project_entries::Request),
     ProjectDirectories {
         directory: String,
+        #[serde(default)]
+        include_files: bool,
     },
     EditMessage(super::message_edit::EditRequest),
     DeleteMessage(super::message_edit::DeleteRequest),

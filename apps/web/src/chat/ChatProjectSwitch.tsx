@@ -1,5 +1,6 @@
 import { displayError } from '../i18n/index';
 import { Check, ChevronDown, Folder, Plus } from 'lucide-react';
+import { Grid } from 'antd';
 import { t, useLanguage } from '../i18n';
 import { AdaptiveSheet } from '../components/AdaptiveSheet';
 import { useProjectSwitch, type ProjectSwitchProps } from '../../../../shared/remote-chat/client/useProjectSwitch';
@@ -10,6 +11,7 @@ import { ProjectBrowserButton } from './projectBrowser/ProjectBrowserButton';
 export function ChatProjectSwitch(props: ProjectSwitchProps) {
   useLanguage();
   const picker = useProjectSwitch(props);
+  const screens = Grid.useBreakpoint();
   return <div className="chat-project-switch">
     <button type="button" className="chat-project-trigger" aria-label={t("client.chat.chooseProject")}
       aria-haspopup="dialog" aria-expanded={!!picker.screen} disabled={picker.disabled} onClick={picker.open}>
@@ -19,7 +21,7 @@ export function ChatProjectSwitch(props: ProjectSwitchProps) {
     <ProjectBrowserButton client={props.controller.guiTools.projectBrowser} cwd={picker.cwd}
       active={props.active} connected={props.state.ready && !props.state.workspaceBusy}
       className="chat-project-trigger chat-project-files-trigger" />
-    {picker.screen === 'projects' && !picker.disabled && <AdaptiveSheet open title={t("client.chat.chooseProject")}
+    {picker.screen === 'projects' && !picker.disabled && !screens.md && <AdaptiveSheet open title={t("client.chat.chooseProject")}
       width={400} onClose={picker.close}>
       <div className="chat-project-choices">
         {picker.loading && <p role="status" className="chat-muted">{t("client.projectBrowser.loading")}</p>}
@@ -39,7 +41,10 @@ export function ChatProjectSwitch(props: ProjectSwitchProps) {
           <Plus size={18} aria-hidden="true" />{t("client.conversation.newProject")}</button>
       </div>
     </AdaptiveSheet>}
-    {picker.screen === 'create' && !picker.disabled && <ChatProjectPicker cwd={picker.cwd}
-      title={t("client.conversation.newProject")} load={props.controller.loadProjectDirectories} close={picker.close} choose={picker.choose} />}
+    {(picker.screen === 'create' || (screens.md && picker.screen === 'projects')) && !picker.disabled
+      && <ChatProjectPicker cwd={picker.cwd} projects={picker.projects}
+        title={screens.md ? undefined : t('client.conversation.newProject')}
+        mutate={props.controller.guiTools.projectBrowser.mutate}
+        load={props.controller.loadProjectDirectories} close={picker.close} choose={picker.choose} />}
   </div>;
 }

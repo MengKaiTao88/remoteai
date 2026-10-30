@@ -1,6 +1,10 @@
 import type { ChatProject } from './client/types';
 
-export interface ProjectDirectory { name: string; path: string }
+export interface ProjectDirectory {
+  name: string; path: string;
+  /** Older hosts only return folders. */
+  directory?: boolean; modified?: number | null; size?: number | null;
+}
 export interface ProjectDirectoriesResponse {
   directory: string;
   parent: string | null;
@@ -10,7 +14,9 @@ export interface ProjectDirectoriesResponse {
 export interface ProjectPickerProps {
   title?: string;
   cwd?: string;
-  load: (directory: string) => Promise<ProjectDirectoriesResponse>;
+  load: (directory: string, includeFiles?: boolean) => Promise<ProjectDirectoriesResponse>;
+  mutate?: import('../project-browser/protocol').ProjectBrowserClient['mutate'];
+  projects?: { cwd: string; label: string }[];
   choose: (project: ChatProject) => void;
   close: () => void;
 }

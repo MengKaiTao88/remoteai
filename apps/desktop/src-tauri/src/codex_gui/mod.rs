@@ -253,8 +253,12 @@ async fn execute_request(state: &GuiState, request: GuiRequest) -> Result<GuiRes
     if let GuiRequest::ProjectFiles(options) = request {
         return project_files::list(&client, options).await;
     }
-    if let GuiRequest::ProjectDirectories { directory } = request {
-        return project_directories::list(directory).await;
+    if let GuiRequest::ProjectDirectories {
+        directory,
+        include_files,
+    } = request
+    {
+        return project_directories::list(directory, include_files).await;
     }
     if let GuiRequest::EditMessage(edit) = request {
         return message_edit::submit(&client, edit).await;

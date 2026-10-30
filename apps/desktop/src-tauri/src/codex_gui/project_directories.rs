@@ -1,4 +1,4 @@
-//! Directory-only browsing for choosing a new chat's workspace on the connected computer.
+//! Bounded workspace browsing; file details are opt-in for the desktop project picker.
 use super::{
     error::{GuiError, Result},
     platform::{directory_roots, execution_path},
@@ -15,6 +15,9 @@ const MAX_PATH_BYTES: usize = 4096;
 struct Entry {
     name: String,
     path: String,
+    directory: bool,
+    modified: Option<u64>,
+    size: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -25,20 +28,24 @@ struct DirectoryListing {
     truncated: bool,
 }
 
-pub(super) async fn list(directory: String) -> Result<GuiResponse> {
-    let listing = tauri::async_runtime::spawn_blocking(move || browse(&directory))
-        .await
-        .map_err(|_| GuiError::ProjectDirectories)??;
+pub(super) async fn list(directory: String, include_files: bool) -> Result<GuiResponse> {
+    let listing =
+        tauri::async_runtime::spawn_blocking(move || browse_entries(&directory, include_files))
+            .await
+            .map_err(|_| GuiError::ProjectDirectories)??;
     let data = serde_json::to_value(listing).map_err(|_| GuiError::ProjectDirectories)?;
     Ok(GuiResponse { data })
 }
 
-fn browse(directory: &str) -> Result<DirectoryListing> {
+fn browse_entries(directory: &str, include_files: bool) -> Result<DirectoryListing> {
     if directory.is_empty() {
         return Ok(DirectoryListing {
             directory: String::new(),
             parent: None,
-            entries: directory_roots().iter().map(|path| entry(path)).collect(),
+            entries: directory_roots()
+                .iter()
+                .map(|path| entry(path, true))
+                .collect(),
             truncated: false,
         });
     }
@@ -47,7 +54,7 @@ fn browse(directory: &str) -> Result<DirectoryListing> {
     }
     let directory =
         super::protocol::directory(directory).map_err(|_| GuiError::ProjectDirectories)?;
-    let (entries, truncated) = children(&directory)?;
+    let (entries, truncated) = children(&directory, include_files)?;
     Ok(DirectoryListing {
         directory: execution_path(&directory),
         parent: Some(directory.parent().map(execution_path).unwrap_or_default()),
@@ -56,7 +63,7 @@ fn browse(directory: &str) -> Result<DirectoryListing> {
     })
 }
 
-fn children(directory: &Path) -> Result<(Vec<Entry>, bool)> {
+fn children(directory: &Path, include_files: bool) -> Result<(Vec<Entry>, bool)> {
     let mut entries = Vec::new();
     let mut truncated = false;
     for (index, child) in fs::read_dir(directory)
@@ -72,22 +79,34 @@ fn children(directory: &Path) -> Result<(Vec<Entry>, bool)> {
         let Ok(kind) = child.file_type() else {
             continue;
         };
-        if kind.is_dir() && !kind.is_symlink() {
-            entries.push(entry(&child.path()));
+        if !kind.is_symlink() && (kind.is_dir() || (include_files && kind.is_file())) {
+            entries.push(entry(&child.path(), kind.is_dir()));
         }
     }
-    entries.sort_by_key(|entry| entry.name.to_lowercase());
+    entries.sort_by_key(|entry| (!entry.directory, entry.name.to_lowercase()));
     Ok((entries, truncated))
 }
 
-fn entry(path: &Path) -> Entry {
+fn entry(path: &Path, directory: bool) -> Entry {
     let path_string = execution_path(path);
+    let metadata = path.metadata().ok();
     Entry {
         name: path.file_name().map_or_else(
             || path_string.clone(),
             |name| name.to_string_lossy().into_owned(),
         ),
         path: path_string,
+        directory,
+        modified: metadata
+            .as_ref()
+            .and_then(|value| value.modified().ok())
+            .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|value| value.as_secs()),
+        size: if directory {
+            None
+        } else {
+            metadata.map(|value| value.len())
+        },
     }
 }
 

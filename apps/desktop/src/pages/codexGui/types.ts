@@ -213,7 +213,7 @@ export type Request =
   | import("../../../../../shared/remote-chat/fileDownload").FileRequest
   | { operation: "textPreview"; threadId: string; path: string; maxBytes?: number }
   | ({ operation: "projectFiles" } & import('../../../../../shared/remote-chat/projectFiles').ProjectFilesRequest)
-  | { operation: "projectDirectories"; directory: string }
+  | { operation: "projectDirectories"; directory: string; includeFiles?: boolean }
     | ({ operation: 'downloadOpen'; maxBytes?: number }
       & import('../../../../../shared/remote-chat/downloads').DownloadOpen)
     | ({ operation: 'previewOpen' } & import('../../../../../shared/remote-chat/downloads').PreviewOpen)

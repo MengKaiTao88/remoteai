@@ -797,9 +797,9 @@ export class ChatController {
   loadProjectFiles = (options: ProjectFilesRequest) =>
     this.connection.request<ProjectFilesResponse>('request', { operation: 'projectFiles', ...options });
 
-  loadProjectDirectories = (directory: string) =>
+  loadProjectDirectories = (directory: string, includeFiles = false) =>
     this.connection.request<import('../projectDirectories').ProjectDirectoriesResponse>('request', {
-      operation: 'projectDirectories', directory,
+      operation: 'projectDirectories', directory, includeFiles,
     });
 
   chooseDraftProject = (project: ChatProject) => {

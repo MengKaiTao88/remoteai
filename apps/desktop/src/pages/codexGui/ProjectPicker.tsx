@@ -1,4 +1,6 @@
-import { uiText } from "../../i18n/uiText";
+import { uiText, guiLocale } from "../../i18n/uiText";
+import { ProjectExplorer } from '../../../../../shared/project-explorer/ProjectExplorer';
+import { loadProjectExplorer, mutateProjectExplorer } from './projectExplorerClient';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { isDesktopApp } from '../../api/backend';
 import { CreateProjectDialog } from './CreateProjectDialog';
@@ -23,11 +25,14 @@ export function ProjectPicker({ value, projects, disabled, onChange, onError,
   gitEnabled, onBusyChange, hostPicker, actions, running = false, active = true,
   dropTarget, dropState }: ProjectPickerProps) {
   const [creating, setCreating] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [saved, setSaved] = useState(readProjects);
   const trigger = useRef<HTMLButtonElement>(null);
   const bar = useRef<HTMLDivElement>(null);
-  const close = () => { setCreating(false); trigger.current?.focus(); };
-  useEffect(() => { if (disabled || !active) setCreating(false); }, [disabled, active]);
+  const close = () => { setCreating(false); setBrowsing(false); trigger.current?.focus(); };
+  useEffect(() => {
+    if (disabled || !active || running) { setCreating(false); setBrowsing(false); }
+  }, [disabled, active, running]);
   const create = (project: SavedProject) => {
     if (disabled) return;
     try {
@@ -36,7 +41,7 @@ export function ProjectPicker({ value, projects, disabled, onChange, onError,
   };
   const folderDrop = useProjectFolderDrop({ target: dropTarget ?? bar,
     allowFileAttachments: true,
-    enabled: !dropState && active && Boolean(gitEnabled) && !disabled && !creating,
+    enabled: !dropState && active && Boolean(gitEnabled) && !disabled && !creating && !browsing,
     onFolder: path => create({ path, name: projectName(path) }), onError });
   const drop = dropState ?? folderDrop;
   const trailing = <>
@@ -53,6 +58,7 @@ export function ProjectPicker({ value, projects, disabled, onChange, onError,
       <ProjectFolderPicker value={value} disabled={disabled || running} triggerRef={trigger}
         projects={[...saved, ...projects.map(path => ({ path, name: folderName(path) }))]}
         onChange={onChange} onClear={() => onChange('')} onOpen={() => setSaved(readProjects())}
+        onBrowse={() => setBrowsing(true)}
         onAdd={() => setCreating(true)} addLabel={uiText("client.conversation.newProject")} />
       {(gitEnabled === false || running) && <ConversationWorkspaceStatus key={value} cwd={value}
         enabled={active} />}
@@ -63,5 +69,10 @@ export function ProjectPicker({ value, projects, disabled, onChange, onError,
     </ProjectBar>
     {creating && <CreateProjectDialog disabled={disabled} onCreate={create} onError={onError}
       onClose={close} />}
+    {browsing && <ProjectExplorer cwd={value} load={loadProjectExplorer} mutate={mutateProjectExplorer}
+      projects={[...saved.map(project => ({ cwd: project.path, label: project.name })),
+        ...projects.map(path => ({ cwd: path, label: folderName(path) }))]}
+      close={close} choose={project => create({ path: project.cwd, name: project.label })}
+      t={uiText} locale={guiLocale()} />}
   </>;
 }

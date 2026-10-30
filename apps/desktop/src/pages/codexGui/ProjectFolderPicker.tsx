@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Input, Popover, type InputRef } from 'antd';
+import { Grid, Input, Popover, type InputRef } from 'antd';
 import { Folder, Plus, Search, X } from 'lucide-react';
 import { uiText } from "../../i18n/uiText";
 import { folderName, type SavedProject } from './projectCatalog';
@@ -10,10 +10,13 @@ interface Props {
   onChange: (cwd: string) => void; onAdd: () => void; addLabel: string;
   onOpen?: () => void; onClear?: () => void; loading?: boolean; error?: string;
   ariaLabel?: string; triggerRef?: RefObject<HTMLButtonElement>;
+  onBrowse?: () => void;
 }
 
 export function ProjectFolderPicker(props: Props) {
   const { value, projects, disabled, onChange } = props;
+  const screens = Grid.useBreakpoint();
+  const explorer = !!screens.md && !!props.onBrowse;
   const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState('');
   const fallbackTrigger = useRef<HTMLButtonElement>(null);
@@ -62,12 +65,15 @@ export function ProjectFolderPicker(props: Props) {
       <Folder className={styles.folder} size={16} aria-hidden="true" />
       <X className={styles.cross} size={16} aria-hidden="true" />
     </button>}
-    <Popover trigger="click" placement="topLeft" arrow={false} open={expanded && !disabled} content={panel}
-      onOpenChange={open => { setExpanded(open); if (open) { setQuery(''); props.onOpen?.(); } }}
+    <Popover trigger="click" placement="topLeft" arrow={false} open={expanded && !disabled && !explorer} content={panel}
+      onOpenChange={open => {
+        if (explorer) { if (open) { props.onOpen?.(); props.onBrowse?.(); } return; }
+        setExpanded(open); if (open) { setQuery(''); props.onOpen?.(); }
+      }}
       afterOpenChange={open => { if (open) search.current?.focus(); }}
       styles={{ root: { maxWidth: 400 }, body: { padding: 0, borderRadius: 20, overflow: 'hidden' } }}>
       <button ref={trigger} type="button" className={styles.name} disabled={disabled}
-        aria-haspopup="menu" aria-expanded={expanded && !disabled} title={value || undefined}
+        aria-haspopup={explorer ? 'dialog' : 'menu'} aria-expanded={expanded && !disabled} title={value || undefined}
         aria-label={props.ariaLabel ?? (value
           ? uiText("client.conversation.chooseProjectFolder", { value1: label(value) }) : uiText("client.conversation.chooseProjectFolder.f91460"))}>
         {(!value || !props.onClear) && <Folder size={16} aria-hidden="true" />}

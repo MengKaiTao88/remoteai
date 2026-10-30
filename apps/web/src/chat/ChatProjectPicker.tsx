@@ -1,5 +1,7 @@
 import { displayError } from '../i18n/index';
-import { t, useLanguage } from '../i18n';
+import { t, useLanguage, getLocale } from '../i18n';
+import { Grid } from 'antd';
+import { ProjectExplorer } from '../../../../shared/project-explorer/ProjectExplorer';
 import { Folder, ChevronRight } from 'lucide-react';
 import { AdaptiveSheet } from '../components/AdaptiveSheet';
 import { directoryProject, type ProjectPickerProps } from '../../../../shared/remote-chat/projectDirectories';
@@ -7,6 +9,11 @@ import { useProjectDirectories } from '../../../../shared/remote-chat/client/use
 
 export function ChatProjectPicker(props: ProjectPickerProps) {
   useLanguage();
+  const screens = Grid.useBreakpoint();
+  return screens.md ? <ProjectExplorer {...props} t={t} locale={getLocale()} /> : <MobileProjectPicker {...props} />;
+}
+
+function MobileProjectPicker(props: ProjectPickerProps) {
   const { result, loading, error, browse, retry } = useProjectDirectories(props);
   return <AdaptiveSheet open title={props.title ?? t("client.chat.chooseProject")} width={400} onClose={props.close}>
     <div className="chat-settings chat-project-picker">

@@ -1,5 +1,27 @@
 use super::*;
 
+fn browse(directory: &str) -> Result<DirectoryListing> {
+    browse_entries(directory, false)
+}
+
+#[test]
+fn desktop_listing_includes_file_metadata_without_changing_folder_only_clients() {
+    let root = std::env::temp_dir().join(format!("csw-picker-details-{}", uuid::Uuid::new_v4()));
+    fs::create_dir(&root).unwrap();
+    fs::create_dir(root.join("folder")).unwrap();
+    fs::write(root.join("readme.txt"), "hello").unwrap();
+    let listing = browse_entries(&execution_path(&root), true).unwrap();
+    assert_eq!(listing.entries.len(), 2);
+    assert!(listing.entries[0].directory);
+    assert_eq!(listing.entries[0].size, None);
+    assert!(!listing.entries[1].directory);
+    assert_eq!(listing.entries[1].size, Some(5));
+    assert!(listing.entries[1].modified.is_some());
+    assert_eq!(browse(&execution_path(&root)).unwrap().entries.len(), 1);
+    assert!(root.starts_with(std::env::temp_dir()));
+    fs::remove_dir_all(root).unwrap();
+}
+
 #[test]
 fn lists_only_folders_and_can_navigate_to_the_parent() {
     let root = std::env::temp_dir().join(format!("csw-project-picker-{}", uuid::Uuid::new_v4()));
