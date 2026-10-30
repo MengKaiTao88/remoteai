@@ -10,8 +10,13 @@ let events: ConnectionEvents;
 const request = vi.fn<ChatConnection['request']>();
 
 beforeEach(async () => {
-  request.mockReset().mockImplementation(async (method, body) => method === 'connect' ? []
-    : { data: (body as { operation?: string })?.operation === 'list' ? [thread] : [], nextCursor: null });
+  request.mockReset().mockImplementation(async (method, body) => {
+    if (method === 'connect') return [];
+    const operation = (body as { operation?: string })?.operation;
+    if (operation === 'models') return { data: [{ id: 'model', model: 'model', displayName: 'Model',
+      isDefault: true, defaultReasoningEffort: 'high', supportedReasoningEfforts: [] }], nextCursor: null };
+    return { data: operation === 'list' ? [thread] : [], nextCursor: null };
+  });
   controller = new ChatController(callbacks => {
     events = callbacks;
     return { start() { events.mode('relay'); events.ready(); }, stop() {},

@@ -56,7 +56,9 @@ it('requests directory browsing without changing the draft or sidebar', async ()
   try {
     const snapshot = controller.snapshot();
     await controller.loadProjectDirectories('F:/projects');
-    expect(request).toHaveBeenLastCalledWith('request', { operation: 'projectDirectories', directory: 'F:/projects' });
+    expect(request).toHaveBeenLastCalledWith('request', {
+      operation: 'projectDirectories', directory: 'F:/projects', includeFiles: false,
+    });
     expect(controller.snapshot()).toBe(snapshot);
   } finally { controller.stop(); }
 });

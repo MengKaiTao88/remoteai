@@ -24,8 +24,15 @@ function nodes(tree: ReactNode): ReactElement<Props>[] {
   return Children.toArray(tree).flatMap(child => isValidElement<Props>(child)
     ? [child, ...nodes(child.props.children)] : []);
 }
-const render = (connected = false) => ChatTerminal({ client: {} as GuiToolsClient['terminal'],
-  cwd: '/project', active: true, connected });
+function render(connected = false) {
+  let tree: ReactElement<Props> = ChatTerminal({ client: {} as GuiToolsClient['terminal'],
+    cwd: '/project', active: true, connected });
+  // Follow the standalone launcher and shared panel boundary before inspecting native controls.
+  while (typeof tree.type === 'function') {
+    tree = (tree.type as (props: Props) => ReactElement<Props>)(tree.props);
+  }
+  return tree;
+}
 beforeEach(() => {
   vi.stubGlobal('React', React);
   Object.assign(panel, { open: false, busy: false, error: '' });
