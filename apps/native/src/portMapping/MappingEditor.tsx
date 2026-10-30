@@ -6,8 +6,10 @@ import { useDeviceMapping, useMappingRuntime,
 import { MAX_PORT_MAPPINGS } from '../../../../shared/port-mapping/settings';
 import { BottomSheet } from '../components/BottomSheet';
 import { SheetScrollView } from '../components/SheetScrollView';
-import { MappingForm } from '../chat/portMapping/MappingForm';
+import { MappingEditorForm } from './MappingEditorForm';
 import { useMappingStyles } from '../chat/portMapping/mappingStyles';
+import { useMappingEditorStyles } from './mappingEditorStyles';
+import { useThemeColor } from '../theme/store';
 import { t } from '../i18n';
 import type { RemoteDevice } from '../types';
 
@@ -26,17 +28,23 @@ function EditorForm({ devices, mapping, done, deviceId, setDeviceId, runtime }: 
   setDeviceId: (deviceId: string) => void; runtime: NonNullable<ReturnType<typeof useDeviceMapping>>;
 }) {
   const styles = useMappingStyles();
+  const editorStyles = useMappingEditorStyles();
+  const color = useThemeColor();
   const { entries, service } = useMappingRuntime(runtime);
   const [choosing, setChoosing] = useState(false);
   return <>
-    <MappingForm service={service} entry={mapping?.entry} done={done}
+    <MappingEditorForm service={service} entry={mapping?.entry} done={done}
       disabled={!mapping && entries.length >= MAX_PORT_MAPPINGS}
-      devicePicker={<View>
-        <Text style={styles.muted}>{t('client.mappingHub.device')}</Text>
+      devicePicker={<View style={editorStyles.section}>
+        <Text style={editorStyles.label}>{t('client.mappingEditor.chooseDevice')}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={t('client.mappingHub.device')}
-          disabled={!!mapping} style={[styles.input, styles.row]} onPress={() => setChoosing(true)}>
-          <Text style={[styles.title, styles.fill]}>{devices.find(device => device.deviceId === deviceId)?.name}</Text>
-          {!mapping && <Ionicons name="chevron-down" size={18} color="#62768a" />}
+          disabled={!!mapping} accessibilityState={{ disabled: !!mapping }}
+          style={editorStyles.device} onPress={() => setChoosing(true)}>
+          <View style={editorStyles.deviceIcon}>
+            <Ionicons name="desktop-outline" size={23} color={color('#009681', 'accent')} />
+          </View>
+          <Text style={editorStyles.deviceName}>{devices.find(device => device.deviceId === deviceId)?.name}</Text>
+          {!mapping && <Ionicons name="chevron-down" size={18} color={color('#23364d', 'ink')} />}
         </Pressable>
       </View>} />
     <BottomSheet visible={choosing} title={t('client.mappingHub.device')} onClose={() => setChoosing(false)}>

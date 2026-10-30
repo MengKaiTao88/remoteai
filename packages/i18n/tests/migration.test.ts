@@ -25,6 +25,7 @@ import filePreview from '../src/catalogs/client/zh/filePreview.json';
 import projectActions from '../src/catalogs/client/zh/projectActions.json';
 import projectExplorer from '../src/catalogs/client/zh/projectExplorer.json';
 import mappingHub from '../src/catalogs/client/zh/mappingHub.json';
+import mappingEditor from '../src/catalogs/client/zh/mappingEditor.json';
 import jsonPreview from '../src/catalogs/client/zh/jsonPreview.json';
 import modelSelection from '../src/catalogs/client/zh/modelSelection.json';
 import npmScripts from '../src/catalogs/client/zh/npmScripts.json';
@@ -67,6 +68,7 @@ const additions = new Set(['client.chat.usePlugin',
   ...Object.keys(projectActions),
   ...Object.keys(projectExplorer),
   ...Object.keys(mappingHub),
+  ...Object.keys(mappingEditor),
   ...Object.keys(jsonPreview),
   ...Object.keys(modelSelection),
   ...Object.keys(npmScripts),

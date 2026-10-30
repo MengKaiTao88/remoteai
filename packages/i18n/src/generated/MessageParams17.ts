@@ -63,6 +63,19 @@ export interface MessageParams17 {
   "client.lounge.userUnavailable": Record<string, never>;
   "client.lounge.viewOriginal": Record<string, never>;
   "client.lounge.viewProfile": { "account": string | number };
+  "client.mappingEditor.alias": Record<string, never>;
+  "client.mappingEditor.aliasHint": Record<string, never>;
+  "client.mappingEditor.aliasSaveFailed": Record<string, never>;
+  "client.mappingEditor.aliasTooLong": Record<string, never>;
+  "client.mappingEditor.chooseDevice": Record<string, never>;
+  "client.mappingEditor.description": Record<string, never>;
+  "client.mappingEditor.editAlias": Record<string, never>;
+  "client.mappingEditor.explanation": Record<string, never>;
+  "client.mappingEditor.fieldHelp": { "field": string | number };
+  "client.mappingEditor.protocolType": Record<string, never>;
+  "client.mappingEditor.remotePortHelp": Record<string, never>;
+  "client.mappingEditor.sameAsRemote": Record<string, never>;
+  "client.mappingEditor.save": Record<string, never>;
   "client.mappingHub.device": Record<string, never>;
   "client.mappingHub.noDevices": Record<string, never>;
   "client.mappingHub.portConflict": Record<string, never>;
@@ -187,17 +200,4 @@ export interface MessageParams17 {
   "client.mobile.closeToolsMenu": Record<string, never>;
   "client.mobile.closeVideo": Record<string, never>;
   "client.mobile.cloudServerUrl": Record<string, never>;
-  "client.mobile.codeCopied": Record<string, never>;
-  "client.mobile.codeDigits": Record<string, never>;
-  "client.mobile.codeReviewComments": Record<string, never>;
-  "client.mobile.codexCouldNotFinishReplying": Record<string, never>;
-  "client.mobile.codexCredentialsExpiredRefreshAndSyncThisAccountOnYour": Record<string, never>;
-  "client.mobile.codexDidNotReturnAResetStatus": Record<string, never>;
-  "client.mobile.codexFinishedReplying": Record<string, never>;
-  "client.mobile.codexHasNotConfirmedQuotaConsumptionTryAgainLater": Record<string, never>;
-  "client.mobile.codexNeedsYourApproval": Record<string, never>;
-  "client.mobile.codexRequestFailedHttp": { "value1": string | number };
-  "client.mobile.codexRequestTimedOutTryAgainLater": Record<string, never>;
-  "client.mobile.codexReturnedInvalidResetCreditData": Record<string, never>;
-  "client.mobile.computerFiles": Record<string, never>;
 }

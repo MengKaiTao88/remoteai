@@ -1,4 +1,5 @@
 import { Pressable, Text, View } from 'react-native';
+import { useState, useSyncExternalStore } from 'react';
 import type { DeviceMappingEntry } from '../../../../shared/port-mapping/deviceRegistry';
 import { useMappingRowActions } from '../chat/portMapping/useMappingRowActions';
 import { displayError, t, useLanguage } from '../i18n';
@@ -6,6 +7,7 @@ import { useMappingCardStyles } from './mappingCardStyles';
 import { MappingCardDetails } from './MappingCardDetails';
 import { MappingCardHeading } from './MappingCardHeading';
 import { MappingCardAddress } from './MappingCardAddress';
+import { MappingAliasEditor } from './MappingAliasEditor';
 
 export function PortMappingCard({ mapping, deviceName, blue, edit, open }: {
   mapping: DeviceMappingEntry; deviceName?: string; blue: boolean; edit: () => void; open: () => void;
@@ -13,10 +15,14 @@ export function PortMappingCard({ mapping, deviceName, blue, edit, open }: {
   useLanguage();
   const styles = useMappingCardStyles();
   const { entry, runtime } = mapping;
+  const [renaming, setRenaming] = useState(false);
+  const alias = useSyncExternalStore(runtime.aliases.subscribe, () => runtime.aliases.get(entry.id));
   const actions = useMappingRowActions(entry);
   const { enabled, busy, menu, setMenu, notice } = actions;
   return <View style={styles.card}>
-    <MappingCardHeading mapping={mapping} deviceName={deviceName} blue={blue} edit={edit} actions={actions} />
+    <MappingCardHeading mapping={mapping} deviceName={deviceName} alias={alias} blue={blue}
+      rename={() => setRenaming(true)} actions={actions} />
+    {renaming && <MappingAliasEditor mapping={mapping} deviceName={deviceName} close={() => setRenaming(false)} />}
     {menu && <View style={styles.menu}>
       <Pressable accessibilityRole="button" disabled={busy} style={styles.menuAction}
         onPress={() => { setMenu(false); edit(); }}>

@@ -13,6 +13,7 @@ import { DiscoveryPage } from '../src/discovery/DiscoveryPage';
 import { PortMappingPage } from '../src/portMapping/PortMappingPage';
 import { setInterfaceLanguage } from '../../../shared/localization/interfaceLanguage';
 import { textMetrics } from '../src/theme/text';
+import { updateThemeMode, useThemeColor } from '../src/theme/store';
 import type { RemoteDevice } from '../src/types';
 
 setInterfaceLanguage('zh');
@@ -27,25 +28,28 @@ const fixture = mappingFixture({
 });
 
 function PortMappingFixture() {
+  const color = useThemeColor();
   const [fonts] = useFonts(Ionicons.font);
   const [page, setPage] = useState('discover');
   useEffect(() => {
     const listener = BackHandler.addEventListener('hardwareBackPress', () => { setPage('discover'); return true; });
     return () => listener.remove();
   }, []);
-  return <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+  return <SafeAreaProvider><SafeAreaView style={{ flex: 1, backgroundColor: color('#f8fafc', 'canvas') }}>
     <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
     <DeviceMappingProvider registry={fixture.registry} deviceIds={devices.map(device => device.deviceId)}>
       {fonts && (page === 'port-mappings'
         ? <PortMappingPage devices={devices} onBack={() => setPage('discover')} />
         : <DiscoveryPage onOpen={setPage} />)}
-      <View style={{ flexDirection: 'row', gap: 20, padding: 8 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 8 }}>
         <Pressable onPress={() => fixture.controls.forEach(control => control.ready(false))}>
           <Text style={textMetrics(14, 22)}>Disconnect fixture</Text></Pressable>
         <Pressable onPress={() => fixture.controls.forEach(control => control.ready(true))}>
           <Text style={textMetrics(14, 22)}>Reconnect fixture</Text></Pressable>
         <Pressable onPress={() => setInterfaceLanguage('en')}>
           <Text style={textMetrics(14, 22)}>English</Text></Pressable>
+        {page === 'discover' && <Pressable onPress={() => updateThemeMode('dark')}>
+          <Text style={textMetrics(14, 22)}>Dark</Text></Pressable>}
       </View>
     </DeviceMappingProvider>
   </SafeAreaView></SafeAreaProvider>;

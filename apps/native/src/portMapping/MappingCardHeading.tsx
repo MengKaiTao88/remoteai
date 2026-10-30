@@ -6,14 +6,14 @@ import { t } from '../i18n';
 import { useThemeColor } from '../theme/store';
 import { useMappingCardStyles } from './mappingCardStyles';
 
-export function MappingCardHeading({ mapping, deviceName, blue, edit, actions }: {
-  mapping: DeviceMappingEntry; deviceName?: string; blue: boolean; edit: () => void;
+export function MappingCardHeading({ mapping, deviceName, alias, blue, rename, actions }: {
+  mapping: DeviceMappingEntry; deviceName?: string; alias: string; blue: boolean; rename: () => void;
   actions: ReturnType<typeof useMappingRowActions>;
 }) {
   const styles = useMappingCardStyles();
   const color = useThemeColor();
   const { entry, runtime } = mapping;
-  const { running, enabled, busy, menu, setMenu } = actions;
+  const { running, enabled, menu, setMenu } = actions;
   return <View style={styles.heading}>
       <View style={[styles.deviceIcon, blue && styles.deviceIconBlue]}>
         <Ionicons name={blue ? 'laptop-outline' : 'desktop-outline'} size={26}
@@ -21,12 +21,13 @@ export function MappingCardHeading({ mapping, deviceName, blue, edit, actions }:
       </View>
       <View style={styles.fill}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>{deviceName ?? t('client.mappingHub.device')}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={t('client.portMappingEditing.editMapping')}
-            disabled={busy} onPress={edit} style={[styles.iconButton, busy && styles.disabled]}>
+          <Text style={styles.title}>{alias || deviceName || t('client.mappingHub.device')}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('client.mappingEditor.editAlias')}
+            onPress={rename} style={styles.iconButton}>
             <Ionicons name="pencil-outline" size={18} color={color('#62768a', 'muted')} />
           </Pressable>
         </View>
+        {!!alias && !!deviceName && <Text style={styles.label}>{deviceName}</Text>}
         <View style={[styles.status, running && styles.statusActive]}>
           <View style={[styles.dot, running && styles.dotActive]} />
           <Text style={[styles.statusText, running && styles.accentText]} accessibilityLiveRegion="polite">

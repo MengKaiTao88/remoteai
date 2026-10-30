@@ -34,9 +34,17 @@ async function tap(label, options = {}) {
         await delay(250); return;
       }
     }
-    await adb('shell', 'input', 'swipe', '540', '1850', '540', '900', '350');
+    await scroll(current);
   }
   throw new Error(`Could not find ${label}`);
+}
+async function scroll(current) {
+  const view = (current ?? await nodes()).find(node => node.scrollable === 'true');
+  assert.ok(view, 'Expected scrollable content');
+  const [left, top, right, bottom] = view.bounds.match(/\d+/g).map(Number);
+  const x = String(Math.round((left + right) / 2));
+  await adb('shell', 'input', 'swipe', x, String(Math.round(top + (bottom - top) * 0.75)),
+    x, String(Math.round(top + (bottom - top) * 0.6)), '650');
 }
 async function screenshot(name) {
   await nodes();
@@ -54,7 +62,13 @@ async function add(name, port) {
   await tap('本地端口', { class: 'android.widget.EditText' });
   await adb('shell', 'input', 'text', String(port));
   await adb('shell', 'input', 'keyevent', '4');
-  await tap('添加并启动');
+  await tap('保存');
+  const start = (await nodes()).find(node => node['content-desc'] === '启动映射');
+  assert.equal(start?.checked, 'false');
+  await screenshot(`saved-${port}`);
+  await adb('forward', `tcp:${port}`, `tcp:${port}`);
+  await assert.rejects(fetch(`http://127.0.0.1:${port}`, { signal: AbortSignal.timeout(1_000) }));
+  await tap('启动映射', { class: 'android.widget.Switch' });
   await delay(500);
 }
 async function reachable(port, device) {
@@ -75,13 +89,37 @@ try {
   await delay(2_000);
   await screenshot('discovery-1.0');
   await tap('端口映射', { includes: true });
+  await tap('添加映射');
+  await tap('电脑', { class: 'android.widget.Button' });
+  await screenshot('device-picker');
+  await tap('家用电脑', { class: 'android.widget.Button' });
+  await screenshot('form-1.0');
+  await tap('UDP', { class: 'android.widget.RadioButton' });
+  await screenshot('form-udp');
+  await tap('全部（TCP + UDP）', { class: 'android.widget.RadioButton' });
+  await tap('目标 IP说明');
+  assert.ok((await nodes()).some(node => node.text === '留空时，访问远程电脑本机。'));
+  await screenshot('form-help');
+  await tap('目标 IP说明');
+  await tap('保存');
+  assert.ok((await nodes()).some(node => node.text?.includes('端口') && node.text?.includes('65535')));
+  await screenshot('form-validation');
+  await tap('取消');
   await add('办公电脑', 18081);
   await reachable(18081, 'one');
   console.log('First device listener receives bytes');
   await add('家用电脑', 18082);
   await reachable(18082, 'two');
   await screenshot('mappings-1.0');
-  await tap('编辑映射', { class: 'android.widget.Button' });
+  await tap('修改别名', { class: 'android.widget.Button' });
+  await tap('别名', { class: 'android.widget.EditText' });
+  await adb('shell', 'input', 'text', 'Home-dev');
+  await screenshot('alias-editor');
+  await tap('保存');
+  assert.ok((await nodes()).some(node => node.text === 'Home-dev'));
+  await screenshot('mapping-alias');
+  await tap('更多操作');
+  await tap('编辑映射');
   assert.ok((await nodes()).some(node => node.text === '保存修改'));
   await tap('取消');
   await tap('更多操作');
@@ -111,14 +149,36 @@ try {
   await screenshot('discovery-1.3');
   await tap('端口映射', { includes: true });
   await screenshot('mappings-1.3');
+  assert.ok((await nodes()).some(node => node.text === 'Home-dev'));
+  console.log('Saving leaves listeners stopped; the local alias survives restart');
+  await tap('修改别名');
+  await screenshot('alias-editor-1.3');
+  await tap('取消');
   await tap('添加映射');
   await tap('电脑', { class: 'android.widget.Button' });
   await tap('家用电脑', { class: 'android.widget.Button' });
   await screenshot('form-1.3');
+  await scroll();
+  await screenshot('form-1.3-actions');
   await tap('取消');
   await tap('停止映射', { class: 'android.widget.Switch' });
   await screenshot('stopped-1.3');
   await tap('返回发现');
+  await tap('Dark');
+  await tap('端口映射', { includes: true });
+  await tap('修改别名');
+  await screenshot('alias-editor-dark-1.3');
+  await tap('取消');
+  await tap('添加映射');
+  await screenshot('form-dark-1.3');
+  await tap('取消');
+  await tap('English');
+  await tap('Add mapping');
+  await screenshot('form-english-dark-1.3');
+  assert.ok((await nodes()).some(node => node.text === 'Choose computer'));
+  await scroll();
+  await screenshot('form-english-dark-1.3-actions');
+  await tap('Cancel');
   console.log('Default/enlarged Chinese text, mapping form and back navigation captured');
 } finally {
   await adb('shell', 'settings', 'put', 'system', 'font_scale', oldScale === 'null' ? '1.0' : oldScale);

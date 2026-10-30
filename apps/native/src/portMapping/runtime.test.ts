@@ -8,11 +8,44 @@ const flush = async () => { for (let index = 0; index < 40; index++) await Promi
 const cleanup: Array<() => void> = [];
 afterEach(() => { cleanup.splice(0).forEach(stop => stop()); vi.useRealTimers(); });
 
-function setup(saved = new Map<string, string>()) {
+it('only saves new mappings until their switch is enabled, including after restart', async () => {
+  const fixture = setup();
+  const runtime = await fixture.start('one');
+  const id = runtime.service.save({ remotePort: 8080, localPort: 18080 });
+  await flush();
+  expect(runtime.service.snapshot()[0]).toMatchObject({ enabled: false, status: 'stopped' });
+  expect(fixture.connections.get('one')!.start).not.toHaveBeenCalled();
+  fixture.connections.get('one')!.setReady(true); await flush();
+  expect(fixture.connections.get('one')!.files.openResource).not.toHaveBeenCalled();
+  const restored = setup(fixture.saved, fixture.documents); const restoredRuntime = await restored.start('one');
+  expect(restoredRuntime.service.snapshot()[0]).toMatchObject({ enabled: false, status: 'stopped' });
+  expect(restored.connections.get('one')!.start).not.toHaveBeenCalled();
+  await runtime.service.start(id); await flush();
+  expect(fixture.connections.get('one')!.start).toHaveBeenCalledOnce();
+  expect(runtime.service.snapshot()[0].status).toBe('running');
+});
+
+it('persists aliases separately without changing or uploading mapping configuration', async () => {
+  const fixture = setup(); const runtime = await fixture.start('one');
+  const id = runtime.service.save({ remotePort: 8080, localPort: 18080 }); await flush();
+  const document = fixture.documents.get('one');
+  const entries = runtime.service.snapshot();
+  runtime.aliases.set(id, '  Development server  '); await flush();
+  expect(runtime.aliases.get(id)).toBe('Development server');
+  expect(runtime.service.snapshot()).toBe(entries);
+  expect(fixture.documents.get('one')).toBe(document);
+  expect(JSON.stringify(document)).not.toContain('Development server');
+  const restored = await setup(fixture.saved, fixture.documents).start('one');
+  expect(restored.aliases.get(id)).toBe('Development server');
+  expect((await fixture.start('two')).aliases.get(id)).toBe('');
+  restored.aliases.set(id, '');
+  expect((await setup(fixture.saved, fixture.documents).start('one')).aliases.get(id)).toBe('');
+});
+
+function setup(saved = new Map<string, string>(), documents = new Map<string, MappingDocument>()) {
   const storage: MappingStorage = { getItem: key => saved.get(key) ?? null,
     setItem: (key, value) => { saved.set(key, value); } };
   const connections = new Map<string, ReturnType<typeof fakeConnection>>();
-  const documents = new Map<string, MappingDocument>();
   let nextId = 0;
   const registry = new DeviceMappingRegistry((deviceId, owner) => {
     const connection = fakeConnection(); connections.set(deviceId, connection);
@@ -45,10 +78,14 @@ function fakeConnection() {
 }
 
 it('connects only computers with enabled mappings and releases only the last mapping on that computer', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-30T00:00:00Z'));
   const fixture = setup();
   const first = await fixture.start('one'); const second = await fixture.start('two');
   expect(fixture.connections.get('one')!.start).not.toHaveBeenCalled();
-  first.service.add(80, 8080); first.service.add(81, 8081); second.service.add(80, 8082);
+  first.service.add(80, 8080); first.service.add(81, 8081);
+  vi.setSystemTime(new Date('2026-10-30T00:00:01Z'));
+  second.service.add(80, 8082);
   expect(fixture.connections.get('one')!.start).toHaveBeenCalledTimes(1);
   expect(fixture.connections.get('two')!.start).toHaveBeenCalledTimes(1);
   fixture.connections.forEach(connection => connection.setReady(true)); await flush();

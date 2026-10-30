@@ -2,6 +2,7 @@ import { PortForwardingService, type ForwardingClient } from './service';
 import { readPortMappings, savePortMappings, type MappingStorage, type PortMapping } from './settings';
 import { MappingSync, type MappingExchange } from './sync';
 import type { TunnelFactory } from './types';
+import { LocalMappingAliases } from './localAliases';
 
 export interface MappingConnection {
   files: ForwardingClient;
@@ -14,6 +15,7 @@ export interface MappingConnection {
 export class DeviceMappingRuntime {
   readonly service: PortForwardingService;
   readonly sync: MappingSync;
+  readonly aliases: LocalMappingAliases;
   private disconnect?: () => void;
   private stopSync?: () => void;
   private unsubscribe?: () => void;
@@ -25,6 +27,7 @@ export class DeviceMappingRuntime {
     exchange: MappingExchange; validateTarget: (target: Omit<PortMapping, 'id'>, id?: string) => void;
   }) {
     this.enabledKey = 'codex-port-mapping-enabled:' + options.scope;
+    this.aliases = new LocalMappingAliases(options.storage, options.scope);
     this.service = new PortForwardingService(connection.files,
       readPortMappings(options.scope, options.storage, options.createId), {
         ...options, enabledIds: this.readEnabled(),

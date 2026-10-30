@@ -67,13 +67,20 @@ export class PortForwardingService {
   };
 
   add = (remotePort: number, localPort: number, remoteHost = '', protocol?: MappingProtocol) => {
-    const target = this.validate({ remoteHost, remotePort, localPort,
-      ...(protocol === undefined ? {} : { protocol }) });
+    const id = this.save({ remoteHost, remotePort, localPort, ...(protocol === undefined ? {} : { protocol }) });
+    void this.start(id);
+    return id;
+  };
+
+  /** Save configuration without requesting a connection or starting a listener. */
+  save = (input: MappingTarget) => {
+    const target = this.validate(input);
     if (this.entries.length >= MAX_PORT_MAPPINGS) throw new Error('最多添加 8 条映射，请先删除一条。');
-    const entry: ForwardingEntry = { id: this.platform.createId(), ...target, updatedAt: Date.now(), status: 'stopped' };
+    const entry: ForwardingEntry = { id: this.platform.createId(), ...target, updatedAt: Date.now(), status: 'stopped',
+      ...(this.platform.enabledIds ? { enabled: false } : {}) };
     this.publish([...this.entries, entry]);
     this.changed(entry.id, entry);
-    void this.start(entry.id);
+    return entry.id;
   };
 
   edit = async (id: string, target: MappingTarget) => {
