@@ -377,6 +377,8 @@ pub(crate) struct ProviderInput {
     #[serde(default)]
     pub(crate) balance_script: Option<crate::models::ProviderBalanceScript>,
     #[serde(default)]
+    pub(crate) market_source: Option<crate::models::ProviderMarketSource>,
+    #[serde(default)]
     pub(crate) clear_balance_script: bool,
     #[serde(default)]
     pub(crate) balance_platform: Option<ProviderBalancePlatform>,

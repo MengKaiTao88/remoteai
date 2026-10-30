@@ -43,6 +43,7 @@ pub(crate) struct Draft {
     unit: String,
     pub(super) models: Vec<Model>,
     pub(super) balance_query: Option<crate::models::ProviderBalanceScript>,
+    pub(super) page_link: Option<crate::models::MarketPageLink>,
 }
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -90,7 +91,7 @@ pub(crate) enum Request {
         id: Option<String>,
         revision: Option<u64>,
         published: bool,
-        draft: Draft,
+        draft: Box<Draft>,
     },
     Remove {
         id: String,

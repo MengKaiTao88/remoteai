@@ -8,6 +8,8 @@ export function fixtureItem(): MarketItem {
   return { id: '11111111-1111-4111-8111-111111111111', ownerId: 'alice', official: false,
     published: true, revision: 1, userCount: 8, sortOrder: null, name: 'Example Gateway',
     description: 'Public connection settings', baseUrl: 'https://provider.example/v1', currency: 'USD',
+    pageLink: { url: 'https://provider.example/dashboard?view=usage#balance', query: 'source=remoteai&tag=a&tag=b',
+      headers: { 'X-Source': 'RemoteAI' } },
     unit: 'millionTokens', models: [
       { id: 'model-z', protocol: 'openaiResponses', tiers: [{ ...emptyTier(5), input: 7, output: 0 },
         { ...emptyTier(1), input: 11, longContextThreshold: 200000,

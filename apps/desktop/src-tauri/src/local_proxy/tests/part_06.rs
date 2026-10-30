@@ -389,6 +389,7 @@
             fast_mode_enabled: false,
             api_format: ProviderApiFormat::OpenaiChat,
             balance_script: None,
+            market_source: None,
             balance_platform: None,
             balance_query_url: None,
             balance_query_token: None,

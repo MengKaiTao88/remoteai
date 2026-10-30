@@ -45,6 +45,49 @@ threshold and nullable long-context prices. A supplied long-context price requir
 `null` means not provided; `0` means explicitly free. The unit is currency per million tokens.
 No price is calculated by multiplying another tier. Model and tier arrays preserve publisher order.
 
+## Provider website and browser
+
+Publishing or republishing requires `pageLink.url`, an independent HTTP(S) website address. Unpublished
+legacy entries may still omit it; republishing opens the editor to complete the address. Existing
+entries remain readable. `pageLink.query` appends a query string without replacing existing parameters,
+repeated values or the fragment. `pageLink.headers` is an optional object of custom HTTP headers.
+These settings are public and must not contain personal credentials. Transport headers, cookies,
+invalid header names, duplicate names ignoring case, control characters and oversized values are rejected.
+
+Installation snapshots the entry ID and page configuration as `marketSource` in the personal Provider.
+It survives local persistence, cloud synchronization, edits by older clients, and archive roundtrips.
+It does not change API routing, upstream request options or API keys. Ordinary manual additions and
+unattributed public JSON imports have no market provenance and no website action. Market entries
+without a page cannot offer the action. The name and the “Visit page” action use the same browser,
+including in the card layout. Future edits to a publication do not silently replace installed links.
+
+The browser opens at 85vw × 85vh with independent tabs, address input, back/forward, reload, tab closing,
+and full-viewport expansion. Closing the browser hides it and keeps its tabs until the Provider page
+unmounts. Windows uses unprivileged child WebViews: the complete website loads normally, including
+scripts, navigation and cookies. Custom headers are installed before the first request, apply only
+to the configured origin, and are removed from cross-origin requests. Popup links create another tab.
+Web content receives no application IPC capability. Native view creation and updates run in workers;
+resize requests are coalesced and close waits for creation to finish.
+
+Hosted browser pages use an iframe when no custom headers are configured. Website frame policies
+still apply, and back/forward track addresses entered in the browser toolbar. Configurations with
+headers show an explicit Windows desktop requirement instead of silently omitting headers. macOS/Linux
+also report that limitation for custom headers. Remote account pickers and the standalone Web model
+switcher do not contain a personal Provider table; their existing entry placement is preserved.
+
+Deploy the upgraded Go server with `apps/admin-go/sql/20261030_provider_market_page.sql` before using
+cloud synchronization of website settings. New databases apply embedded migration 027. This task does
+not deploy production services or change Kong routes.
+
+Browser checks use `playwright.provider-market.config.ts`. The optional real Windows WebView test is
+`provider_browser::smoke::opens_provider_browser` (ignored by default); start the market Vite harness on
+1499 and `node apps/desktop/e2e/provider-browser-server.mjs` first. It uses a separate app identifier
+and `PROVIDER_BROWSER_DEBUG_PORT` for inspection. The fixture exposes received query strings and
+headers on ports 1500/1501 to verify same-origin delivery and cross-origin removal.
+With the smoke test running and its debug port set to 9319, run
+`node apps/desktop/e2e/provider-browser-native.mjs` to verify real navigation, header delivery,
+popup tabs, fullscreen controls, polling responsiveness and cleanup after a renderer reload.
+
 ## Adding and counting
 
 Desktop local and hosted desktop pages save to the computer's existing personal Provider store.

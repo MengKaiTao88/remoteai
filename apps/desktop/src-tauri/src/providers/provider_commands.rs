@@ -75,6 +75,9 @@ pub(crate) fn save_provider_blocking<R: Runtime>(
         provider.request_options,
     );
     let base_url = normalize_provider_endpoint(&provider.base_url, request_options.as_ref())?;
+    let market_source = provider.market_source.or_else(|| {
+        existing.as_ref().and_then(|value| value.market_source.clone())
+    });
     let balance_script = if provider.clear_balance_script {
         None
     } else {
@@ -166,6 +169,7 @@ pub(crate) fn save_provider_blocking<R: Runtime>(
         api_format: provider.api_format,
         request_options,
         balance_script,
+        market_source,
         balance_platform,
         balance_query_url,
         balance_query_token,

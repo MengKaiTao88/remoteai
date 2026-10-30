@@ -64,6 +64,7 @@ mod port_mapping;
 mod preset_provider;
 mod prompt_plugins;
 mod provider_api_cache;
+mod provider_browser;
 mod provider_connectivity;
 mod provider_discovery;
 mod provider_models;
@@ -274,7 +275,10 @@ pub fn run() {
             }
             Ok(())
         })
-        .on_page_load(codex_gui::file_preview::handle_page_load)
+        .on_page_load(|webview, payload| {
+            codex_gui::file_preview::handle_page_load(webview, payload);
+            provider_browser::handle_page_load(webview, payload);
+        })
         .on_window_event(|window, event| {
             codex_gui::file_preview::handle_window_event(window, event);
             if window.label() == "main" {
@@ -456,6 +460,9 @@ pub fn run() {
             codex_gui::file_preview::codex_gui_close_file_preview,
             codex_gui::file_preview::codex_gui_file_preview_host,
             codex_gui::file_preview::website::codex_gui_sync_website_preview,
+            provider_browser::provider_browser_sync,
+            provider_browser::provider_browser_action,
+            provider_browser::provider_browser_close,
             codex_gui::file_preview::website::codex_gui_close_website_preview,
             codex_gui::undo::codex_gui_undo,
             codex_gui::deletion::codex_gui_delete_thread,

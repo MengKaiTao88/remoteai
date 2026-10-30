@@ -1,5 +1,6 @@
 import { publicDraft, type MarketItem } from './types';
 import { validDraft } from './validation';
+import { copyPageLink } from './pageLink';
 
 /** One-way, explicit creation; market prices never change proxy routing or accounting. */
 export function personalProviderFields(item: MarketItem, apiKey: string) {
@@ -12,6 +13,7 @@ export function personalProviderFields(item: MarketItem, apiKey: string) {
     modelReasoningEfforts: {}, modelContextWindows: {}, imageInputModels: [], imageInputModelsConfigured: true,
     modelSelectionControlledByCodex: true, fastModeEnabled: true,
     balanceScript: item.balanceQuery ? { ...item.balanceQuery } : null,
+    marketSource: item.id && item.pageLink ? { id: item.id, page: copyPageLink(item.pageLink) } : null,
   };
 }
 export function downloadPublicProvider(item: MarketItem) {

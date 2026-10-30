@@ -1,3 +1,5 @@
+import { copyPageLink, type MarketPageLink } from './pageLink';
+
 export const MARKET_PROTOCOLS = [
   'openaiResponses', 'openaiChat', 'anthropicMessages', 'geminiGenerateContent',
 ] as const;
@@ -32,6 +34,7 @@ export interface MarketDraft {
   unit: 'millionTokens';
   models: MarketModel[];
   balanceQuery?: MarketBalanceQuery | null;
+  pageLink?: MarketPageLink | null;
 }
 export interface MarketItem extends MarketDraft {
   id: string;
@@ -69,6 +72,7 @@ export const emptyDraft = (): MarketDraft => ({
 export function publicDraft(item: MarketDraft): MarketDraft {
   return {
     name: item.name, description: item.description, baseUrl: item.baseUrl, currency: item.currency,
+    pageLink: item.pageLink ? copyPageLink(item.pageLink) : null,
     balanceQuery: item.balanceQuery ? {
       url: item.balanceQuery.url, auth: item.balanceQuery.auth, script: item.balanceQuery.script,
     } : null,

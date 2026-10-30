@@ -37,6 +37,8 @@ pub(crate) struct ProviderProfile {
     #[serde(default)]
     pub(crate) balance_script: Option<ProviderBalanceScript>,
     #[serde(default)]
+    pub(crate) market_source: Option<ProviderMarketSource>,
+    #[serde(default)]
     pub(crate) balance_platform: Option<ProviderBalancePlatform>,
     #[serde(default)]
     pub(crate) balance_query_url: Option<String>,
@@ -73,6 +75,8 @@ pub(crate) struct ProviderSummary {
     pub(crate) api_format: ProviderApiFormat,
     pub(crate) request_options: Option<ProviderRequestOptions>,
     pub(crate) balance_script: Option<ProviderBalanceScript>,
+    #[serde(default)]
+    pub(crate) market_source: Option<ProviderMarketSource>,
     pub(crate) active: bool,
     pub(crate) auto_switch_enabled: bool,
     pub(crate) has_api_key: bool,

@@ -1,6 +1,7 @@
 import { Button, Popconfirm, Space, Tag } from 'antd';
 import type { MarketText } from './i18n';
 import { publicDraft, type MarketItem, type MarketRequest } from './types';
+import { validPageLink } from './pageLink';
 
 export function MarketCard({ item, owned, busy, t, onSelect, onEdit, onWrite }: {
   item: MarketItem; owned: boolean; busy: boolean; t: MarketText;
@@ -12,8 +13,11 @@ export function MarketCard({ item, owned, busy, t, onSelect, onEdit, onWrite }: 
       <button className="pm-card-title" onClick={() => onSelect(item)}>{item.name}</button>
       {owned && <Space wrap className="pm-card-actions">
         <Button disabled={busy} onClick={() => onEdit(item)}>{t('market.edit')}</Button>
-        <Button disabled={busy} onClick={() => void onWrite({ type: 'save',
-          id: item.id, revision: item.revision, draft: publicDraft(item), published: !item.published })}>
+        <Button disabled={busy} onClick={() => {
+          if (!item.published && !validPageLink(item.pageLink)) { onEdit({ ...item, published: true }); return; }
+          void onWrite({ type: 'save', id: item.id, revision: item.revision,
+            draft: publicDraft(item), published: !item.published });
+        }}>
           {t(item.published ? 'market.withdraw' : 'market.republish')}</Button>
         <Popconfirm title={t('market.deleteConfirm')} overlayStyle={{ maxWidth: 400 }}
           okText={t('market.confirmDelete')} cancelText={t('market.cancel')}

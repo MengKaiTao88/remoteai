@@ -23,6 +23,7 @@ fn provider_payload_from_profile(
     ProviderSyncPayload {
         request_options: provider.request_options,
         balance_script: provider.balance_script,
+        market_source: provider.market_source,
         id: provider.id,
         kind: provider.kind,
         name: provider.name,
@@ -56,6 +57,7 @@ fn provider_payload_to_profile(provider: &ProviderSyncPayload) -> Result<Provide
         account_alias: None,
         request_options: provider.request_options.clone(),
         balance_script: provider.balance_script.clone(),
+        market_source: provider.market_source.clone(),
         id: provider.id.clone(),
         kind: provider.kind,
         name: provider.name.clone(),

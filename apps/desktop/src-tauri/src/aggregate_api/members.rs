@@ -63,6 +63,7 @@ fn official_profile(paths: &Paths, id: &str, name: String) -> ProviderProfile {
         api_format: ProviderApiFormat::OpenaiResponses,
         request_options: None,
         balance_script: None,
+        market_source: None,
         balance_platform: None,
         balance_query_url: None,
         balance_query_token: None,

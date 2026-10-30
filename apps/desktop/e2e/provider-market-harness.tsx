@@ -12,6 +12,7 @@ import { loadStoredSession } from '../../web/src/api';
 import { saveProviderProfile } from '../src/api/backend';
 import { translate } from '../src/i18n';
 import type { GuiAccountsClient } from '../../../shared/remote-chat/guiAccounts';
+import { browserProviders } from './provider-browser-fixture';
 import 'antd/dist/reset.css';
 import '../src/styles.css';
 
@@ -45,7 +46,8 @@ function Harness() {
     <output data-testid="beats">{beats}</output>
     {mode === 'local' || mode === 'hosted' ? <>
       <div id="provider-topbar-actions" />
-      <ProvidersPage providers={[]} aggregateApis={[]} providerGroups={[]} accounts={[]} active
+      <ProvidersPage providers={query.has('browser') ? browserProviders() : []}
+        aggregateApis={[]} providerGroups={[]} accounts={[]} active
         loading={false} saving={false} busyProviderId={null} localProxy={null} proxyBusy={false}
         onStartProxy={nothing} onSave={saveProviderProfile} onSaveAggregateApi={async () => null}
         onRefreshAggregateApis={done} onSwitchAggregateApi={yes} onDeleteAggregateApi={nothing}
@@ -53,7 +55,8 @@ function Harness() {
         onModelControlChange={nothing} onGroupChange={nothing} onGroupChangeMany={done}
         onProviderGroupsChange={done} onChangeGroupMembers={yes} onAutoSwitchChange={nothing}
         onDelete={nothing} onDeleteMany={async () => []} onImageModelChange={nothing}
-        displayMode="table" privacyMode={false} tokenUsageRefreshSeconds={2} language={language}
+        displayMode={query.has('cards') ? 'cards' : 'table'} privacyMode={false}
+        tokenUsageRefreshSeconds={2} language={language}
         t={(key, values) => translate(language, key, values)} />
     </> : mode === 'remote' ? <aside style={{ width: 340, marginTop: 400 }}>
       <RemoteAccountPicker active ready client={guiClient} privacyMode={false}

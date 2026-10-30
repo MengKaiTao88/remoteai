@@ -5,6 +5,9 @@ import { emptyDraft, emptyModel, publicDraft, type MarketDraft } from './types';
 import { validDraft } from './validation';
 import { ModelEditor } from './ModelEditor';
 import { BalanceQueryEditor } from './BalanceQueryEditor';
+import { PageLinkEditor } from './PageLinkEditor';
+import { validPageLink } from './pageLink';
+import './providerBrowser.css';
 
 export function MarketEditor({ initial, busy, t, onSave, onCancel }: {
   initial?: MarketDraft; busy: boolean; t: MarketText;
@@ -13,7 +16,7 @@ export function MarketEditor({ initial, busy, t, onSave, onCancel }: {
   const [value, setValue] = useState(() => initial ? publicDraft(initial) : emptyDraft());
   const [published, setPublished] = useState(() => initial && 'published' in initial ? Boolean(initial.published) : true);
   const [attempted, setAttempted] = useState(false);
-  const valid = validDraft(value);
+  const valid = validDraft(value) && (!published || validPageLink(value.pageLink));
   return <form className="pm-editor" onSubmit={(event) => {
     event.preventDefault(); setAttempted(true);
     if (valid && !busy) void onSave(publicDraft(value), published);
@@ -27,6 +30,7 @@ export function MarketEditor({ initial, busy, t, onSave, onCancel }: {
       <label><span>{t('market.description')}</span><Input.TextArea value={value.description} maxLength={4000}
         rows={3} aria-label={t('market.description')}
         onChange={(event) => setValue({ ...value, description: event.target.value })} /></label>
+      <PageLinkEditor value={value.pageLink} t={t} onChange={(pageLink) => setValue({ ...value, pageLink })} />
       <div className="pm-row"><label><span>{t('market.currency')}</span><Select value={value.currency}
         aria-label={t('market.currency')} options={['USD', 'CNY', 'EUR', 'JPY'].map((currency) => ({ value: currency }))}
         onChange={(currency) => setValue({ ...value, currency })} /></label>
@@ -45,7 +49,8 @@ export function MarketEditor({ initial, busy, t, onSave, onCancel }: {
       <Checkbox checked={published} onChange={(event) => setPublished(event.target.checked)}>
         {t('market.published')}</Checkbox>
     </fieldset></ConfigProvider>
-    {attempted && !valid && <Alert type="error" message={t('market.invalid')} />}
+    {attempted && !valid && <Alert type="error"
+      message={t(!validPageLink(value.pageLink) && published ? 'market.pageRequired' : 'market.invalid')} />}
     <Space><Button disabled={busy} onClick={onCancel}>{t('market.cancel')}</Button>
       <Button type="primary" htmlType="submit" loading={busy}>{t('market.save')}</Button></Space>
   </form>;

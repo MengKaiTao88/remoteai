@@ -97,6 +97,9 @@ pub(super) fn apply_remote_provider<R: Runtime>(
     if !provider.field_modified_at.balance_script.is_empty() {
         merge_field!(balance_script);
     }
+    if !provider.field_modified_at.market_source.is_empty() {
+        merge_field!(market_source);
+    }
     merge_field!(balance_platform);
     merge_field!(balance_query_url);
     merge_field!(balance_query_token);
@@ -154,6 +157,7 @@ pub(super) fn normalize_provider_field_modified_at(
         &mut values.api_format,
         &mut values.request_options,
         &mut values.balance_script,
+        &mut values.market_source,
         &mut values.balance_platform,
         &mut values.balance_query_url,
         &mut values.balance_query_token,
@@ -188,6 +192,7 @@ pub(super) fn latest_provider_field_modified_at(values: &ProviderFieldModifiedAt
         &values.api_format,
         &values.request_options,
         &values.balance_script,
+        &values.market_source,
         &values.balance_platform,
         &values.balance_query_url,
         &values.balance_query_token,
@@ -227,6 +232,7 @@ pub(super) fn provider_payload_from_profile(
         api_format: provider.api_format,
         request_options: provider.request_options,
         balance_script: provider.balance_script,
+        market_source: provider.market_source,
         balance_platform: provider.balance_platform,
         balance_query_url: provider.balance_query_url,
         balance_query_token: provider.balance_query_token,
@@ -261,6 +267,7 @@ pub(super) fn provider_payload_to_profile(provider: &ProviderSyncPayload) -> Pro
         api_format: provider.api_format,
         request_options: provider.request_options.clone(),
         balance_script: provider.balance_script.clone(),
+        market_source: provider.market_source.clone(),
         balance_platform: provider.balance_platform,
         balance_query_url: provider.balance_query_url.clone(),
         balance_query_token: provider.balance_query_token.clone(),

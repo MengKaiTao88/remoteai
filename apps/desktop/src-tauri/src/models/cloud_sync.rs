@@ -57,6 +57,8 @@ pub(crate) struct ProviderFieldModifiedAt {
     #[serde(default)]
     pub(crate) balance_script: String,
     #[serde(default)]
+    pub(crate) market_source: String,
+    #[serde(default)]
     pub(crate) balance_platform: String,
     #[serde(default)]
     pub(crate) balance_query_url: String,
@@ -153,6 +155,8 @@ pub(crate) struct ProviderSyncPayload {
     pub(crate) request_options: Option<ProviderRequestOptions>,
     #[serde(default)]
     pub(crate) balance_script: Option<ProviderBalanceScript>,
+    #[serde(default)]
+    pub(crate) market_source: Option<ProviderMarketSource>,
     #[serde(default)]
     pub(crate) balance_platform: Option<ProviderBalancePlatform>,
     #[serde(default)]

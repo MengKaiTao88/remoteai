@@ -204,7 +204,7 @@ mod tests {
         let value = json!({"id":"entry", "ownerId":null, "official":true,"published":true,
             "revision":1,"userCount":3,"sortOrder":null,"name":"Example","description":"",
             "baseUrl":"https://example.test/v1","currency":"USD","unit":"millionTokens",
-            "models":[],"balanceQuery":null});
+            "models":[],"balanceQuery":null,"pageLink":null});
         let reply: ProviderMarketReply = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(reply).unwrap(), value);
     }

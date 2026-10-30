@@ -16,6 +16,9 @@ pub(crate) struct InstalledProvider {
 fn personal_payload(input: &MarketInstallation, id: &str) -> Result<Value, MarketError> {
     let draft = &input.draft;
     validate_connection(draft)?;
+    if let Some(page) = &draft.page_link {
+        page.validate().map_err(|_| MarketError::Invalid)?;
+    }
     if input.api_key.trim().is_empty()
         || input.api_key.len() > 10000
         || draft.models.is_empty()
@@ -42,6 +45,10 @@ fn personal_payload(input: &MarketInstallation, id: &str) -> Result<Value, Marke
         "modelReasoningEfforts":{}, "modelContextWindows":{}, "imageInputModels":[],
         "modelSelectionControlledByCodex":true, "fastModeEnabled":true, "balanceScript":draft.balance_query,
         "lastModifiedAt":timestamp});
+    body["marketSource"] = match (&draft.page_link, input.entry_id.is_empty()) {
+        (Some(page), false) => json!({"id": input.entry_id, "page": page}),
+        _ => Value::Null,
+    };
     let versions: serde_json::Map<String, Value> = body
         .as_object()
         .ok_or(MarketError::Invalid)?

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { MarketLauncher } from "../../../../shared/provider-market/MarketLauncher";
+import { ProviderBrowser } from '../../../../shared/provider-market/ProviderBrowser';
+import { ProviderBrowserSurface } from './providers/ProviderBrowserSurface';
+import { useProviderBrowser } from './providers/useProviderBrowser';
 import { desktopProviderMarket } from "../api/providerMarket";
 import type { MarketIdentity } from '../../../../shared/provider-market/types';
 import { createPortal } from "react-dom";
@@ -109,6 +112,7 @@ export function ProvidersPage({
   t,
 }: ProvidersPageProps) {
   const marketClient = useMemo(() => desktopProviderMarket(onSave), [onSave]);
+  const browser = useProviderBrowser();
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showOpenAiModal, setShowOpenAiModal] = useState(false);
@@ -227,6 +231,7 @@ export function ProvidersPage({
     onAutoSwitchChange,
     onDelete,
     onEdit: openEdit,
+    onOpenPage: browser.openProvider,
     imageInputTarget: localProxy?.imageInputTarget ?? null,
     imageOutputTarget: localProxy?.imageOutputTarget ?? null,
     imageModelBusy: proxyBusy,
@@ -313,6 +318,7 @@ export function ProvidersPage({
         onSwitch={onSwitchAggregateApi} onDeactivate={onDeactivate}
         onDelete={onDeleteAggregateApi} t={t} />
       </div>
+      <ProviderBrowser {...browser.window} language={language} Surface={ProviderBrowserSurface} />
     </>
   );
 }

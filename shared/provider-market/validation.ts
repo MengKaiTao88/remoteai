@@ -1,4 +1,5 @@
 import { MARKET_PROTOCOLS, type MarketDraft, type MarketItem, type MarketPrice, type MarketTier } from './types';
+import { validPageLink } from './pageLink';
 
 export function publicUrl(value: string): boolean {
   try {
@@ -21,6 +22,7 @@ function validTier(tier: MarketTier): boolean {
     && tier.longContextThreshold <= 1_000_000_000;
 }
 export function validDraft(value: MarketDraft): boolean {
+  if (value.pageLink != null && !validPageLink(value.pageLink)) return false;
   if (!value.name.trim() || value.name.length > 80 || value.description.length > 4000
     || !publicUrl(value.baseUrl) || !['USD', 'CNY', 'EUR', 'JPY'].includes(value.currency)
     || value.unit !== 'millionTokens' || value.models.length < 1 || value.models.length > 64) return false;
