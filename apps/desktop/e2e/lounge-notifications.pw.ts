@@ -28,11 +28,11 @@ for (const mode of ['local', 'remote', 'web', 'mobile-320', 'mobile-390']) {
     await page.goto(web ? 'http://127.0.0.1:1486/web/' : `/e2e/lounge-harness.html?mode=${mode}`);
     await relay.ready(); await enter(page, mobile);
     relay.private('read this chat', { id: 'carol', account: 'carol@example.test' });
-    await page.getByRole('button', { name: '与 carol@example.test 私聊', exact: true }).click();
+    await page.getByRole('button', { name: '与 carol 私聊', exact: true }).click();
     if (mobile) await page.getByRole('button', { name: '返回聊天列表', exact: true }).click();
     for (let index = 0; index < 100; index++) { relay.push(`group-${index}`); relay.private(`private-${index}`); }
     const group = page.locator('.lounge-person, .lounge-chat-row').filter({ hasText: '群聊' }).filter({ visible: true });
-    const bob = page.locator('.lounge-person, .lounge-chat-row').filter({ hasText: 'bob@example.test' })
+    const bob = page.locator('.lounge-person, .lounge-chat-row').filter({ hasText: 'bob' })
       .filter({ visible: true });
     await expect(group.locator('.lounge-avatar-unread')).toHaveText('99+');
     // Direct receipts serialize IndexedDB writes before publishing the next message.

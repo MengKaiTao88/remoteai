@@ -37,7 +37,7 @@ for (const width of [320, 390]) {
     await input.fill('前后');
     await input.evaluate((node: HTMLTextAreaElement) => node.setSelectionRange(1, 1));
     await hold(page, avatar);
-    await expect(input).toHaveValue('前@bob@example.test 后');
+    await expect(input).toHaveValue('前@bob 后');
     await expect(input).toBeFocused();
     await expect(page.getByRole('heading', { name: '个人资料', exact: true })).toBeHidden();
     await expect(page.getByRole('menu')).toBeHidden();
@@ -62,13 +62,13 @@ for (const width of [320, 390]) {
     await expect(menu.getByRole('menuitem')).toHaveText(['复制', '引用回复', '发起私聊', '屏蔽此人']);
     await menu.getByRole('menuitem', { name: '引用回复' }).click();
     await expect(page.locator('.lounge-reply-draft')).toContainText('长按消息操作');
-    await expect(input).toHaveValue('前@bob@example.test 后');
+    await expect(input).toHaveValue('前@bob 后');
     await page.getByRole('button', { name: '取消引用' }).click();
     await page.getByRole('button', { name: '添加内容', exact: true }).click();
     await page.getByRole('button', { name: '历史记录', exact: true }).click();
     await hold(page, page.locator('.lounge-history-message .lounge-avatar'));
     await expect(page.getByRole('textbox', { name: '搜索消息或账户' })).toBeHidden();
-    await expect(input).toHaveValue('前@bob@example.test @bob@example.test 后');
+    await expect(input).toHaveValue('前@bob @bob 后');
     relay.push('', [pixel]);
     await hold(page, page.locator('.lounge-bubble.image-only').last());
     await expect(page.locator('.lounge-preview')).toBeHidden();

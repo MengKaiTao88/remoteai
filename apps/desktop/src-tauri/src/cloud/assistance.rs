@@ -8,6 +8,10 @@ pub(crate) enum AssistanceCommand {
     Invite {
         email: String,
     },
+    InviteAccount {
+        #[serde(rename = "userId")]
+        user_id: String,
+    },
     Respond {
         id: String,
         action: AssistanceAction,
@@ -94,6 +98,9 @@ impl AssistanceCommand {
             Self::Respond { id, .. } if Uuid::parse_str(id).is_err() => {
                 return Err(AssistanceError::InvalidInvitation);
             }
+            Self::InviteAccount { user_id } if Uuid::parse_str(user_id).is_err() => {
+                return Err(AssistanceError::InvalidInvitation);
+            }
             _ => {}
         }
         Ok(())
@@ -115,6 +122,11 @@ impl AssistanceCommand {
                 Method::POST,
                 format!("/remote-assistance/{id}"),
                 Some(json!({"deviceId": device, "action": action})),
+            ),
+            Self::InviteAccount { user_id } => (
+                Method::POST,
+                "/remote-assistance".into(),
+                Some(json!({"deviceId": device, "userId": user_id})),
             ),
         }
     }
@@ -234,6 +246,30 @@ pub(crate) async fn remote_assistance(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chat_invitation_uses_validated_identity_without_an_email() {
+        let user_id = Uuid::new_v4().to_string();
+        let command: AssistanceCommand = serde_json::from_value(json!({
+            "kind": "inviteAccount", "userId": user_id
+        }))
+        .unwrap();
+        assert!(command.validate().is_ok());
+        let (method, path, body) = command.request("host-device");
+        assert_eq!(method, Method::POST);
+        assert_eq!(path, "/remote-assistance");
+        assert_eq!(
+            body,
+            Some(json!({"deviceId": "host-device", "userId": user_id}))
+        );
+        for invalid in ["", "same", "same@example.test", "../users"] {
+            assert!(AssistanceCommand::InviteAccount {
+                user_id: invalid.into()
+            }
+            .validate()
+            .is_err());
+        }
+    }
 
     #[test]
     fn invitation_input_cannot_escape_its_route_or_accept_invalid_emails() {

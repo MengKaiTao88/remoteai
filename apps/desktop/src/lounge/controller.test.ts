@@ -53,7 +53,7 @@ describe('application lifetime lounge', () => {
     expect(controller.snapshot().conversation).toBe('');
     controller.selectConversation(user);
     expect(controller.snapshot().conversation).toBe('bob');
-    expect(controller.snapshot().contacts[0]).toMatchObject({ user, direct: true });
+    expect(controller.snapshot().contacts[0]).toMatchObject({ user: { ...user, account: 'bob' }, direct: true });
     const pending = controller.findAccount('carol', abort.signal).catch((error: Error) => error.message);
     socket.onclose?.();
     expect(await pending).toBe('client.lounge.accountLookupFailed');

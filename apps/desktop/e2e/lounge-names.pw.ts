@@ -90,9 +90,9 @@ for (const mode of ['local', 'remote', 'web', 'mobile-320', 'mobile-390']) {
     await closeProfile(page, mobile);
     await expect(button(page, '与 小明 私聊')).toBeVisible();
     relay.names.update('nickname', 'bob', '');
-    await expect(button(page, '与 bob@example.test 私聊')).toBeVisible();
+    await expect(button(page, '与 bob 私聊')).toBeVisible();
     await page.reload(); await enter(page, mobile);
-    await expect(button(page, '与 bob@example.test 私聊')).toBeVisible();
+    await expect(button(page, '与 bob 私聊')).toBeVisible();
     if (mobile) await button(page, '个人资料').click();
     else await openAccountSettings(page);
     await expect(nickname).toHaveValue('我的昵称');

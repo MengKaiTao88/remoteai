@@ -20,7 +20,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
     const selectBob = async () => {
       await people();
       await page.locator('.lounge-person, .lounge-chat-row-main')
-        .and(page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true })).filter({ visible: true }).click();
+        .and(page.getByRole('button', { name: '与 bob 私聊', exact: true })).filter({ visible: true }).click();
       if (mobile) await expect(page.locator('.ant-drawer-mask:visible')).toHaveCount(0);
     };
     await relay.ready(); await enter(); relay.push('start-private');

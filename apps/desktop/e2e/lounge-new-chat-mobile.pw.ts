@@ -32,7 +32,7 @@ for (const width of [320, 390]) {
     await page.screenshot({ path: `../../.codex-tmp/new-chat-mobile-keyboard-${width}.png`, animations: 'disabled' });
     await start.click(); await expect(sheet).toBeHidden();
     await page.setViewportSize({ width, height: 844 });
-    await expect(page.locator('.lounge-heading h1')).toHaveText('bob@example.test');
+    await expect(page.locator('.lounge-heading h1')).toHaveText('bob');
     await page.getByRole('textbox', { name: '消息', exact: true }).fill('按邮箱发起私聊');
     await page.getByRole('button', { name: '发送', exact: true }).click();
     await expect.poll(() => relay.sent.map(frame => frame.to)).toEqual(['bob']);
@@ -42,13 +42,13 @@ for (const width of [320, 390]) {
     await page.getByRole('button', { name: '返回聊天列表' }).click();
     relay.push('最近发言用户');
     await newChat.click();
-    await expect(sheet.getByRole('button', { name: '与 bob@example.test 私聊' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: '与 bob 私聊' })).toBeVisible();
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect(sheet).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: `../../.codex-tmp/new-chat-mobile-recent-${width}.png`, animations: 'disabled' });
     const count = relay.lookups.length;
-    await sheet.getByRole('button', { name: '与 bob@example.test 私聊' }).click();
+    await sheet.getByRole('button', { name: '与 bob 私聊' }).click();
     await expect(sheet).toBeHidden(); expect(relay.lookups).toHaveLength(count);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
@@ -62,7 +62,7 @@ for (const width of [320, 390]) {
     await page.getByRole('button', { name: '群聊', exact: true }).click();
     await page.getByRole('textbox', { name: '消息', exact: true }).fill('保留群聊草稿');
     await page.getByRole('button', { name: '成员', exact: true }).click();
-    await expect(page.getByRole('dialog').getByRole('button', { name: '查看 bob@example.test 的资料' })).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('button', { name: '查看 bob 的资料' })).toBeVisible();
     await page.locator('.ant-drawer-close:visible').click();
     await page.getByRole('button', { name: '返回聊天列表' }).click();
     await page.getByRole('button', { name: '新聊天', exact: true }).click();

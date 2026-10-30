@@ -91,14 +91,16 @@ export class LoungeController {
   recentSpeakers = (after = -Infinity) => recentSpeakers(this.recent, this.state.user?.id, after)
     .map(user => this.profiles.user(user));
   get historyScope() {
-    return historyScope(this.session?.baseUrl ?? '', this.state.user?.account ?? this.session?.account ?? '');
+    return historyScope(this.session?.baseUrl ?? '',
+      this.session?.account ?? this.session?.userId ?? this.state.user?.id ?? '');
   }
   findAccount(query: string, signal: AbortSignal) {
     if (this.state.status !== 'connected' || !this.state.directAvailable
       || !this.state.accountLookupAvailable || !this.socket) {
       return Promise.reject(new Error('client.lounge.accountLookupFailed'));
     }
-    return this.accountLookup.find({ socket: this.socket, id: this.runtime.randomId(), query, signal });
+    return this.accountLookup.find({ socket: this.socket, id: this.runtime.randomId(), query, signal })
+      .then(user => this.profiles.user(user));
   }
   /** Prefer the latest incoming unread message for private conversation previews. */
   conversationPreview(conversation: string) {
@@ -390,7 +392,8 @@ export class LoungeController {
       if (!this.running || lifecycle !== this.lifecycle || conversation !== this.state.conversation
         || epoch !== this.historyEpoch) return;
       const restoredUser = this.state.user ?? page.messages.flatMap(message => [message.sender, message.recipient])
-        .find(user => user?.account === this.session?.account);
+        .find(user => user && (this.session?.userId ? user.id === this.session.userId
+          : user.account === this.session?.account));
       this.update({ user: restoredUser, messages: recentMessages([...page.messages.reverse(), ...this.state.messages]) });
       for (const message of page.messages) {
         if (message.sender.id !== this.state.user?.id) this.contactSync.remember({ user: message.sender,

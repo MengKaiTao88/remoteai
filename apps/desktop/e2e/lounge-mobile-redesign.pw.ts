@@ -12,7 +12,7 @@ for (const width of [320, 390]) {
     relay.private('较早的未读消息');
     const latest = '最新未读消息的文字部分\n很长的文字需要单行显示，超过可用宽度后使用省略号。';
     relay.private(latest);
-    const privateChat = page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true });
+    const privateChat = page.getByRole('button', { name: '与 bob 私聊', exact: true });
     const preview = privateChat.locator('.lounge-chat-row-copy > span');
     await expect(preview).toHaveText(latest.replace('\n', ' '));
     await expect(page.locator('.lounge-chat-row').filter({ has: privateChat })
@@ -112,14 +112,14 @@ test('mobile redesign: members, drafts, unread and scroll survive conversation s
   await expect(page.getByRole('button', { name: '回到最新消息' })).toBeVisible();
   const previousOffset = await page.locator('.lounge-conversation').evaluate(node => node.scrollTop);
   await page.getByRole('button', { name: '成员', exact: true }).click();
-  await page.locator('.lounge-mobile-sheet').getByRole('button', { name: '查看 bob@example.test 的资料', exact: true }).click();
+  await page.locator('.lounge-mobile-sheet').getByRole('button', { name: '查看 bob 的资料', exact: true }).click();
   await page.getByRole('button', { name: '发消息', exact: true }).click();
   await expect(input).toHaveValue('');
   await input.fill('私聊草稿');
   relay.push('unread-group');
   const incoming = relay.private('private-while-list', { id: 'carol', account: 'carol@example.test' });
   await page.getByRole('button', { name: /^聊天/ }).click();
-  const carol = page.getByRole('button', { name: '与 carol@example.test 私聊', exact: true });
+  const carol = page.getByRole('button', { name: '与 carol 私聊', exact: true });
   await expect(page.locator('.lounge-chat-row').filter({ has: carol })
     .locator('.lounge-avatar-unread')).toHaveText('1');
   expect(relay.receipts.some(receipt => receipt.id === incoming && receipt.status === 'read')).toBe(false);
@@ -135,7 +135,7 @@ test('mobile redesign: members, drafts, unread and scroll survive conversation s
   await expect(page.getByText('private-while-list', { exact: true })).toBeVisible();
   await expect.poll(() => relay.receipts.some(receipt => receipt.id === incoming && receipt.status === 'read')).toBe(true);
   await page.getByRole('button', { name: '聊天', exact: true }).click();
-  await page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true }).click();
+  await page.getByRole('button', { name: '与 bob 私聊', exact: true }).click();
   await expect(input).toHaveValue('私聊草稿');
   await page.screenshot({ path: '../../.codex-tmp/lounge-redesign-private.png' });
 });

@@ -33,7 +33,7 @@ export async function verifyNativeNames({ adb, tap, find, nodes, screenshot, hid
   await find('与 另一台设备设置的中文备注 私聊'); await tap('查看 另一台设备设置的中文备注 的资料');
   await fill('备注', ''); await blur('remark'); await find('已保存'); assert.equal(names.remarks.get('bob'), '');
   await tap('返回'); await find('与 小明 私聊'); names.update('nickname', 'bob', '');
-  await find('与 bob@example.test 私聊');
+  await find('与 bob 私聊');
   await tap('个人资料'); await find('自己的中文昵称'); await fill('昵称', ''); await tap('返回');
   await find('搜索聊天'); assert.equal(names.nicknames.get('alice'), '', 'Back navigation saves the last edit');
   await tap('返回发现');

@@ -15,7 +15,13 @@ export function useWebLounge(session: AuthSession | null) {
   const controller = useMemo(() => new LoungeController(baseUrl && email ? {
     sync: browserLoungeSync,
     attachmentImages: browserAttachmentImages(JSON.stringify([baseUrl, email]), browserAttachmentSink),
-    baseUrl, account: email, avatars: browserAvatarStore(baseUrl), history: browserLoungeHistory(baseUrl, email), authorize: async () => {
+    baseUrl, account: email, avatars: browserAvatarStore(baseUrl),
+    // Profile refreshes must not replace the live connection and discard recent speakers or drafts.
+    get userId() {
+      const current = getActiveSession();
+      return current?.baseUrl === baseUrl && current.email === email ? current.profile?.id : undefined;
+    },
+    history: browserLoungeHistory(baseUrl, email), authorize: async () => {
       const current = getActiveSession();
       if (current?.baseUrl !== baseUrl || current.email !== email) throw new Error('client.lounge.signIn');
       return apiJson<{ ticket: string }>('/lounge/ticket', { method: 'POST' });

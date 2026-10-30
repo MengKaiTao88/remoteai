@@ -8,7 +8,7 @@ function size(node) {
 /** Short messages must retain their full advance width when their bubble shrinks to fit. */
 export async function verifyNativeText(options) {
   const { adb, tap, find, screenshot, hideKeyboard, scale, broadcast, incoming } = options;
-  await tap('查看 bob@example.test 的资料'); await tap('发消息');
+  await tap('查看 bob 的资料'); await tap('发消息');
   await tap('消息'); await adb('shell', 'input', 'text', 'hi'); await tap('发送');
   await hideKeyboard();
   const short = size(await find('hi'));
@@ -39,7 +39,7 @@ export async function verifyNativeText(options) {
 }
 
 async function verifyOwnProfile({ tap, find, screenshot, scale, profile, image, fail, saves }) {
-  await tap('查看 alice@example.test 的资料'); await find('个人资料');
+  await tap('查看 alice 的资料'); await find('个人资料');
   await screenshot(`self-profile-${scale}`);
   await tap('修改头像'); await find('设置头像'); await tap('取消'); await find('修改头像');
   profile(image); await tap('修改头像'); await find('恢复默认头像');

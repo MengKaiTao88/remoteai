@@ -5,8 +5,8 @@ import { LoungeNames, accountMatches, accountName, validName } from '../../../..
 import { mergeContact, parseAccount } from '../../../../shared/lounge/contacts';
 import { quoteMessage } from '../../../../shared/lounge/reply';
 
-const self = { id: 'alice', account: 'alice@example.test' };
-const bob = { id: 'bob', account: 'bob@example.test' };
+const self = { id: 'alice', account: 'alice' };
+const bob = { id: 'bob', account: 'bob' };
 class Socket {
   static OPEN = 1;
   static instances: Socket[] = [];
@@ -40,7 +40,7 @@ describe('server-backed lounge names', () => {
     names.receive({ profiles: [{ id: bob.id, nickname: '小明' }], remarks: [{ id: bob.id, remark: '同事 Bob' }] });
     const user = names.user(bob);
     expect(accountName(user)).toBe('同事 Bob');
-    for (const query of ['小明', '同事', 'BOB@']) expect(accountMatches(user, query)).toBe(true);
+    for (const query of ['小明', '同事', 'BOB']) expect(accountMatches(user, query)).toBe(true);
     names.receive({ remarks: [{ id: bob.id, remark: '' }] });
     const cleared = names.user(user);
     expect(accountName(cleared)).toBe('小明');

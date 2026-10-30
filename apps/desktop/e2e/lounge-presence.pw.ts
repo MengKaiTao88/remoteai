@@ -12,7 +12,7 @@ for (const width of [320, 390]) for (const theme of ['light', 'dark']) {
     await expect(page.getByRole('textbox', { name: '搜索聊天' })).toBeVisible();
     await expect(page.locator('.lounge-composer')).toHaveCount(0);
     const id = relay.private('Unread private message');
-    const bob = page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true });
+    const bob = page.getByRole('button', { name: '与 bob 私聊', exact: true });
     const row = page.locator('.lounge-chat-row').filter({ has: bob });
     const dot = row.locator('.lounge-avatar-presence');
     const green = 'rgb(34, 197, 94)';

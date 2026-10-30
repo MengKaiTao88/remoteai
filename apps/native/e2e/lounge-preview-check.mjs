@@ -8,15 +8,15 @@ export async function verifyNativePreview({ adb, tap, find, nodes, screenshot, s
   receive(latest);
   const preview = latest.replace('\n', ' ');
   await find(preview);
-  await find('与 bob@example.test 私聊');
+  await find('与 bob 私聊');
   await assertNoSelection(nodes);
   await screenshot(`preview-unread-${scale}`);
-  await tap('与 bob@example.test 私聊'); await find(latest);
+  await tap('与 bob 私聊'); await find(latest);
   await tap('返回聊天列表'); await find(preview);
   await assertNoSelection(nodes);
   assert.ok(!(await nodes()).some(node => node.text === '2'), 'Reading clears the private unread badge');
   await screenshot(`preview-read-${scale}`);
-  await tap('与 bob@example.test 私聊');
+  await tap('与 bob 私聊');
   await tap('消息'); await adb('shell', 'input', 'text', 'My-reply'); await tap('发送');
   await find('My-reply');
   const keyboard = await adb('shell', 'dumpsys', 'input_method');

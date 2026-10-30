@@ -13,7 +13,7 @@ async function longPress(row: Locator) {
 async function verifyLongAccount({ page, sheet, relay, variant }: {
   page: Page; sheet: Locator; relay: Awaited<ReturnType<typeof setupLounge>>; variant: string;
 }) {
-  const account = '中文联系人.very.long.email.address@example.test';
+  const account = '中文联系人.very.long.email.address';
   relay.private('长名称', { id: 'long', account });
   const row = page.getByRole('button', { name: `与 ${account} 私聊`, exact: true });
   await expect(row).toBeVisible(); await longPress(row);
@@ -32,10 +32,10 @@ for (const width of [320, 390]) for (const theme of ['light', 'dark']) {
     await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
     await page.locator('.mobile-tabbar').getByText('发现', { exact: true }).click();
     await page.locator('.discovery-lounge').click(); relay.private('抽屉操作测试');
-    const row = page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true });
+    const row = page.getByRole('button', { name: '与 bob 私聊', exact: true });
     await expect(row).toBeVisible(); await row.click({ button: 'right' });
     const sheet = page.locator('.lounge-chat-actions-sheet');
-    await expect(sheet.getByRole('heading', { name: 'bob@example.test' })).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'bob' })).toBeVisible();
     const actions = ['发起私聊', '置顶', '屏蔽此人', '删除'];
     await expect(sheet.getByRole('menuitem')).toHaveText(actions);
     await expect(sheet.getByRole('menuitem', { name: '删除', exact: true })).toBeInViewport();

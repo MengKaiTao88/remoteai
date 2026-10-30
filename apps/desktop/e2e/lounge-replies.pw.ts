@@ -76,7 +76,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
       mimeType: 'image/png', buffer: Buffer.from(pixel.split(',')[1], 'base64') });
     await page.getByRole('button', { name: '发送', exact: true }).click();
     await expect(page.locator('.lounge-reply-draft')).toHaveCount(0);
-    expect(relay.sent.at(-1)?.reply).toMatchObject({ account: 'bob@example.test', text: 'quoted-original', imageCount: 1 });
+    expect(relay.sent.at(-1)?.reply).toMatchObject({ account: 'bob', text: 'quoted-original', imageCount: 1 });
     const response = rows.filter({ hasText: 'reply-text' });
     await expect(response.locator('.lounge-reply')).toContainText('quoted-original');
     await aligned(response, true);

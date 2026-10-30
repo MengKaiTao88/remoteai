@@ -34,7 +34,7 @@ export function RemoteAssistance({ auth, onLogin }: { auth: CloudAuthState; onLo
     && request.state === 'accepted' && liveInvitation(request));
   const viewer = accepted?.id === state.viewerId ? accepted : undefined;
   const end = (request: AssistanceInvitation) => { void store.respond(request.id, 'end'); };
-  const invite = async () => { if (await store.invite(email)) store.setEmail(''); };
+  const invite = async () => { if (await store.inviteSelected()) store.setEmail(''); };
   return <>
     {(active || accepted) && !viewer && <div className={styles.status} role="status">
       <Handshake size={16} aria-hidden="true" />
@@ -54,12 +54,17 @@ export function RemoteAssistance({ auth, onLogin }: { auth: CloudAuthState; onLo
         {!state.authenticated ? <Button type="primary" onClick={() => { store.dismiss(); onLogin(); }}>
           {uiText("client.remoteAssistance.signInToContinue")}
         </Button> : <>
-          <label htmlFor="assistance-email">{uiText("client.remoteAssistance.theirSignInEmail")}</label>
-          <Input id="assistance-email" type="email" autoFocus value={email} maxLength={254}
-            placeholder="name@example.com" disabled={state.busy || !!active}
-            onChange={event => store.setEmail(event.target.value)} onPressEnter={() => { if (!active) void invite(); }} />
+          {state.recipient ? <p>
+            {uiText('client.lounge.assistance.recipient', { email: state.recipient.account })}
+          </p> : <>
+            <label htmlFor="assistance-email">{uiText("client.remoteAssistance.theirSignInEmail")}</label>
+            <Input id="assistance-email" type="email" autoFocus value={email} maxLength={254}
+              placeholder="name@example.com" disabled={state.busy || !!active}
+              onChange={event => store.setEmail(event.target.value)}
+              onPressEnter={() => { if (!active) void invite(); }} />
+          </>}
           <p className={styles.hint}>{uiText("client.remoteAssistance.askThemToSignInToRemoteAiOnTheir")}</p>
-          <Button type="primary" loading={state.busy} disabled={!email.trim() || !!active}
+          <Button type="primary" loading={state.busy} disabled={!state.recipient && !email.trim() || !!active}
             onClick={() => void invite()}>
             {uiText("client.remoteAssistance.sendInvitation")}
           </Button>

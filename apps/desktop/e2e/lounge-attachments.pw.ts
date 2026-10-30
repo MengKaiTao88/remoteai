@@ -19,7 +19,7 @@ async function openPrivate(page: Page, mode: string, direct = true) {
   } else await page.getByRole('button', { name: '在线交流', exact: true }).click();
   if (direct) {
     lounge.private('file-thread-ready');
-    await page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true }).filter({ visible: true }).click();
+    await page.getByRole('button', { name: '与 bob 私聊', exact: true }).filter({ visible: true }).click();
   } else if (mobile) await page.getByRole('button', { name: '群聊', exact: true }).click();
   return lounge;
 }
@@ -81,11 +81,11 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
           if (mode === 'mobile') {
             await receiving.locator('.mobile-tabbar').getByText('发现', { exact: true }).click();
             await receiving.locator('.discovery-lounge').click();
-            await receiving.getByRole('button', { name: direct ? '与 bob@example.test 私聊' : '群聊',
+            await receiving.getByRole('button', { name: direct ? '与 bob 私聊' : '群聊',
               exact: true }).filter({ visible: true }).click();
           } else {
             await receiving.getByRole('button', { name: '在线交流', exact: true }).click();
-            if (direct) await receiving.getByRole('button', { name: '与 bob@example.test 私聊', exact: true })
+            if (direct) await receiving.getByRole('button', { name: '与 bob 私聊', exact: true })
               .filter({ visible: true }).click();
           }
           await expect(image).toHaveAttribute('src', uri!);

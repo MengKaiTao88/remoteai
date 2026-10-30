@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 export async function verifyNativeOrdering(options) {
   const { adb, tap, find, nodes, screenshot, longPress, hideKeyboard, scale, broadcast, incoming, restart } = options;
-  const label = id => `与 ${id}@example.test 私聊`;
+  const label = id => `与 ${id} 私聊`;
   const receive = (id, sentAt) => broadcast({ ...incoming(`${id}-${sentAt}`),
     sender: { id, account: `${id}@example.test` }, recipient: { id: 'alice', account: 'alice@example.test' },
     sentAt: new Date(sentAt).toISOString(), receipts: true });
@@ -29,7 +29,7 @@ export async function verifyNativeOrdering(options) {
   await tap(label('bob')); await tap('返回聊天列表'); await order(['carol', 'bob']);
   await screenshot(`ordering-unpinned-${scale}`);
   await tap('返回发现'); await tap('English'); await tap('Online Chat');
-  await longPress('Chat with bob@example.test'); await find('Pin');
+  await longPress('Chat with bob'); await find('Pin');
   await screenshot(`ordering-english-${scale}`);
   console.log(`PASS native ordering, pin/unpin, offline restart and navigation at font scale ${scale}`);
 }

@@ -4,7 +4,7 @@ export async function verifyNativePresence({ adb, tap, find, nodes, screenshot, 
   await find('搜索聊天');
   assert.ok(!(await nodes()).some(node => node.text === '消息'), 'Discovery opens the list');
   broadcast({ ...incoming('私聊未读消息'), recipient: { id: 'alice', account: 'alice@example.test' } });
-  await find('与 bob@example.test 私聊');
+  await find('与 bob 私聊');
   await screenshot(`presence-online-${scale}`);
   broadcast({ type: 'contacts', contacts: [{ id: 'bob', online: false }] });
   await screenshot(`presence-offline-${scale}`);
@@ -13,7 +13,7 @@ export async function verifyNativePresence({ adb, tap, find, nodes, screenshot, 
   broadcast({ type: 'profiles', profiles: [{ id: 'bob', avatar: image }] });
   broadcast({ type: 'contacts', contacts: [{ id: 'bob', online: true }] });
   await screenshot(`presence-picture-${scale}`);
-  await tap('与 bob@example.test 私聊'); await find('私聊未读消息');
+  await tap('与 bob 私聊'); await find('私聊未读消息');
   await tap('返回聊天列表'); await find('搜索聊天');
   await tap('返回发现'); await find('在线交流');
   await tap('在线交流'); await find('搜索聊天');

@@ -53,7 +53,7 @@ for (const mode of ['local', 'remote', 'web']) {
     await avatar.click({ button: 'right' });
     await expect(page.getByRole('menuitem', { name: '@该用户' })).toBeVisible();
     await page.getByRole('menuitem', { name: '远程协助' }).click();
-    await expect(confirmation(page)).toContainText('向 bob@example.test 请求远程协助？');
+    await expect(confirmation(page)).toContainText('向 bob 请求远程协助？');
     await expect(confirmation(page)).toContainText('邀请对方查看并操作本机');
     expect((await confirmation(page).boundingBox())!.width).toBeLessThanOrEqual(400);
     await screenshotConfirmation(page, `${mode}-avatar`);
@@ -61,7 +61,7 @@ for (const mode of ['local', 'remote', 'web']) {
     await expect(dialog).toBeHidden();
     await longPress(avatar);
     await page.getByRole('menuitem', { name: '远程协助' }).click();
-    await expect(confirmation(page)).toContainText('bob@example.test');
+    await expect(confirmation(page)).toContainText('bob');
     await page.locator('.lounge-heading h1').click();
     await expect(confirmation(page)).toBeHidden();
     await avatar.click();
@@ -72,16 +72,16 @@ for (const mode of ['local', 'remote', 'web']) {
     expect(assistBox.x).toBeLessThan(historyBox.x);
     expect(Math.abs(assistBox.y - historyBox.y)).toBeLessThanOrEqual(3);
     await assist.click();
-    await expect(confirmation(page)).toContainText('bob@example.test');
+    await expect(confirmation(page)).toContainText('bob');
     await screenshotConfirmation(page, `${mode}-direct`);
     await confirmation(page).getByRole('button', { name: '发送邀请' }).click();
     await expect(dialog).toBeVisible();
     if (mode === 'web') {
-      await expect(dialog).toContainText('对方邮箱：bob@example.test');
+      await expect(dialog).toContainText('对方账号：bob');
       await expect(dialog).toContainText('请在需要协助的电脑上打开 Remote AI');
     } else {
       await expect.poll(() => page.evaluate(() => window.loungeAssistanceFixture.invited))
-        .toEqual(['helper@example.test', 'bob@example.test']);
+        .toEqual(['helper@example.test', 'bob']);
       await expect(dialog.getByRole('button', { name: '取消邀请' })).toBeVisible();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -100,11 +100,12 @@ test('confirmed avatar invitation preserves the recipient when desktop permissio
   await confirmation(page).getByRole('button', { name: '发送邀请' }).click();
   const dialog = invitationDialog(page);
   await expect(dialog).toContainText('请先在设置中允许远程桌面和键鼠控制');
-  await expect(dialog.getByRole('textbox', { name: '对方的登录邮箱' })).toHaveValue('bob@example.test');
+  await expect(dialog).toContainText('对方账号：bob');
+  await expect(dialog.getByRole('textbox', { name: '对方的登录邮箱' })).toHaveCount(0);
   expect(await page.evaluate(() => window.loungeAssistanceFixture.invited)).toEqual([]);
   await page.evaluate(() => { window.loungeAssistanceFixture.permissions = true; });
   await dialog.getByRole('button', { name: '发送邀请' }).click();
-  await expect.poll(() => page.evaluate(() => window.loungeAssistanceFixture.invited)).toEqual(['bob@example.test']);
+  await expect.poll(() => page.evaluate(() => window.loungeAssistanceFixture.invited)).toEqual(['bob']);
 });
 
 test('assistance confirmation follows language changes with offline resources and a narrow dark layout', async ({ page }) => {
@@ -117,10 +118,10 @@ test('assistance confirmation follows language changes with offline resources an
   await page.locator('.lounge-conversation .lounge-avatar').first().click();
   await page.locator('.lounge-toolbar').getByRole('button', { name: '远程协助' }).click();
   const translations = [
-    ['en', 'Ask bob@example.test for remote assistance?'],
-    ['ja', 'bob@example.test にリモートアシスタンスを依頼しますか？'],
-    ['ru', 'Попросить bob@example.test об удалённой помощи?'],
-    ['zh', '向 bob@example.test 请求远程协助？'],
+    ['en', 'Ask bob for remote assistance?'],
+    ['ja', 'bob にリモートアシスタンスを依頼しますか？'],
+    ['ru', 'Попросить bob об удалённой помощи?'],
+    ['zh', '向 bob 请求远程协助？'],
   ] as const;
   await page.context().setOffline(true);
   for (const [language, title] of translations) {

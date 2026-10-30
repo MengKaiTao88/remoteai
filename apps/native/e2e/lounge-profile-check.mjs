@@ -3,8 +3,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 export async function verifyNativeProfile({ adb, tap, find, nodes, screenshot, hideKeyboard,
   longPress, scale, sent, reply, restart, failDelete }) {
-  const profile = '查看 bob@example.test 的资料';
-  const direct = '与 bob@example.test 私聊';
+  const profile = '查看 bob 的资料';
+  const direct = '与 bob 私聊';
   await tap('群聊'); await tap('消息'); await adb('shell', 'input', 'text', 'group-draft'); await hideKeyboard();
   await tap(profile); await find('个人资料'); await find('发消息'); await find('删除');
   await screenshot(`profile-${scale}`); await tap('返回'); await find('group-draft');

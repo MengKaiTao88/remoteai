@@ -20,7 +20,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile']) {
     if (mobile && await page.getByRole('button', { name: '成员', exact: true }).isVisible()) {
       await page.getByRole('button', { name: '成员', exact: true }).click();
       await page.locator('.lounge-mobile-sheet')
-        .getByRole('button', { name: '查看 bob@example.test 的资料', exact: true }).click();
+        .getByRole('button', { name: '查看 bob 的资料', exact: true }).click();
       await page.getByRole('button', { name: '发消息', exact: true }).click();
     } else {
       await page.locator('.lounge-bubble').filter({ hasText: 'opening-limit-contact' }).click({ button: 'right' });

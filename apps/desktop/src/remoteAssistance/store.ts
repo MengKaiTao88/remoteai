@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { DesktopPermissions } from '../../../../shared/remote-desktop/protocol';
 import type { GuiCloudIdentity } from '../pages/codexGui/remote/types';
 import { rememberRevocation, revokedInvitations } from './revocations';
+import type { LoungeAccount } from '../../../../shared/lounge/types';
 
 export interface AssistanceInvitation {
   id: string; hostDeviceId: string; hostName: string; hostEmail: string; helperEmail: string;
@@ -9,9 +10,11 @@ export interface AssistanceInvitation {
 }
 interface Reply { identity: GuiCloudIdentity; currentDeviceId: string; requests: AssistanceInvitation[] }
 type Command = { kind: 'list' } | { kind: 'invite'; email: string }
+  | { kind: 'inviteAccount'; userId: string }
   | { kind: 'respond'; id: string; action: 'accept' | 'decline' | 'end' };
 interface Snapshot {
   authenticated: boolean; dialog: boolean; busy: boolean; error: string; requests: AssistanceInvitation[]; email: string;
+  recipient?: LoungeAccount;
   identity?: GuiCloudIdentity; currentDeviceId?: string; viewerId?: string;
 }
 const INITIAL: Snapshot = { authenticated: false, dialog: false, busy: false, error: '', requests: [], email: '' };
@@ -45,13 +48,13 @@ export class AssistanceStore {
   open = () => this.update({ dialog: true, error: '' });
   setEmail = (email: string) => this.update({ email });
   /** Targeted chat entries call this only after the user confirms the recipient. */
-  request = (email?: string) => {
+  request = (user?: LoungeAccount) => {
     if (this.state.busy || this.state.requests.some(request =>
       request.hostDeviceId === this.state.currentDeviceId && liveInvitation(request))) {
       this.open(); return;
     }
-    this.update({ dialog: true, error: '', email: email ?? '' });
-    if (email) void this.invite(email);
+    this.update({ dialog: true, error: '', email: '', recipient: user });
+    if (user) void this.inviteSelected();
   };
   dismiss = () => this.update({ dialog: false });
   view = (id: string) => { if (!this.revoked.has(id)) this.update({ viewerId: id, dialog: false }); };
@@ -77,6 +80,10 @@ export class AssistanceStore {
     }
     return this.execute({ kind: 'invite', email: normalized });
   }
+  async inviteSelected() {
+    const recipient = this.state.recipient;
+    return recipient ? this.execute({ kind: 'inviteAccount', userId: recipient.id }) : this.invite(this.state.email);
+  }
   async respond(id: string, action: 'accept' | 'decline' | 'end') {
     if (action === 'end') {
       // Local cancellation stops capture even while the cloud is unreachable.
@@ -93,7 +100,7 @@ export class AssistanceStore {
     this.revision++;
     this.update({ busy: true, error: '' });
     try {
-      if (request.kind === 'invite') {
+      if (request.kind === 'invite' || request.kind === 'inviteAccount') {
         const permissions = await invoke<DesktopPermissions>('remote_desktop_permissions');
         if (!permissions.enabled || !permissions.control) {
           throw new Error('请先在设置中允许远程桌面和键鼠控制。');

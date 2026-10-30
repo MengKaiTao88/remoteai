@@ -5,8 +5,8 @@ import type { LoungeMessage } from '../../../../shared/lounge/types';
 import type { LoungeContact } from '../../../../shared/lounge/contacts';
 import { historyPage, type LoungeHistoryStore } from '../../../../shared/lounge/archive';
 
-const alice = { id: 'alice', account: 'alice@example.test' };
-const bob = { id: 'bob', account: 'bob@example.test' };
+const alice = { id: 'alice', account: 'alice' };
+const bob = { id: 'bob', account: 'bob' };
 class Socket {
   static OPEN = 1;
   static instances: Socket[] = [];

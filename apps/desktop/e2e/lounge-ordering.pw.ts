@@ -3,8 +3,8 @@ import { setupLounge } from './lounge-support';
 
 const webURL = process.env.LOUNGE_TEST_WEB_URL ?? 'http://127.0.0.1:1486/web/';
 const carol = { id: 'carol', account: 'carol@example.test' };
-const bobLabel = '与 bob@example.test 私聊';
-const carolLabel = '与 carol@example.test 私聊';
+const bobLabel = '与 bob 私聊';
+const carolLabel = '与 carol 私聊';
 test.setTimeout(120_000);
 
 async function enter(page: Page, mobile: boolean) {
@@ -48,7 +48,7 @@ for (const mode of ['local', 'remote', 'web', 'mobile-320', 'mobile-390']) {
     await page.goto(mobile || mode === 'web' ? webURL : `/e2e/lounge-harness.html?mode=${mode}`);
     await relay.ready(); await enter(page, mobile);
     const rows = page.locator(mobile ? '.lounge-chat-row-main' : '.lounge-people-list .lounge-person');
-    const privateRows = rows.filter({ hasText: '@example.test' });
+    const privateRows = rows.and(page.getByRole('button', { name: /^与 .+ 私聊$/ }));
     const bob = rows.and(page.getByRole('button', { name: bobLabel }));
     const carolRow = rows.and(page.getByRole('button', { name: carolLabel }));
     const expectOrder = async (labels: string[]) => {

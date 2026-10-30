@@ -36,7 +36,7 @@ for (const width of [390, 320]) {
     await page.screenshot({ path: `../../.codex-tmp/lounge-mobile-history-${width}.png`, animations: 'disabled' });
     await page.locator('.ant-drawer-close').click(); await expect(input).toHaveValue('保留草稿');
     relay.policy(true);
-    await page.getByRole('button', { name: '管理 bob@example.test 的发言权限' }).click();
+    await page.getByRole('button', { name: '管理 bob 的发言权限' }).click();
     await page.getByRole('spinbutton').fill('30'); await page.getByRole('button', { name: /^禁\s*言$/ }).click();
     await expect.poll(() => relay.moderation.length).toBe(1);
     relay.policy(false, new Date(Date.now() + 60000).toISOString());
@@ -130,12 +130,12 @@ test('moderators can mute and unmute an account; mute updates disable sending wi
     relay.policy(true);
     relay.push('可以管理这位用户');
     await page.getByRole('button', { name: '在线交流', exact: true }).click();
-    await page.getByRole('button', { name: '管理 bob@example.test 的发言权限' }).click();
+    await page.getByRole('button', { name: '管理 bob 的发言权限' }).click();
     await page.getByRole('spinbutton', { name: '禁言时长（分钟）' }).fill('30');
     await page.getByRole('button', { name: /^禁\s*言$/ }).click();
     await expect.poll(() => relay.moderation).toEqual([{ type: 'moderate', id: expect.any(String),
       userId: 'bob', minutes: 30 }]);
-    await page.getByRole('button', { name: '管理 bob@example.test 的发言权限' }).click();
+    await page.getByRole('button', { name: '管理 bob 的发言权限' }).click();
     await page.getByRole('button', { name: '解除禁言' }).click();
     await expect.poll(() => relay.moderation.length).toBe(2);
     expect(relay.moderation[1].minutes).toBe(0);

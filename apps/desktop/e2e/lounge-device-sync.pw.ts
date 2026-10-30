@@ -91,7 +91,7 @@ test('private history excludes deleted generations and never replays the sender�
   const context = await browser.newContext();
   try {
     const other = await context.newPage(); const sink = await connect(other, broker, 'remote', false);
-    await other.getByRole('button', { name: '与 bob@example.test 私聊', exact: true }).click();
+    await other.getByRole('button', { name: '与 bob 私聊', exact: true }).click();
     await expect(other.locator('.lounge-text')).toHaveText('删除后的新消息');
     expect(sink.sent).toHaveLength(0);
     await expect(other.locator('.lounge-avatar-unread')).toHaveCount(0);

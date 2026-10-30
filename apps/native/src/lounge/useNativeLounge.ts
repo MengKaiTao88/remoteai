@@ -41,7 +41,8 @@ export function useNativeLounge(session: AuthSession | null) {
   const controller = useMemo(() => new LoungeController(session ? {
     sync: nativeLoungeSync,
     attachmentImages: nativeAttachmentImages(JSON.stringify([session.baseUrl, session.email])),
-    baseUrl: session.baseUrl, account: session.email, avatars: avatarStore(session.baseUrl),
+    baseUrl: session.baseUrl, userId: session.profile?.id, account: session.email,
+    avatars: avatarStore(session.baseUrl),
     history: nativeLoungeHistory(session.baseUrl, session.email),
     authorize: async () => {
       const response = await authorizedRequest(session, '/lounge/ticket', { method: 'POST' });

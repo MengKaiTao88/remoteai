@@ -8,7 +8,7 @@ export async function verifyNativeNewChat(options) {
   await tap('新聊天'); await find('最近发言用户');
   await screenshot(`new-chat-recent-${scale}`);
   const recentQueries = lookups.length;
-  await tap('与 bob@example.test 私聊'); await find('bob@example.test');
+  await tap('与 bob 私聊'); await find('bob');
   assert.equal(lookups.length, recentQueries, 'Recent speakers open directly');
   await tap('返回聊天列表');
   await tap('新聊天');
@@ -19,13 +19,13 @@ export async function verifyNativeNewChat(options) {
   await find('这是你自己的账号，请输入对方的邮箱。');
   await fillLookup(options, 'BOB');
   await screenshot(`new-chat-keyboard-${scale}`);
-  await tap('发起私聊'); await find('bob@example.test');
+  await tap('发起私聊'); await find('bob');
   assert.equal(lookups.at(-1), 'BOB');
   await tap('消息'); await adb('shell', 'input', 'text', `Prefix-${scale}`); await tap('发送');
   await find('对方已收到'); assert.equal(sent.at(-1).to, 'bob');
   await hideKeyboard(); await screenshot(`new-chat-private-${scale}`);
   await tap('返回聊天列表'); await tap('新聊天');
-  await fillLookup(options, 'bob@EXAMPLE.test'); await tap('发起私聊'); await find('bob@example.test');
+  await fillLookup(options, 'bob@EXAMPLE.test'); await tap('发起私聊'); await find('bob');
   assert.equal(lookups.at(-1), 'bob@EXAMPLE.test');
   await tap('返回聊天列表'); await tap('群聊');
   await tap('消息'); await adb('shell', 'input', 'text', 'PreservedDraft'); await hideKeyboard();

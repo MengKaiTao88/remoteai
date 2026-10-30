@@ -97,6 +97,17 @@ while the operating system has suspended networking.
 
 ## Automated checks
 
+Lounge account labels contain only the email local part. The Go API strips domains from tickets,
+account objects and reply metadata; message text, nicknames and private remarks are not altered.
+Exact full-email lookup remains supported, and private delivery and chat assistance use user IDs.
+Local history stays scoped to the signed-in account rather than its potentially shared display prefix.
+
+Set `LOUNGE_PRIVACY_ONLY=1` to inspect prefix labels, legacy quotes, profile pages and back navigation
+on physical Android at font scales 1.0 and 1.3. The corresponding browser regression is
+`apps/desktop/e2e/lounge-account-privacy.pw.ts` across desktop local/remote, Web and mobile Web.
+API coverage is in `internal/lounge/account_privacy_test.go` and
+`internal/devices/assistance_account_integration_test.go` in admin-go.
+
 Set `LOUNGE_ADMIN_BADGE_ONLY=1` to verify the yellow administrator badge before sender names,
 ordinary messages without badges, own messages, history, English copy and back navigation at
 font scales 1.0 and 1.3. Inspect `admin-*.png` for complete glyphs, long nickname wrapping and

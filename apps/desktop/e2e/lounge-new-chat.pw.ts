@@ -29,7 +29,7 @@ for (const mode of ['local', 'remote', 'web']) {
     expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(560);
     await input.fill(' BOB '); await input.press('Enter');
     await expect(dialog).toBeHidden();
-    await expect(page.locator('.lounge-heading h1')).toHaveText('bob@example.test');
+    await expect(page.locator('.lounge-heading h1')).toHaveText('bob');
     await page.getByRole('textbox', { name: '消息', exact: true }).fill('通过邮箱找到你');
     await page.getByRole('button', { name: '发送', exact: true }).click();
     await expect.poll(() => relay.sent.map(frame => frame.to)).toEqual(['bob']);
@@ -39,7 +39,7 @@ for (const mode of ['local', 'remote', 'web']) {
     await expect(page.locator('.lounge-people-list .lounge-person')).toHaveCount(1);
     await page.reload(); await relay.ready();
     await page.getByRole('button', { name: '在线交流', exact: true }).click();
-    await expect(page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '与 bob 私聊', exact: true })).toBeVisible();
   });
 
   test(`${mode}: recent speakers start chats and cancelling lookup keeps the current draft`, async ({ page }) => {
@@ -49,10 +49,10 @@ for (const mode of ['local', 'remote', 'web']) {
     await page.getByRole('button', { name: '在线交流', exact: true }).click();
     const newChat = page.getByRole('button', { name: '新聊天', exact: true });
     await newChat.click();
-    await page.getByRole('dialog').getByRole('button', { name: '与 bob@example.test 私聊' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: '与 bob 私聊' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: '发起私聊', exact: true }).click();
-    await expect(page.locator('.lounge-heading h1')).toHaveText('bob@example.test');
+    await expect(page.locator('.lounge-heading h1')).toHaveText('bob');
     expect(relay.lookups).toEqual([]);
     await page.getByRole('button', { name: '群聊', exact: true }).click();
     await page.getByRole('textbox', { name: '消息', exact: true }).fill('群聊草稿');
@@ -68,7 +68,7 @@ for (const mode of ['local', 'remote', 'web']) {
     await expect(page.getByRole('dialog').getByRole('textbox')).toHaveValue('');
     await page.getByRole('dialog').getByRole('textbox').fill('bob');
     await page.getByRole('dialog').getByRole('textbox').press('Enter');
-    await expect(page.locator('.lounge-heading h1')).toHaveText('bob@example.test');
+    await expect(page.locator('.lounge-heading h1')).toHaveText('bob');
   });
 
   test(`${mode}: new chat filters, selects and clears recent users without removing conversations`, async ({ page }) => {
@@ -111,7 +111,7 @@ for (const mode of ['local', 'remote', 'web']) {
     await expect(rows).toHaveCount(1);
     await rows.click(); await start.click();
     await expect(dialog).toBeHidden();
-    await expect(page.locator('.lounge-heading h1')).toHaveText('bob@example.test');
+    await expect(page.locator('.lounge-heading h1')).toHaveText('bob');
     await expect(page.locator('.lounge-text').filter({ hasText: '保留聊天内容' })).toHaveCount(1);
   });
 }

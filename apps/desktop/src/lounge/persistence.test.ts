@@ -15,7 +15,7 @@ class Socket {
   frame(frame: unknown) { this.onmessage?.({ data: JSON.stringify(frame) }); }
 }
 const message = (id: string): LoungeMessage => ({ type: 'message', id, text: `message ${id}`, images: [],
-  sender: { id: 'bob', account: 'bob@example.test' }, sentAt: new Date().toISOString() });
+  sender: { id: 'bob', account: 'bob' }, sentAt: new Date().toISOString() });
 const controllers: LoungeController[] = [];
 const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 function start(history: LoungeHistoryStore, offline = false) {

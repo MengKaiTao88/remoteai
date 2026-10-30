@@ -19,7 +19,7 @@ for (const [width, direct] of [[320, false], [390, false], [320, true], [390, tr
     await page.locator('.discovery-lounge').click();
     const receive = direct ? relay.private : relay.push;
     for (let index = 0; index < 40; index++) receive(`第 ${index + 1} 条中文消息，检查滚动和返回最新消息。`);
-    const chat = direct ? '与 bob@example.test 私聊' : '群聊';
+    const chat = direct ? '与 bob 私聊' : '群聊';
     await page.getByRole('button', { name: chat, exact: true }).click();
     const list = page.locator('.lounge-conversation');
     const latest = page.getByRole('button', { name: '回到最新消息', exact: true });

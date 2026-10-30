@@ -73,11 +73,11 @@ test('mobile own profile: message identity, avatar cancellation, failure and suc
   const input = page.getByRole('textbox', { name: '消息', exact: true });
   await input.fill('hi'); await button(page, '发送').click();
   const own = page.locator('.lounge-message.is-own');
-  await expect(own.locator('.lounge-account')).toHaveText('alice@example.test');
+  await expect(own.locator('.lounge-account')).toHaveText('alice');
   await expect(own.locator('.lounge-message-time')).toBeVisible();
-  await own.getByRole('button', { name: '查看 alice@example.test 的资料' }).click();
+  await own.getByRole('button', { name: '查看 alice 的资料' }).click();
   const profile = page.locator('.lounge-profile');
-  await expect(profile).toContainText('alice@example.test');
+  await expect(profile).toContainText('alice');
   await expect(profile.getByRole('button', { name: '删除', exact: true })).toHaveCount(0);
   await button(page, '修改头像').click();
   const dialog = page.getByRole('dialog', { name: '设置头像' });

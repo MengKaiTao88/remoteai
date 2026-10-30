@@ -1,8 +1,8 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { setupLounge } from './lounge-support';
 
-const profileLabel = '查看 bob@example.test 的资料';
-const privateLabel = '与 bob@example.test 私聊';
+const profileLabel = '查看 bob 的资料';
+const privateLabel = '与 bob 私聊';
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 async function enter(page: Page) {
   await page.locator('.mobile-tabbar').getByText('发现', { exact: true }).click();
@@ -51,7 +51,7 @@ for (const width of [320, 390]) for (const theme of ['light', 'dark']) {
     await input.fill('retained group draft');
     await button(page, profileLabel).click();
     const profile = page.locator('.lounge-profile');
-    await expect(profile).toContainText('bob@example.test');
+    await expect(profile).toContainText('bob');
     await expect(profile).not.toContainText('在线');
     await expect(button(page, '发消息')).toBeVisible();
     await button(page, '发消息').hover();
@@ -65,7 +65,7 @@ for (const width of [320, 390]) for (const theme of ['light', 'dark']) {
     await button(page, '发消息').click();
     await expect(page.getByRole('dialog', { name: '历史记录', exact: true })).toBeHidden();
     await expect(input).toHaveValue('');
-    await expect(page.locator('.lounge-mobile-heading')).toContainText('bob@example.test');
+    await expect(page.locator('.lounge-mobile-heading')).toContainText('bob');
   });
 }
 

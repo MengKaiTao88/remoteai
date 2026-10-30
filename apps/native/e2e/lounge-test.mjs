@@ -23,6 +23,7 @@ import { verifyNativeContacts } from './lounge-contacts-check.mjs';
 import { loadHistorySource, verifyNativeSync } from './lounge-sync-check.mjs';
 import { verifyNativeNotifications } from './lounge-notifications-check.mjs';
 import { verifyNativeAdminBadge } from './lounge-admin-badge-check.mjs';
+import { verifyNativeAccountPrivacy } from './lounge-account-privacy-check.mjs';
 import { verifyNativeGestures } from './lounge-gestures-check.mjs';
 import { verifyNativeLoungeScroll } from './lounge-scroll-check.mjs';
 
@@ -265,6 +266,10 @@ try {
     await find('在线交流'); if (scale === 1.3) await tap('Light fixture');
     await find('1'); await screenshot(`discovery-${scale}`);
     await tap('在线交流'); await find('搜索聊天');
+    if (process.env.LOUNGE_PRIVACY_ONLY === '1') {
+      await verifyNativeAccountPrivacy({ tap, find, nodes, screenshot, scale, broadcast, incoming });
+      continue;
+    }
     if (process.env.LOUNGE_SCROLL_ONLY === '1') {
       await verifyNativeLoungeScroll({ adb, tap, find, nodes, screenshot, scale, broadcast, incoming, app });
       continue;
@@ -385,18 +390,18 @@ try {
     await find('真机中文测试：忙里偷闲，聊点轻松的 ☕'); await screenshot(`chat-${scale}`);
     await longPressBesideMessage('真机中文测试：忙里偷闲，聊点轻松的 ☕');
     await tap('聊天'); await find('新聊天');
-    assert.ok(!(await nodes()).some(node => node['content-desc'] === '与 bob@example.test 私聊'),
+    assert.ok(!(await nodes()).some(node => node['content-desc'] === '与 bob 私聊'),
       'Group participants must not appear in the private chat list');
     await screenshot(`people-empty-${scale}`); await tap('返回聊天');
     await find('2 人在线'); broadcast({ type: 'presence', onlineCount: 3 }); await find('3 人在线');
     await longPress('真机中文测试：忙里偷闲，聊点轻松的 ☕'); await find('引用回复');
-    await screenshot(`message-actions-${scale}`); await tap('引用回复'); await find('回复 bob@example.test');
+    await screenshot(`message-actions-${scale}`); await tap('引用回复'); await find('回复 bob');
     await tap('取消引用'); await hideKeyboard();
     await longPress('真机中文测试：忙里偷闲，聊点轻松的 ☕'); await tap('引用回复');
     await tap('消息'); await adb('shell', 'input', 'text', unique); await screenshot(`keyboard-${scale}`);
     await tap('发送');
     await assertEventually(() => sent.length > sentBefore && sent.at(-1).text === unique, 'Send ack');
-    assert.equal(sent.at(-1).reply?.account, 'bob@example.test');
+    assert.equal(sent.at(-1).reply?.account, 'bob');
     assert.equal(sent.at(-1).reply?.imageCount, 1);
     await tap('消息'); await adb('shell', 'input', 'text', 'Draft');
     await hideKeyboard();
@@ -407,7 +412,7 @@ try {
     broadcast(incoming('私聊入口测试'));
     await longPress('私聊入口测试'); await tap('发起私聊');
     await tap('聊天'); await screenshot(`people-${scale}`);
-    await longPress('与 bob@example.test 私聊'); await tap('发起私聊'); await find('在线');
+    await longPress('与 bob 私聊'); await tap('发起私聊'); await find('在线');
     await tap('消息'); await adb('shell', 'input', 'text', `Private-${unique}`); await tap('发送');
     await assertEventually(() => sent.at(-1)?.to === 'bob', 'Private recipient');
     await find('对方已收到');
@@ -439,7 +444,7 @@ try {
     await tap('聊天'); await tap('群聊');
     assert.ok(!(await nodes()).some(node => node.text === 'blocked-group'), 'Block filters new group messages');
     broadcast(incoming('管理入口测试')); await find('管理入口测试');
-    await tap('管理 bob@example.test 的发言权限'); await find('禁言时长（分钟）');
+    await tap('管理 bob 的发言权限'); await find('禁言时长（分钟）');
     await screenshot(`moderation-${scale}`); await tap('禁言');
     await assertEventually(() => moderated.length > moderatedBefore, 'Moderation ack');
     await tap('添加内容'); await tap('设置头像'); await find('选择图片'); await screenshot(`avatar-${scale}`); await tap('取消');
@@ -469,7 +474,7 @@ try {
     await adb('shell', 'input', 'text', unique); await find('本页 1 条记录'); await find(unique);
     await find('查看原消息');
     await hideKeyboard(); await screenshot(`offline-restart-${scale}`);
-    await tap('返回聊天'); await tap('聊天'); await tap('与 bob@example.test 私聊');
+    await tap('返回聊天'); await tap('聊天'); await tap('与 bob 私聊');
     await tap('添加内容'); await tap('历史记录'); await tap('搜索消息或账户'); await adb('shell', 'input', 'text', `Private-${unique}`);
     await find('本页 1 条记录'); await find('对方已阅读');
     await hideKeyboard(); await screenshot(`private-offline-${scale}`);

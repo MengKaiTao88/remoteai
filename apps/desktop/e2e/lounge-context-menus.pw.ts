@@ -62,11 +62,11 @@ for (const mode of ['local', 'remote', 'web']) {
       await expect(avatar).toHaveText(['@该用户', '远程协助']);
       if (!touch) await screenshotMenu(page, `lounge-avatar-menu-${mode}`);
       await avatar.first().click();
-      await expect(input).toHaveValue('你好，@bob@example.test 继续'); await expect(input).toBeFocused();
+      await expect(input).toHaveValue('你好，@bob 继续'); await expect(input).toBeFocused();
       await expect(page.locator('.lounge-heading h1')).toHaveText('在线交流');
     }
     relay.private('联系人');
-    const person = page.locator('.lounge-people-list .lounge-person').filter({ hasText: 'bob@example.test' });
+    const person = page.locator('.lounge-people-list .lounge-person').filter({ hasText: 'bob' });
     for (const touch of [false, true]) {
       const menu = await openMenu(page, person, touch);
       await expect(menu).toHaveText(['发起私聊', '个人资料', '置顶', '消息免打扰', '屏蔽此人']);

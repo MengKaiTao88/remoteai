@@ -6,7 +6,7 @@ import { getInterfaceLanguage, subscribeInterfaceLanguage } from '../localizatio
 import type { LoungeAccount } from './types';
 import './assistance.css';
 
-export type RequestLoungeAssistance = (email?: string) => void;
+export type RequestLoungeAssistance = (user?: LoungeAccount) => void;
 const AssistanceContext = createContext<RequestLoungeAssistance | undefined>(undefined);
 export const useLoungeAssistance = () => useContext(AssistanceContext);
 
@@ -16,7 +16,7 @@ export function LoungeAssistanceProvider({ request, children }: {
 }) {
   useSyncExternalStore(subscribeInterfaceLanguage, getInterfaceLanguage);
   const [desktopHint, setDesktopHint] = useState<{ email?: string }>();
-  return <AssistanceContext.Provider value={request ?? (email => setDesktopHint({ email }))}>
+  return <AssistanceContext.Provider value={request ?? (user => setDesktopHint({ email: user?.account }))}>
     {children}
     <Modal open={!!desktopHint} title={t('client.remoteAssistance.remoteAssistance')}
       width={440} styles={{ body: { maxWidth: 400 } }} onCancel={() => setDesktopHint(undefined)}
@@ -40,7 +40,7 @@ export function LoungeAssistanceConfirm({ user, children, open, onOpenChange }: 
     onOpenChange={value => { if (open === undefined || !value) onOpenChange?.(value); }}
     overlayClassName="lounge-assistance-confirm"
     styles={{ root: { maxWidth: 'min(400px, calc(100vw - 24px))' } }}
-    onConfirm={() => request?.(user.account)}>{children}</Popconfirm>;
+    onConfirm={() => request?.(user)}>{children}</Popconfirm>;
 }
 
 export function LoungeAssistanceButton({ user }: { user?: LoungeAccount }) {

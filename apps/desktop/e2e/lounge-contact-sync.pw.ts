@@ -20,13 +20,13 @@ test('mobile web: a clean login restores cloud contacts and follows live additio
   await page.goto(webURL); await relay.ready();
   await page.locator('.mobile-tabbar').getByText('发现', { exact: true }).click();
   await page.locator('.discovery-lounge').click();
-  const bob = page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true });
+  const bob = page.getByRole('button', { name: '与 bob 私聊', exact: true });
   await expect(bob).toBeVisible(); await bob.click();
-  await expect(page.locator('.lounge-heading h1')).toHaveText('bob@example.test');
+  await expect(page.locator('.lounge-heading h1')).toHaveText('bob');
   await expect(page.locator('.lounge-message')).toHaveCount(0);
   await page.getByRole('button', { name: '返回聊天列表', exact: true }).click();
   cloud.users.push({ id: 'carol', account: 'carol@example.test' }); cloud.changed();
-  await expect(page.getByRole('button', { name: '与 carol@example.test 私聊', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '与 carol 私聊', exact: true })).toBeVisible();
   await page.screenshot({ path: '../../.codex-tmp/lounge-cloud-contacts-mobile.png', animations: 'disabled' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
@@ -45,8 +45,8 @@ for (const mode of ['local', 'remote', 'web']) {
       await expect(other.locator('.lounge-people-list .lounge-person')).toHaveCount(2);
       await expect(other.locator('.lounge-message')).toHaveCount(0);
       await expect(other.locator('.lounge-avatar-unread')).toHaveCount(0);
-      await other.getByRole('button', { name: '与 bob@example.test 私聊', exact: true }).click();
-      await expect(other.locator('.lounge-heading h1')).toHaveText('bob@example.test');
+      await other.getByRole('button', { name: '与 bob 私聊', exact: true }).click();
+      await expect(other.locator('.lounge-heading h1')).toHaveText('bob');
       await expect(other.locator('.lounge-message')).toHaveCount(0);
       cloud.users.push({ id: 'dana', account: 'dana@example.test' }); cloud.changed();
       for (const device of [page, other]) {
@@ -65,7 +65,7 @@ for (const mode of ['local', 'remote', 'web']) {
     await page.getByRole('alert').getByRole('button', { name: '重试', exact: true }).click();
     await expect(page.getByRole('alert')).toBeHidden();
     await expect(page.locator('.lounge-people-list .lounge-person')).toHaveCount(2);
-    await page.getByRole('button', { name: '与 bob@example.test 私聊', exact: true }).click();
+    await page.getByRole('button', { name: '与 bob 私聊', exact: true }).click();
     await expect(page.locator('.lounge-text')).toHaveText('本机消息保留');
   });
 }

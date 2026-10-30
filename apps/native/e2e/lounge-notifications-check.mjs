@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 export async function verifyNativeNotifications({ adb, tap, find, nodes, screenshot, longPress, scale,
   broadcast, incoming, notifications, restart }) {
   const close = () => adb('shell', 'input', 'keyevent', '4');
-  const direct = '与 bob@example.test 私聊';
+  const direct = '与 bob 私聊';
   broadcast({ ...incoming('私聊未读消息'), recipient: { id: 'alice', account: 'alice@example.test' } });
   await find(direct);
   for (let index = 0; index < 100; index++) broadcast(incoming(`群聊未读消息 ${index}`));

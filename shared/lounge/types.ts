@@ -12,6 +12,7 @@ export const MAX_TOTAL_IMAGE_BYTES = 3 * 1024 * 1024;
 export const MAX_FRAME_BYTES = 6 * 1024 * 1024;
 export const MAX_MUTE_MINUTES = 30 * 24 * 60;
 export interface LoungeAccount {
+  /** Account is a public email prefix, never a unique identity or a delivery address. */
   id: string; account: string; avatar?: string; nickname?: string;
   /** Server-confirmed lounge role, retained with messages for offline history. */
   moderator?: boolean;
@@ -37,6 +38,7 @@ export interface LoungeSession {
   attachmentImages?: import('./attachmentCache').AttachmentImageStore;
   sync?: import('./syncConnection').LoungeSyncTransport;
   baseUrl: string;
+  userId?: string;
   account?: string;
   authorize: () => Promise<{ ticket: string }>;
   avatars?: LoungeAvatarStore;

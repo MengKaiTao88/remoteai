@@ -1,6 +1,7 @@
 import { avatarData, type LoungeAvatarStore } from './avatar';
 import type { LoungeAccount, LoungeMessage, LoungeSnapshot } from './types';
 import { LoungeNames } from './names';
+import { accountLabel } from './accountLabel';
 
 const MAX_PROFILES = 200;
 
@@ -34,6 +35,8 @@ export class LoungeProfiles {
   }
   user(user: LoungeAccount): LoungeAccount {
     user = this.names.user(user);
+    const account = accountLabel(user.account);
+    if (account !== user.account) user = { ...user, account };
     if (!this.avatars.has(user.id)) return user;
     const avatar = this.avatars.get(user.id) || undefined;
     return avatar === user.avatar ? user : { ...user, avatar };
@@ -41,7 +44,12 @@ export class LoungeProfiles {
   message = (message: LoungeMessage): LoungeMessage => {
     const sender = this.user(message.sender);
     const recipient = message.recipient ? this.user(message.recipient) : undefined;
-    return sender === message.sender && recipient === message.recipient ? message : { ...message, sender, recipient };
+    let reply = message.reply;
+    if (reply && accountLabel(reply.account) !== reply.account) {
+      reply = { ...reply, account: accountLabel(reply.account) };
+    }
+    return sender === message.sender && recipient === message.recipient && reply === message.reply
+      ? message : { ...message, sender, recipient, reply };
   };
   decorate(state: LoungeSnapshot): LoungeSnapshot {
     // Preserve unchanged lists: presence and acknowledgements must not reset the chat viewport.

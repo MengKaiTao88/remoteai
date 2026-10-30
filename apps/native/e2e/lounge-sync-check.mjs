@@ -11,7 +11,7 @@ export async function loadHistorySource(root) {
 }
 
 export async function verifyNativeSync({ adb, tap, find, screenshot, scale, source, assertEventually, hideKeyboard }) {
-  await tap('与 bob@example.test 私聊');
+  await tap('与 bob 私聊');
   await find('来自另一台设备的私聊记录');
   await screenshot(`device-sync-private-${scale}`);
   const text = `Native-synced-${Date.now()}`;

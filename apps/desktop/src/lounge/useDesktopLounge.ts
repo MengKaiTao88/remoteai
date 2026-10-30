@@ -14,7 +14,7 @@ export function useDesktopLounge(auth: CloudAuthState) {
   const controller = useMemo(() => new LoungeController(authenticated && baseUrl && userId ? {
     sync: browserLoungeSync,
     attachmentImages: browserAttachmentImages(JSON.stringify([baseUrl, userId]), browserAttachmentSink),
-    baseUrl, account: userEmail || undefined, avatars: browserAvatarStore(baseUrl),
+    baseUrl, userId, account: userEmail || undefined, avatars: browserAvatarStore(baseUrl),
     history: browserLoungeHistory(baseUrl, userEmail || userId),
     authorize: () => invoke<{ ticket: string }>('cloud_lounge_ticket', { identity: { baseUrl, userId } }),
   } : undefined), [authenticated, baseUrl, userId, userEmail]);
