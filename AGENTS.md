@@ -77,6 +77,19 @@ Keep all instructions in this `AGENTS.md` file in English.
   Preserve and report mixed changes that cannot be reliably separated; never stage everything indiscriminately
   and include unverified work in a commit.
 
+## UI Design and Screenshot Evidence
+
+- Every UI change must include screenshots of the updated interface captured from the running application.
+  Inspect the screenshots before delivery and include them, or direct links to them, in the final response.
+  Cover the affected screens and interaction states across the platforms, modes, and viewport sizes required
+  by the parity rules below. Label each screenshot with its platform, mode, and state.
+  If screenshots cannot be captured, report the blocker and the missing visual verification;
+  do not claim that the UI change is fully verified.
+- All UI changes must preserve the project's established visual identity while applying modern, clean,
+  and polished design principles. Reuse existing components and design tokens to keep typography, colors,
+  spacing, and interaction patterns consistent. Use clear visual hierarchy, balanced layouts, and restrained
+  effects or motion that improve usability without compromising readability, accessibility, or performance.
+
 ## User-Facing Prompts and Copy
 
 - Write all user-facing prompts and copy in natural, clear, and easy-to-understand language. Do not mention implementation details, internal processes, or other technical details.
