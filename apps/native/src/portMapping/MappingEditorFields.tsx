@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { DEFAULT_MAPPING_HOST } from '../../../../shared/port-mapping/target';
 import type { useMappingFormState } from '../chat/portMapping/useMappingFormState';
 import { t } from '../i18n';
 import { useThemeColor } from '../theme/store';
@@ -16,7 +17,7 @@ export function MappingEditorFields({ form }: { form: FormState }) {
   const [help, setHelp] = useState<FieldName>();
   const fields = [
     { name: 'host' as const, label: t('client.portForwarding.targetIp'), value: form.remoteHost,
-      change: form.setRemoteHost, placeholder: '192.168.1.100',
+      change: form.setRemoteHost, placeholder: DEFAULT_MAPPING_HOST,
       hint: t('client.portMappingEditing.leaveBlankToAccessTheRemoteComputerItself') },
     { name: 'remote' as const, label: t('client.portForwarding.remotePort'), value: form.remote,
       change: form.setRemote, placeholder: '8080', hint: t('client.mappingEditor.remotePortHelp') },

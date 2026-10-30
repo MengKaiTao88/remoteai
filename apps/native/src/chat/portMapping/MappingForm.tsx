@@ -5,6 +5,7 @@ import type { ForwardingEntry, PortForwardingService } from '../../../../../shar
 import { t } from '../../i18n';
 import { useMappingStyles } from './mappingStyles';
 import { MAPPING_PROTOCOLS } from '../../../../../shared/port-mapping/settings';
+import { DEFAULT_MAPPING_HOST } from '../../../../../shared/port-mapping/target';
 import { useMappingFormState } from './useMappingFormState';
 
 export function MappingForm({ service, disabled, connected = true, entry, done, devicePicker }: {
@@ -28,7 +29,7 @@ export function MappingForm({ service, disabled, connected = true, entry, done, 
     <View style={styles.fields}>
       <View style={styles.hostField}><Text style={styles.muted}>{t("client.portForwarding.targetIp")}</Text>
         <TextInput accessibilityLabel={t("client.portForwarding.targetIp")} value={remoteHost} onChangeText={setRemoteHost}
-          autoCapitalize="none" autoCorrect={false} placeholder="192.168.1.100" placeholderTextColor="#8a9bad"
+          autoCapitalize="none" autoCorrect={false} placeholder={DEFAULT_MAPPING_HOST} placeholderTextColor="#8a9bad"
           style={styles.input} editable={!locked} /></View>
       <View style={styles.portField}><Text style={styles.muted}>{t("client.portForwarding.remotePort")}</Text>
         <TextInput accessibilityLabel={t("client.portForwarding.remotePort")} value={remote} onChangeText={setRemote}
