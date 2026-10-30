@@ -44,6 +44,7 @@ import { FeedbackModal } from "../modals/FeedbackModal";
 import { TokenUsageHeatmap } from "../TokenUsageHeatmap";
 import { TokenUsageDashboard } from "../TokenUsageDashboard";
 import { TotpPage } from "../../pages/TotpPage";
+import { TotpCloudSyncSwitch } from "../TotpCloudSyncSwitch";
 import { LogDiagnosticsPage, type LogDiagnosticsTab } from "../../pages/LogDiagnosticsPage";
 import { DownloadsPage } from "../../pages/DownloadsPage";
 import { LoungePage } from "../../../../../shared/lounge/LoungePage";
@@ -1380,6 +1381,11 @@ export function DashboardApp() {
                   </p>}
                 </div>
               </div>
+            {page === "totp" && <div className="topbar-actions">
+              <TotpCloudSyncSwitch t={t} authenticated={cloud.state.authenticated}
+                enabled={totpManager.cloudSyncEnabled} loading={totpManager.syncing}
+                onChange={totpManager.setCloudSyncEnabled} />
+            </div>}
             {page === "settings" && (
               <div className="topbar-actions">
                 <button type="button" className="refresh-all settings-help-button" onClick={openHelp}>

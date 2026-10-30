@@ -22,6 +22,7 @@ import { useRevokeDesktopService } from './devices/useRevokeDesktopService';
 import { useRemoteModelRestartPrompt } from "./devices/useRemoteModelRestartPrompt";
 import { RemoteModelSwitchSheet } from "./components/RemoteModelSwitchSheet";
 import { TotpPage } from "./components/TotpPage";
+import { TotpSyncSwitch } from '../../../shared/totp/TotpSyncSwitch';
 import { DownloadCountIcon } from './downloads/DownloadCountIcon';
 import { DiscoveryBackButton, DiscoveryPage } from './discovery/DiscoveryPage';
 import { DiscoveryIcon } from './discovery/DiscoveryIcon';
@@ -441,7 +442,10 @@ function AppShell() {
       {page !== 'chat' && page !== 'downloads' && page !== 'lounge' && page !== 'token-summary'
         && <header className="desktop-topbar"><div>
         <span>{pageTitle}</span><strong>{pageDescriptions[page]}</strong></div>
-        <div><Tooltip title={t("client.app.refreshAllData")}><button className="icon-button" type="button"
+        <div>{page === 'totp' && <TotpSyncSwitch enabled={totpManager.cloudSyncEnabled}
+          loading={totpManager.syncing} onChange={totpManager.setCloudSyncEnabled}
+          copy={{ label: t('client.app.sync2faKeys'), on: t('client.settings.on'), off: t('client.settings.off') }} />}
+          <Tooltip title={t("client.app.refreshAllData")}><button className="icon-button" type="button"
           onClick={() => void dispatch(refreshAll())}>
           <RefreshCw size={18} className={refreshing ? "spin" : ""} /></button></Tooltip>
           <span className="topbar-date">{new Intl.DateTimeFormat(getLocale(),
