@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import type { MarketItem } from '../../../shared/provider-market/types';
+import type { MarketItem, MarketPage, MarketRequest } from '../../../shared/provider-market/types';
 
 const emptyTier = (multiplier: number) => ({ multiplier, input: null, output: null, cachedInput: null,
   longContextThreshold: null, longContext: { input: null, output: null, cachedInput: null } });
@@ -17,7 +17,8 @@ export function fixtureItem(): MarketItem {
       script: "function parseBalance(r) { return {amount:r.balance,currency:'USD'}; }" } };
 }
 interface Call { command: string; args: Record<string, unknown> }
-export async function setupMarket(page: Page, mode: string, authenticated = true) {
+export async function setupMarket(page: Page, mode: string, authenticated = true,
+  list?: (request: Extract<MarketRequest, { type: 'list' }>) => Promise<MarketPage>) {
   page.on('pageerror', (error) => console.log(`market page error: ${error.message}`));
   page.on('requestfailed', (request) => console.log(`market failed request: ${request.url()} ${request.failure()?.errorText}`));
   const saved: Record<string, unknown>[] = [];
@@ -29,7 +30,8 @@ export async function setupMarket(page: Page, mode: string, authenticated = true
       userId, baseUrl: 'http://127.0.0.1:1499' };
     if (call.command === 'cloud_provider_market') {
       const request = call.args.request as Record<string, unknown>;
-      if (request.type === 'list') return { items: [item], total: 1 };
+      if (request.type === 'list') return list
+        ? list(request as Extract<MarketRequest, { type: 'list' }>) : { items: [item], total: 1 };
       if (request.type === 'get') return item;
       if (request.type === 'save') {
         publications.push(request); item = { ...item, ...request.draft as object, revision: item.revision + 1 };

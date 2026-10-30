@@ -31,6 +31,14 @@
 .pm-card-title { background: none; border: 0; color: inherit; text-align: start; font-size: 18px;
   font-weight: 700; cursor: pointer; padding: 0; margin-bottom: 12px; }
 .pm-card-title:hover { color: #4096ff; }
+.pm-card-header {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+  gap: 12px; margin-bottom: 12px;
+}
+.pm-card-header .pm-card-title { flex: 1 1 120px; min-width: 0; margin: 0; }
+.pm-card-actions.ant-space { margin-inline-start: auto; justify-content: flex-end; }
+.pm-feed-tail { min-height: 1px; }
+.pm-feed-tail > [role="status"] { padding: 12px; text-align: center; }
 .pm-card > .ant-space { display: flex; margin-block: 6px; }
 .pm-muted { opacity: .68; font-size: 13px; }
 .pm-editor, .pm-editor fieldset, .pm-detail, .pm-install, .pm-balance-editor { display: grid; gap: 16px; }
