@@ -71,6 +71,8 @@ mod types;
 mod update_downloads;
 
 #[cfg(test)]
+mod compression_tests;
+#[cfg(test)]
 mod tests;
 
 use accounts::*;
