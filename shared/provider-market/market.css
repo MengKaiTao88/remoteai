@@ -24,7 +24,7 @@
 .pm-toolbar, .pm-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
 .pm-toolbar { justify-content: space-between; align-items: center; }
 .pm-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr)); gap: 16px; }
-.pm-card, .pm-model, .pm-model-editor, .pm-script-review {
+.pm-card, .pm-model, .pm-script-review {
   border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
   padding: 16px; border-radius: 12px; min-width: 0;
 }
@@ -39,8 +39,7 @@
 .pm-row > label { flex: 1 1 180px; }
 .provider-market .ant-select { min-width: 170px; }
 .pm-price-fields, .pm-prices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.pm-price-fields .ant-input-number { width: 100%; }
-.pm-tier-editor, .pm-tier { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+.pm-tier { border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
   margin-top: 16px; padding-top: 12px; display: grid; gap: 10px; }
 .pm-prices { margin: 4px 0; }
 .pm-prices dd { margin: 4px 0 0; font-weight: 600; }
@@ -51,8 +50,44 @@
 .pm-script-review pre { white-space: pre-wrap; max-height: 240px; overflow: auto; }
 .pm-code, .pm-script-review pre { font-family: ui-monospace, monospace; }
 .pm-loading { padding: 40px; text-align: center; }
+.pm-model-editor { container-type: inline-size; min-width: 0; display: grid; gap: 16px; }
+.pm-tier-editor { display: grid; gap: 10px; min-width: 0; }
+.pm-editor-section {
+  display: grid; gap: 12px; min-width: 0; padding: 14px 16px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+}
+.pm-editor-section h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.pm-model-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 16px; }
+.pm-model-fields, .pm-multiplier-row { align-items: center; }
+.provider-market :is(.pm-model-fields, .pm-multiplier-row) > label {
+  grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px;
+}
+.pm-model-fields .ant-select { width: 100%; min-width: 0; }
+.pm-model-fields > label > span:first-child, .pm-multiplier-row > label > span:first-child { min-width: 64px; }
+.pm-multiplier-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.pm-long-context-fields {
+  display: grid; grid-template-columns: minmax(140px, 1fr) repeat(3, minmax(0, 1fr)) auto;
+  align-items: end; gap: 16px;
+}
+.pm-editor-section :is(.ant-input-number, .ant-input-number-group-wrapper) { width: 100%; min-width: 0; }
+.pm-editor-section .pm-multiplier-row .ant-input-number { width: 100px; }
+.pm-threshold-input { display: flex; align-items: center; gap: 8px; }
+.pm-threshold-input > span { flex-shrink: 0; }
+.pm-long-context-fields > .ant-btn { justify-self: end; }
+@container (max-width: 760px) {
+  .pm-model-fields { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+  .pm-model-fields > label { grid-column: 1 / -1; }
+  .pm-model-fields > .ant-btn { grid-column: 2; }
+  .pm-long-context-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .pm-long-context-fields > .ant-btn { grid-column: 1 / -1; }
+}
+@container (max-width: 480px) {
+  .pm-editor-section { padding: 12px; }
+  .provider-market .pm-model-fields > label { grid-template-columns: 1fr; gap: 6px; }
+  .pm-price-fields, .pm-long-context-fields { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   .pm-price-fields, .pm-prices { grid-template-columns: 1fr; }
   .pm-toolbar .ant-segmented { max-width: 100%; overflow-x: auto; }
-  .pm-model, .pm-model-editor { padding: 12px; }
+  .pm-model { padding: 12px; }
 }

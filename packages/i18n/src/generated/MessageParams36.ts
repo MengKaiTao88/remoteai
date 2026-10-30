@@ -21,6 +21,7 @@ export interface MessageParams36 {
   "market.balanceUrl": Record<string, never>;
   "market.baseUrl": Record<string, never>;
   "market.cachedInput": Record<string, never>;
+  "market.cachedInputPrice": Record<string, never>;
   "market.cancel": Record<string, never>;
   "market.clearOrder": Record<string, never>;
   "market.close": Record<string, never>;
@@ -40,6 +41,7 @@ export interface MessageParams36 {
   "market.import": Record<string, never>;
   "market.independentPrices": Record<string, never>;
   "market.input": Record<string, never>;
+  "market.inputPrice": Record<string, never>;
   "market.intro": Record<string, never>;
   "market.invalid": Record<string, never>;
   "market.loading": Record<string, never>;
@@ -50,6 +52,8 @@ export interface MessageParams36 {
   "market.missing": Record<string, never>;
   "market.missingPrice": Record<string, never>;
   "market.model": Record<string, never>;
+  "market.modelConfiguration": Record<string, never>;
+  "market.modelPlaceholder": Record<string, never>;
   "market.models": Record<string, never>;
   "market.multiplier": Record<string, never>;
   "market.name": Record<string, never>;
@@ -58,6 +62,7 @@ export interface MessageParams36 {
   "market.official": Record<string, never>;
   "market.officialNote": Record<string, never>;
   "market.output": Record<string, never>;
+  "market.outputPrice": Record<string, never>;
   "market.ownKey": Record<string, never>;
   "market.permissionGroup": Record<string, never>;
   "market.permissionManage": Record<string, never>;
@@ -89,7 +94,9 @@ export interface MessageParams36 {
   "market.share": Record<string, never>;
   "market.signIn": Record<string, never>;
   "market.statsNotice": Record<string, never>;
+  "market.thresholdLabel": Record<string, never>;
   "market.title": Record<string, never>;
+  "market.tokenUnit": Record<string, never>;
   "market.unavailable": Record<string, never>;
   "market.unit": { "currency": string | number };
   "market.unpublished": Record<string, never>;
@@ -193,11 +200,4 @@ export interface MessageParams36 {
   "providers.aggregate.error.nameRequired": Record<string, never>;
   "providers.aggregate.error.notFound": Record<string, never>;
   "providers.aggregate.failover.description": Record<string, never>;
-  "providers.aggregate.failover.disabledHint": Record<string, never>;
-  "providers.aggregate.failover.enabled": Record<string, never>;
-  "providers.aggregate.failover.error.cooldown": Record<string, never>;
-  "providers.aggregate.failover.error.integer": { "max": string | number };
-  "providers.aggregate.failover.error.settings": Record<string, never>;
-  "providers.aggregate.failover.error.statusCodes": Record<string, never>;
-  "providers.aggregate.failover.failureThreshold": Record<string, never>;
 }

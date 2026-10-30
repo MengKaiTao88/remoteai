@@ -32,7 +32,7 @@ export function MarketEditor({ initial, busy, t, onSave, onCancel }: {
         onChange={(currency) => setValue({ ...value, currency })} /></label>
         <span>{t('market.unit', { currency: value.currency })}</span></div>
       <p>{t('market.independentPrices')}</p>
-      {value.models.map((model, index) => <ModelEditor key={index} value={model} t={t}
+      {value.models.map((model, index) => <ModelEditor key={index} value={model} currency={value.currency} t={t}
         onChange={(changed) => setValue({ ...value, models: value.models.map((entry, position) =>
           position === index ? changed : entry) })}
         onRemove={value.models.length > 1 ? () => setValue({ ...value,

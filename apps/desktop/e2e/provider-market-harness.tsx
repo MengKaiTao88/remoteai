@@ -6,6 +6,8 @@ import { RemoteAccountPicker } from '../src/pages/codexGui/remote/RemoteAccountP
 import { RemoteModelSwitchSheet } from '../../web/src/components/RemoteModelSwitchSheet';
 import { ProviderMarketPage } from '../../admin-ui/src/pages/ProviderMarketPage';
 import { I18nProvider } from '../../admin-ui/src/i18n-context';
+import { isAppLanguage } from '@remoteai/i18n';
+import { setLanguage, useLanguage } from '../../web/src/i18n/language';
 import { loadStoredSession } from '../../web/src/api';
 import { saveProviderProfile } from '../src/api/backend';
 import { translate } from '../src/i18n';
@@ -16,6 +18,8 @@ import '../src/styles.css';
 loadStoredSession();
 const query = new URLSearchParams(location.search);
 const mode = query.get('mode') ?? 'local';
+const requestedLanguage = query.get('language') ?? 'en';
+setLanguage(isAppLanguage('web', requestedLanguage) ? requestedLanguage : 'en');
 if (mode === 'web') void import('../../web/src/styles.css');
 const dark = query.has('dark');
 document.documentElement.dataset.theme = dark ? 'dark' : 'light';
@@ -32,6 +36,7 @@ const adminApi = async <T,>(path: string, options?: RequestInit): Promise<T> => 
   return response.json() as Promise<T>;
 };
 function Harness() {
+  const language = useLanguage();
   const [beats, setBeats] = useState(0);
   useEffect(() => { const timer = setInterval(() => setBeats((n) => n + 1), 50);
     return () => clearInterval(timer); }, []);
@@ -48,13 +53,13 @@ function Harness() {
         onModelControlChange={nothing} onGroupChange={nothing} onGroupChangeMany={done}
         onProviderGroupsChange={done} onChangeGroupMembers={yes} onAutoSwitchChange={nothing}
         onDelete={nothing} onDeleteMany={async () => []} onImageModelChange={nothing}
-        displayMode="table" privacyMode={false} tokenUsageRefreshSeconds={2} language="en"
-        t={(key, values) => translate('en', key, values)} />
+        displayMode="table" privacyMode={false} tokenUsageRefreshSeconds={2} language={language}
+        t={(key, values) => translate(language, key, values)} />
     </> : mode === 'remote' ? <aside style={{ width: 340, marginTop: 400 }}>
       <RemoteAccountPicker active ready client={guiClient} privacyMode={false}
         computers={{ current: null, devices: [], authenticated: true, loading: false, error: '',
           refresh: nothing, choose: nothing, login: nothing }} />
-    </aside> : mode === 'admin' ? <I18nProvider language="en" onLanguageChange={nothing}>
+    </aside> : mode === 'admin' ? <I18nProvider language={language} onLanguageChange={setLanguage}>
       <ProviderMarketPage api={adminApi} canManage canOrder />
     </I18nProvider> : <RemoteModelSwitchSheet device={{ deviceId: 'test-computer', name: 'Test computer',
       platform: 'windows', localProxyRunning: true, capabilities: [], lastSeenAt: '', online: true }}
