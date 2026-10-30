@@ -10,11 +10,14 @@ export type ForwardingClient = Pick<GuiToolsClient['files'], 'openResource' | 'c
   stream?: import('./socket').MappingSocketFactory;
 };
 export interface ForwardingEntry extends PortMapping {
+  /** Local intent is never uploaded with the shared mapping configuration. */
+  enabled?: boolean;
   status: 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
   error?: string;
 }
 interface RunningMapping { tunnels: MappingTunnel; resource?: string }
 const START_ERROR = '映射未能启动，请确认远程服务已启动后重试。';
+const RETRY_DELAY_MS = 5_000;
 const LOCAL_ERRORS = new Set(['本地端口已被占用，请换一个端口。', '无法监听本地端口，请换一个端口重试。',
   '请更新应用后使用端口映射。', '请返回应用后重新启动映射。',
   'UDP 映射未能启动，请确认两端应用均已更新。', MAPPING_UPDATE_REQUIRED, MAPPING_RECONNECT_REQUIRED]);
@@ -30,15 +33,20 @@ export class PortForwardingService {
   private readonly changes = new Set<(id: string, value: PortMapping | null) => void>();
   private readonly revisions = new Map<string, number>();
   private readonly restarting = new Set<string>();
+  private retryTimer?: ReturnType<typeof setTimeout>;
+  private disposed = false;
   // Bound active TCP work per computer so mappings leave capacity for chat and cleanup.
   private readonly bridgeBudget = new StreamBudget();
 
   constructor(private readonly client: ForwardingClient, saved: PortMapping[],
-    private readonly platform: { createTunnel: TunnelFactory; createId: () => string; mode?: MappingMode }) {
-    this.entries = saved.map(entry => ({ ...entry, status: 'stopped' }));
+    private readonly platform: { createTunnel: TunnelFactory; createId: () => string; mode?: MappingMode;
+      enabledIds?: readonly string[]; validateTarget?: (target: MappingTarget, id?: string) => void }) {
+    this.entries = saved.map(entry => ({ ...entry, status: 'stopped',
+      ...(platform.enabledIds ? { enabled: platform.enabledIds.includes(entry.id) } : {}) }));
   }
 
   snapshot = () => this.entries;
+  activate = () => { this.disposed = false; };
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };
@@ -50,11 +58,12 @@ export class PortForwardingService {
   };
 
   setConnected = (connected: boolean) => {
+    if (this.connected === connected) return;
     this.connected = connected;
     if (!connected) {
       this.restarting.clear();
-      for (const id of this.running.keys()) void this.stop(id);
-    }
+      for (const id of this.running.keys()) void this.suspend(id);
+    } else this.resumeEnabled();
   };
 
   add = (remotePort: number, localPort: number, remoteHost = '', protocol?: MappingProtocol) => {
@@ -94,6 +103,7 @@ export class PortForwardingService {
       throw new Error('请输入 1–65535 之间的端口号。');
     }
     const normalized = { ...target, remoteHost: normalizeMappingHost(target.remoteHost) };
+    this.platform.validateTarget?.(normalized, id);
     if (this.entries.some(entry => entry.id !== id && mappingConflicts(entry, normalized, this.platform.mode))) {
       throw new Error(this.platform.mode === 'preview' ? '这个目标地址已有映射。' : '这个本地端口已有映射。');
     }
@@ -105,17 +115,25 @@ export class PortForwardingService {
     const restart = this.restarting.has(config.id) || !!previous && ['running', 'starting'].includes(previous.status);
     const revision = (this.revisions.get(config.id) ?? 0) + 1;
     this.revisions.set(config.id, revision);
-    const stopped = this.stop(config.id);
+    const stopped = this.suspend(config.id);
     if (restart) this.restarting.add(config.id);
-    const entry: ForwardingEntry = { ...config, status: previous ? 'stopping' : 'stopped' };
+    const entry: ForwardingEntry = { ...config,
+      ...(this.platform.enabledIds ? { enabled: previous?.enabled ?? false } : {}),
+      status: previous ? 'stopping' : 'stopped' };
     this.publish(previous ? this.entries.map(value => value.id === config.id ? entry : value) : [...this.entries, entry]);
     await stopped;
     if (this.revisions.get(config.id) !== revision) return;
     this.update(config.id, { status: 'stopped', error: undefined });
-    if (this.restarting.delete(config.id)) await this.start(config.id);
+    if (this.restarting.delete(config.id) || this.entries.find(value => value.id === config.id)?.enabled) {
+      await this.start(config.id);
+    }
   }
 
   start = async (id: string) => {
+    if (this.disposed) return;
+    if (this.platform.enabledIds && this.entries.some(entry => entry.id === id && !entry.enabled)) {
+      this.update(id, { enabled: true });
+    }
     const entry = this.entries.find(value => value.id === id);
     if (!entry || !this.connected || this.running.has(id) || this.stopping.has(id) || entry.status === 'stopping') return;
     const job: RunningMapping = { tunnels: this.platform.createTunnel(this.client, {
@@ -140,6 +158,11 @@ export class PortForwardingService {
   };
 
   stop = async (id: string) => {
+    if (this.platform.enabledIds) this.update(id, { enabled: false });
+    await this.suspend(id);
+  };
+
+  private suspend = async (id: string) => {
     this.restarting.delete(id);
     const pending = this.stopping.get(id);
     if (pending) return pending;
@@ -150,6 +173,7 @@ export class PortForwardingService {
     const stopped = this.release(job).finally(() => {
       this.stopping.delete(id);
       this.update(id, { status: 'stopped' });
+      this.scheduleRetry();
     });
     this.stopping.set(id, stopped);
     await stopped;
@@ -172,12 +196,30 @@ export class PortForwardingService {
     for (const listener of this.changes) listener(id, value);
   }
 
-  dispose = () => { this.setConnected(false); };
+  dispose = () => {
+    this.disposed = true;
+    clearTimeout(this.retryTimer);
+    this.setConnected(false);
+  };
+
+  private resumeEnabled() {
+    for (const entry of this.entries) {
+      if (entry.enabled && !this.running.has(entry.id)) void this.start(entry.id);
+    }
+  }
+
+  private scheduleRetry() {
+    if (this.disposed || this.retryTimer || !this.platform.enabledIds) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = undefined;
+      if (this.connected) this.resumeEnabled();
+    }, RETRY_DELAY_MS);
+  }
 
   private async fail(id: string, job: RunningMapping, error: string) {
     if (this.running.get(id) !== job) { await this.release(job); return; }
     const revision = this.revisions.get(id);
-    await this.stop(id);
+    await this.suspend(id);
     if (this.revisions.get(id) === revision && !this.running.has(id)) this.update(id, { status: 'error', error });
   }
 

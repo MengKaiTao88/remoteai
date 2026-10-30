@@ -79,6 +79,8 @@ import { QuotaConsumptionSheet } from './src/components/QuotaConsumptionSheet';
 import { TotpPage } from './src/totp/TotpPage';
 import { downloadOwner } from './src/downloads/manager';
 import { BottomNavigation } from './src/discovery/BottomNavigation';
+import { MappingProvider } from './src/portMapping/MappingProvider';
+import { PortMappingPage } from './src/portMapping/PortMappingPage';
 import { DiscoveryBackButton, DiscoveryPage } from './src/discovery/DiscoveryPage';
 import { LoungePage } from './src/lounge/LoungePage';
 import { useNativeLounge } from './src/lounge/useNativeLounge';
@@ -594,7 +596,7 @@ function DeviceManagementPage({
   </>;
 }
 
-type AppPage = 'accounts' | 'devices' | 'chat' | 'discover' | 'totp' | 'admin' | 'settings' | 'about'
+type AppPage = 'port-mappings' | 'accounts' | 'devices' | 'chat' | 'discover' | 'totp' | 'admin' | 'settings' | 'about'
   | 'token-summary' | 'downloads' | 'lounge';
 const DEFAULT_APP_PAGE: AppPage = 'chat';
 
@@ -1258,7 +1260,8 @@ function AppContent() {
   if (!session) return <View style={styles.app}>
     <ThemeStatusBar /><LoginScreen initialBaseUrl={DEFAULT_CLOUD_BASE_URL} onLoggedIn={handleLogin} />
   </View>;
-  return <SafeAreaView edges={showBottomNavigation ? ['left', 'right'] : ['left', 'right', 'bottom']}
+  return <MappingProvider session={session} devices={devices}>
+    <SafeAreaView edges={showBottomNavigation ? ['left', 'right'] : ['left', 'right', 'bottom']}
     style={[styles.app, activePage === 'totp' && totpPageStyles.page,
     activePage === 'accounts' && accountStyles.page,
     activePage === 'discover' && styles.discoveryCanvas,
@@ -1293,6 +1296,7 @@ function AppContent() {
     {activePage === 'downloads' && <DownloadManagerPage session={session} onBack={() => setActivePage('discover')} />}
     {isDiscoveryPage(activePage) && activePage !== 'downloads' && activePage !== 'token-summary' && activePage !== 'lounge'
       && <DiscoveryBackButton onBack={() => setActivePage('discover')} />}
+    {activePage === 'port-mappings' && <PortMappingPage devices={devices} />}
     {activePage === 'lounge' && <LoungePage controller={lounge.controller} onBack={() => setActivePage('discover')} />}
     {activePage === 'devices'
         ? <DeviceManagementPage session={session} accounts={accounts} providers={providers} devices={devices}
@@ -1313,7 +1317,7 @@ function AppContent() {
     </PrimaryPagePager>
     {showBottomNavigation && <BottomNavigation activePage={activePage}
       owner={session ? downloadOwner(session) : undefined} loungeUnread={lounge.state.unread} onChange={setActivePage} />}
-  </SafeAreaView>;
+  </SafeAreaView></MappingProvider>;
 }
 
 function ThemeStatusBar() {
