@@ -1,6 +1,6 @@
 import { remoteErrorText } from '../localization/errors';
 import { defaultText } from '../localization/messages';
-import { useState, type MouseEvent } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Download, Image as ImageIcon, LoaderCircle } from 'lucide-react';
 import { useImageViewer } from './useImageViewer';
 import type { PreviewImageLoader } from '../remote-chat/previewProgress';
@@ -16,14 +16,22 @@ interface Props {
   translate?: (text: string) => string;
   formatError?: (error: unknown) => string;
   autoLoadOriginal?: boolean;
+  inlineViewControls?: boolean;
 }
 
 export function ImageViewer({ thumbnail, description, load, close, download, contextMenu, feedback,
-  translate = defaultText, formatError = remoteErrorText, autoLoadOriginal = false }: Props) {
+  translate = defaultText, formatError = remoteErrorText, autoLoadOriginal = false,
+  inlineViewControls = false }: Props) {
   const image = useImageViewer(load, autoLoadOriginal);
   const [downloadError, setDownloadError] = useState('');
   const [saving, setSaving] = useState(false);
+  const renderEditor = (viewControls?: ReactNode) => <ImageAiToolbar load={image.loadOriginal}
+    close={close} translate={translate} viewControls={viewControls}
+    originalAction={!image.url && !image.loading && <button type="button" className="cs-image-original"
+      onClick={image.request}><ImageIcon size={20} aria-hidden="true" />
+      <span>{translate(image.error ? "client.mobile.reloadOriginalImage" : "client.chat.viewOriginal")}</span></button>} />;
   return <ImageViewerFrame src={image.url ?? thumbnail} description={description} close={close}
+    renderToolbar={inlineViewControls ? renderEditor : undefined}
     translate={translate} onError={image.fail} onContextMenu={(event) => {
       if (!contextMenu) return;
       event.preventDefault();
@@ -40,10 +48,7 @@ export function ImageViewer({ thumbnail, description, load, close, download, con
       }}>{saving ? <LoaderCircle size={24} className="cs-image-download-spinner" aria-hidden="true" />
         : <Download size={24} aria-hidden="true" />}
       <span>{translate(saving ? "client.projectBrowser.saving" : "client.shared.downloadImage")}</span></button>}
-    <ImageAiToolbar load={image.loadOriginal} close={close} translate={translate}
-      originalAction={!image.url && !image.loading && <button type="button" className="cs-image-original"
-        onClick={image.request}><ImageIcon size={20} aria-hidden="true" />
-        <span>{translate(image.error ? "client.mobile.reloadOriginalImage" : "client.chat.viewOriginal")}</span></button>} />
+    {!inlineViewControls && renderEditor()}
     {image.loading && <div className="cs-image-status cs-image-transfer">
       <PreviewTransferProgress progress={image.progress} label={translate("client.shared.loadingFullImage")} /></div>}
     {downloadError && <div className="cs-image-status" role="status">{formatError(downloadError)}</div>}

@@ -36,7 +36,7 @@ function Harness() {
       event.currentTarget.dataset.wheelEvents = String(Number(event.currentTarget.dataset.wheelEvents) + 1);
     }}>
     <FileEnvironmentContext.Provider value={mode === 'remote' ? environment : null}>
-      <ImageAiContext.Provider value={{ enabled: true, send: async () => true }}>
+      <ImageAiContext.Provider value={params.has('no-editor') ? null : { enabled: true, send: async () => true }}>
         {params.has('linked') ? <a href="#image" onClick={event => event.preventDefault()}>{preview}</a> : preview}
       </ImageAiContext.Provider>
     </FileEnvironmentContext.Provider>

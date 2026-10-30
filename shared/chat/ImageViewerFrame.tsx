@@ -11,13 +11,23 @@ interface Props {
   naturalSize?: boolean;
   onError?: () => void;
   onContextMenu?: MouseEventHandler<HTMLDivElement>;
+  renderToolbar?: (controls: ReactNode) => ReactNode;
   children?: ReactNode;
 }
 
 /** Shared fullscreen preview chrome, independent of image loading, downloads and editing. */
 export function ImageViewerFrame({ src, description, close, translate = defaultText, naturalSize = false,
-  onError, onContextMenu, children }: Props) {
+  onError, onContextMenu, renderToolbar, children }: Props) {
   const gestures = useImageGestures();
+  const controls = <div className="cs-image-toolbar">
+    <button type="button" aria-label={translate('client.shared.zoomOut')}
+      onClick={() => gestures.zoom(1 / IMAGE_ZOOM_FACTOR)}>−</button>
+    <button type="button" aria-label={translate('client.shared.resetZoom')} onClick={gestures.reset}>
+      {Math.round(gestures.scale * 100)}%</button>
+    <button type="button" aria-label={translate('client.shared.zoomIn')}
+      onClick={() => gestures.zoom(IMAGE_ZOOM_FACTOR)}>+</button>
+    <button type="button" aria-label={translate('client.shared.rotateImage')} onClick={gestures.rotate}>↻</button>
+  </div>;
   return <dialog ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }}
     className="cs-image-viewer" aria-label={description} onCancel={close}
     onWheel={event => event.stopPropagation()}>
@@ -29,15 +39,7 @@ export function ImageViewerFrame({ src, description, close, translate = defaultT
     </div>
     <button type="button" className="cs-image-close" aria-label={translate('client.shared.closeImage')}
       onClick={close}>×</button>
-    <div className="cs-image-toolbar">
-      <button type="button" aria-label={translate('client.shared.zoomOut')}
-        onClick={() => gestures.zoom(1 / IMAGE_ZOOM_FACTOR)}>−</button>
-      <button type="button" aria-label={translate('client.shared.resetZoom')} onClick={gestures.reset}>
-        {Math.round(gestures.scale * 100)}%</button>
-      <button type="button" aria-label={translate('client.shared.zoomIn')}
-        onClick={() => gestures.zoom(IMAGE_ZOOM_FACTOR)}>+</button>
-      <button type="button" aria-label={translate('client.shared.rotateImage')} onClick={gestures.rotate}>↻</button>
-    </div>
+    {renderToolbar ? renderToolbar(controls) : controls}
     {children}
   </dialog>;
 }

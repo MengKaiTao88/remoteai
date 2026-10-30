@@ -6,12 +6,13 @@ import { useImageAiEdit } from './useImageAiEdit';
 import './imageAiToolbar.css';
 
 const icons = [Pencil, MessageSquarePlus, Scan, Eraser, RectangleHorizontal];
-export function ImageAiToolbar({ load, close, translate: t, originalAction }: {
+export function ImageAiToolbar({ load, close, translate: t, originalAction, viewControls }: {
   load: () => Promise<string>; close: () => void; translate: (text: string) => string;
   originalAction?: ReactNode;
+  viewControls?: ReactNode;
 }) {
   const editor = useImageAiEdit({ load, close });
-  if (!editor.available) return originalAction ?? null;
+  if (!editor.available) return <>{originalAction}{viewControls}</>;
   const selected = IMAGE_AI_TOOLS.find(item => item.id === editor.tool);
   return <div className="cs-image-ai">
     {selected && <form className="cs-image-ai-form" onSubmit={event => {
@@ -43,6 +44,10 @@ export function ImageAiToolbar({ load, close, translate: t, originalAction }: {
           aria-pressed={editor.tool === item.id} onClick={() => editor.select(item.id)}>
           <Icon size={20} aria-hidden="true" /><span>{t(item.label)}</span></button>;
       })}
+      {viewControls && <>
+        <span className="cs-image-ai-separator" aria-hidden="true" />
+        {viewControls}
+      </>}
     </div>
   </div>;
 }

@@ -18,5 +18,5 @@ export function ImagePreview(props: Props) {
   const menu = useImageMenu(props.prepare);
   const environment = useContext(FileEnvironmentContext);
   return <span className={styles.preview}><ImageViewer {...props} {...menu}
-    autoLoadOriginal={!environment?.remote} translate={displayText} /></span>;
+    autoLoadOriginal={!environment?.remote} inlineViewControls translate={displayText} /></span>;
 }
