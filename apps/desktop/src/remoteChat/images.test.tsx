@@ -14,6 +14,7 @@ let container: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
   load.mockReset();
   container = document.createElement('div');
   root = createRoot(container);

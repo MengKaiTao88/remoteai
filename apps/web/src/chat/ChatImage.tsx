@@ -7,6 +7,7 @@ import { downloadChatImage } from './downloadImage';
 import { FileEnvironmentContext } from '../../../desktop/src/pages/codexGui/fileEnvironment';
 import { ImagePreview } from '../../../desktop/src/pages/codexGui/ImagePreview';
 import { remoteImageBytes } from './remoteImageBytes';
+import { useDesktopLayout } from '../useDesktopLayout';
 import thumbnailStyles from '../../../../shared/chat/toolImageThumbnail.module.css';
 
 export const ChatImageContext = createContext<ImagePreviewOptions | null>(null);
@@ -15,6 +16,7 @@ export function ChatImage({ source, description = t("client.chat.image"), compac
   source?: string; description?: string; compact?: boolean;
 }) {
   useLanguage();
+  const desktop = useDesktopLayout();
   const environment = useContext(FileEnvironmentContext);
   const image = useChatImage(source, useContext(ChatImageContext));
   const [preview, setPreview] = useState(false);
@@ -31,6 +33,7 @@ export function ChatImage({ source, description = t("client.chat.image"), compac
     {preview && (environment ? <ImagePreview key={image.key} thumbnail={image.url} description={description}
       load={image.original} prepare={remoteImageBytes} download={image.save ?? downloadChatImage}
       close={() => setPreview(false)} /> : <ImageViewer key={image.key} thumbnail={image.url} description={description}
+      inlineViewControls={desktop}
       translate={displayText} load={image.original} download={image.save ?? downloadChatImage} close={() => setPreview(false)} />)}
   </>;
 }
