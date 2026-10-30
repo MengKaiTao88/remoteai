@@ -41,8 +41,7 @@ test("local screenshot loads after reload and opens in the full-size viewer", as
   await expect(viewer).toBeVisible();
   await expect.poll(() => viewer.locator("img").evaluate((img: HTMLImageElement) =>
     img.complete && img.naturalWidth > 0)).toBe(true);
-  expect(requests).toBe(2);
-  await viewer.getByRole("button", { name: "查看原图", exact: true }).click();
+  // Local previews load the original on opening; only remote viewers require an explicit request.
   await expect.poll(() => requests).toBe(3);
   await page.screenshot({ path: "../../.codex-tmp/local-image-preview.png", animations: "disabled" });
   await page.getByRole("button", { name: "关闭图片", exact: true }).click();

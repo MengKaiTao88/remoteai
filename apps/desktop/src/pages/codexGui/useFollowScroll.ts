@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { shouldFollowScroll, shouldShowScrollToBottom } from "../../../../../shared/chat/scrollPosition";
 import { useScrollMovement } from "../../../../../shared/chat/useScrollMovement";
+import { useVirtualScroll } from '../../../../../shared/chat/virtualScroll';
 
 export function useFollowScroll(selected: string | null, active = true) {
   const viewport = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const movement = useScrollMovement();
   const follow = useRef(true);
+  useVirtualScroll({ viewport, following: follow, movement });
   const [away, setAway] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const updateScrollButton = useCallback(() => {

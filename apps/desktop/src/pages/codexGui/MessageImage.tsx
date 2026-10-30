@@ -1,4 +1,5 @@
 import { uiText } from "../../i18n/uiText";
+import { ViewportContent } from '../../../../../shared/chat/ViewportContent';
 import { useContext, useState } from "react";
 import { FileEnvironmentContext } from './fileEnvironment';
 import { ImagePreview } from "./ImagePreview";
@@ -14,7 +15,8 @@ interface MessageImageProps { src?: string; alt?: string; title?: string; compac
 
 export function MessageImage(props: MessageImageProps) {
   const environment = useContext(FileEnvironmentContext);
-  return environment ? environment.image(props) : <LocalMessageImage {...props} />;
+  return environment ? environment.image(props)
+    : <ViewportContent key={props.src} image>{() => <LocalMessageImage {...props} />}</ViewportContent>;
 }
 
 function LocalMessageImage({ src, alt, title, compact }: MessageImageProps) {

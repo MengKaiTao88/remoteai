@@ -8,6 +8,41 @@ import { DEFAULT_CHAT_POLICY, MIB, setChatPolicy } from '../../../../shared/remo
 vi.mock('../pages/codexGui/api', () => ({ guiApi: { request: vi.fn() } }));
 beforeEach(() => { vi.resetAllMocks(); setChatPolicy(DEFAULT_CHAT_POLICY); });
 
+it('keeps nested MCP image bytes on the host until the remote client requests their reference', async () => {
+  const images = new RemoteImages();
+  const data = 'abcd'.repeat(100_000);
+  const block = { type: 'image', mimeType: 'image/png', data };
+  const original = { type: 'mcpToolCall', result: { content: [block], structuredContent: { screenshot: block } } };
+  const prepared = images.prepare(original, 'tool-thread');
+  const reference = (prepared.result.content[0] as unknown as { imageUrl: string }).imageUrl;
+  expect(reference).toMatch(/^chat-image:\/\//);
+  expect(JSON.stringify(prepared).length).toBeLessThan(400);
+  expect(prepared.result.content[0]).toEqual({ type: 'inputImage', imageUrl: reference });
+  expect(prepared.result.structuredContent.screenshot).toEqual(prepared.result.content[0]);
+  expect(original.result.content[0]).toBe(block);
+  expect(block.data).toBe(data);
+  expect(guiApi.request).not.toHaveBeenCalled();
+  vi.mocked(guiApi.request).mockResolvedValue({ url: 'data:image/png;base64,aW1hZ2U=' });
+  await images.request({ operation: 'imagePreview', threadId: 'tool-thread', source: reference });
+  expect(guiApi.request).toHaveBeenCalledExactlyOnceWith({ operation: 'imagePreview', threadId: 'tool-thread',
+    source: `data:image/png;base64,${data}`, variant: 'thumbnail', maxBytes: expect.any(Number) });
+});
+
+it('recovers an earlier tool image even when the full history exceeds the host image cache', async () => {
+  const images = new RemoteImages();
+  const first = { type: 'image', mimeType: 'image/png', data: 'abcd'.repeat(9 * MIB) };
+  const last = { ...first, data: 'efgh'.repeat(9 * MIB) };
+  const reference = (images.prepare(first, 'large-history') as unknown as { imageUrl: string }).imageUrl;
+  images.prepare(last, 'large-history');
+  vi.mocked(guiApi.request).mockImplementation(async request => request.operation === 'read'
+    ? { thread: { id: 'large-history', turns: [{ items: [{ result: { content: [first, last] } }] }] } }
+    : { url: 'data:image/png;base64,aW1hZ2U=' });
+  await images.request({ operation: 'imagePreview', threadId: 'large-history', source: reference });
+  expect(guiApi.request).toHaveBeenCalledWith({ operation: 'read', threadId: 'large-history' });
+  const preview = vi.mocked(guiApi.request).mock.calls.at(-1)?.[0];
+  expect(preview).toMatchObject({ operation: 'imagePreview', source: `data:image/png;base64,${first.data}` });
+}, 20_000);
+
 it('replaces inline and generated originals with stable references scoped to the task', async () => {
   const images = new RemoteImages();
   const original = 'data:image/png;base64,' + 'abcd'.repeat(400_000);

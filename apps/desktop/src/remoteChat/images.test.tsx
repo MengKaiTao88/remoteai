@@ -15,6 +15,15 @@ let root: Root;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor(private callback: IntersectionObserverCallback) {}
+    observe(target: Element) {
+      this.callback([{ target, isIntersecting: true } as IntersectionObserverEntry],
+        this as unknown as IntersectionObserver);
+    }
+    unobserve() {}
+    disconnect() {}
+  });
   load.mockReset();
   container = document.createElement('div');
   root = createRoot(container);

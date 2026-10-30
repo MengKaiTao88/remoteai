@@ -23,16 +23,29 @@ export class RemoteImages {
     return reference;
   }
 
-  prepare<T>(value: T, threadId: string): T {
+  prepare<T>(value: T, threadId: string, onImage?: (reference: string, source: string) => void): T {
+    const remember = (source: string) => {
+      const reference = this.remember(threadId, source);
+      onImage?.(reference, source);
+      return reference;
+    };
     const visit = (entry: unknown): unknown => {
       if (typeof entry === 'string') {
-        if (isInlineImage(entry)) return this.remember(threadId, entry);
+        if (isInlineImage(entry)) return remember(entry);
         return entry.replace(/data:image\/(?:png|jpeg|webp|gif);base64,[a-z0-9+/=]+/gi,
-          (source) => this.remember(threadId, source));
+          remember);
       }
       if (Array.isArray(entry)) return entry.map(visit);
       if (!entry || typeof entry !== 'object') return entry;
       const record = entry as Record<string, unknown>;
+      if (record.type === 'image' && typeof record.data === 'string' && typeof record.mimeType === 'string') {
+        const source = `data:${record.mimeType};base64,${record.data}`;
+        if (isInlineImage(source)) {
+          // Normalize MCP image blocks to the URL-based image form already supported by remote clients.
+          const { data: _data, mimeType: _mimeType, ...metadata } = record;
+          return { ...metadata, type: 'inputImage', imageUrl: remember(source) };
+        }
+      }
       const result = { ...record };
       if (record.type === 'imageGeneration' && typeof record.result === 'string'
         && /^[a-z0-9+/=]+$/i.test(record.result)) result.result = `data:image/png;base64,${record.result}`;
@@ -56,7 +69,10 @@ export class RemoteImages {
     const key = JSON.stringify([threadId, source]);
     if (!this.sources.has(key)) {
       const { thread } = await guiApi.request<{ thread: Thread }>({ operation: 'read', threadId });
-      this.prepare(thread, threadId);
+      let recovered: string | undefined;
+      // A long image history can evict the requested source again before traversal reaches its end.
+      this.prepare(thread, threadId, (reference, original) => { if (reference === source) recovered = original; });
+      if (recovered) return recovered;
     }
     const original = this.sources.get(key);
     if (!original) throw new Error('图片暂时无法加载，请重试。');

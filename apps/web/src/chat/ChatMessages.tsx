@@ -1,4 +1,5 @@
 import { t, useLanguage } from '../i18n';
+import { ViewportContent } from '../../../../shared/chat/ViewportContent';
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ArrowDown, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
 import type { ChatMessagesProps } from '../../../../shared/remote-chat/client/messageProps';
@@ -62,7 +63,7 @@ function TimelineEntry({ entry, open, inline, desktop, renderUserMessage }: {
     return item && <ChatActivity item={item} count={entry.items.length}
       running={entry.turn.status === 'inProgress' && item.status === 'inProgress'}
       inline={desktop} onInspect={() => inline(entry.turn.id, true)}
-      content={desktop ? entry.items.map(activity => <ChatMessage key={activity.id} item={activity} process desktop
+      content={desktop ? () => entry.items.map(activity => <ChatMessage key={activity.id} item={activity} process desktop
         running={entry.turn.status === 'inProgress' && activity.status === 'inProgress'}
         onInspect={() => inline(entry.turn.id, true)} onOpen={id => open({ type: 'item', id })} />) : undefined}
       onOpen={() => open({ type: 'activities', id: entry.id })} />;
@@ -147,10 +148,14 @@ function ChatMessageHistory({ props, scroll }: {
       {timeline.map((entry, index) => <Fragment key={entry.id}>
         {entry === runningSummary && props.processing}
         <div data-message-id={'item' in entry ? entry.item.id : entry.id}
+          data-message-role={'item' in entry ? entry.item.type : undefined}
           data-response-continuation={hasCompactTimelineGap(timeline[index - 1], entry) || undefined}
           className={`chat-entry-${entry.kind}`}>
-          <TimelineEntry entry={entry} open={open} inline={setInline} desktop={desktop}
-            renderUserMessage={props.renderUserMessage} />
+          <ViewportContent enabled={desktop && 'item' in entry
+            && ['userMessage', 'agentMessage'].includes(entry.item.type)}>
+            {() => <TimelineEntry entry={entry} open={open} inline={setInline} desktop={desktop}
+              renderUserMessage={props.renderUserMessage} />}
+          </ViewportContent>
         </div>
       </Fragment>)}
       {!runningSummary && props.processing}

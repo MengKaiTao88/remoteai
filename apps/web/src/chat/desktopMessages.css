@@ -23,7 +23,7 @@
   .chat-message-region .chat-user-message-wrap:focus-within .chat-message-actions {
     opacity: 1; pointer-events: auto;
   }
-  .chat-message-region .chat-entry-message:has(.chat-user-message-wrap):not(:first-child) { margin-top: 26px; }
+  .chat-message-region .chat-entry-message[data-message-role='userMessage']:not(:first-child) { margin-top: 26px; }
   .chat-message-region .chat-message-actions { margin-top: 6px; gap: 6px; }
   .chat-message-region .chat-message-actions .chat-text-action {
     justify-content: center; width: 28px; height: 28px; padding: 4px; border-radius: 5px;

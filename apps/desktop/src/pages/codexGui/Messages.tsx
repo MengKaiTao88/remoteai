@@ -49,6 +49,7 @@ export function Messages({ value, selected, active = true, footer, pendingReques
       jumpToLatest();
     }} />}
     <div ref={viewport} className={styles.messageViewport} aria-label={uiText("client.conversation.conversationMessages")}
+      data-history-newer={history.hasNewer || undefined}
       onWheel={history.onWheel} onScroll={() => {
         const offsetChange = history.onScroll();
         if (history.hasNewer) pauseFollowing();

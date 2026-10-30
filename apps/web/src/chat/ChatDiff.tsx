@@ -1,4 +1,5 @@
 import { t, useLanguage } from '../i18n';
+import { DeferredDetails } from '../../../../shared/chat/DeferredDetails';
 import { useContext } from 'react';
 import { ChevronDown, FileText, Folder } from 'lucide-react';
 import type { DiffFile, DiffLine } from '../../../../shared/chat/diff';
@@ -40,12 +41,12 @@ export function ChatDiff({ files, status, onComment }: {
     <section key={group.directory}><h3><Folder size={17} />
       {group.directory.split('/').pop() ? group.name : t("client.runtimeErrors.rootFolder")}</h3>
       <p className="chat-diff-folder">{group.directory || '.'}</p>
-      {group.entries.map(({ file, index }) => <details key={index} className="chat-diff-file">
-        <summary><FileText size={16} /><span title={file.path}>{file.path.split(/[\\/]/).at(-1)}</span>
+      {group.entries.map(({ file, index }) => <DeferredDetails key={index} className="chat-diff-file"
+        summary={<summary><FileText size={16} /><span title={file.path}>{file.path.split(/[\\/]/).at(-1)}</span>
           <b className="chat-added">+{file.added}</b><b className="chat-removed">−{file.removed}</b>
-          <ChevronDown size={15} /></summary>
-        {file.previousPath && <p className="chat-muted">{t("client.chat.originalPath")}{file.previousPath}</p>}
-        <DiffContent file={file} onComment={onComment} />
-      </details>)}
+          <ChevronDown size={15} /></summary>}>
+        {() => <>{file.previousPath && <p className="chat-muted">{t("client.chat.originalPath")}{file.previousPath}</p>}
+          <DiffContent file={file} onComment={onComment} /></>}
+      </DeferredDetails>)}
     </section>)}</div>;
 }

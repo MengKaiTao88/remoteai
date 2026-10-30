@@ -1,4 +1,5 @@
 import { t, useLanguage } from '../i18n';
+import { DeferredDetails } from '../../../../shared/chat/DeferredDetails';
 import type { Item } from './types';
 import { toolOutputText, toolOutputPage } from '../../../../shared/chat/toolOutput';
 import { useState } from 'react';
@@ -56,12 +57,14 @@ export function ChatToolResult({ item }: { item: Item }) {
   const result = record(item.result);
   const content = item.contentItems ?? (Array.isArray(result?.content) ? result.content : undefined);
   return <div className="chat-detail-stack">
-    {item.arguments != null && <details><summary>{t("client.chat.viewInput")}</summary>
-      <ChatCodeBlock text={serialized(item.arguments)} language="json" label={t("client.chat.input")} copyLabel={t("client.chat.copyInput")} /></details>}
+    {item.arguments != null && <DeferredDetails summary={<summary>{t("client.chat.viewInput")}</summary>}>
+      {() => <ChatCodeBlock text={serialized(item.arguments)} language="json" label={t("client.chat.input")}
+        copyLabel={t("client.chat.copyInput")} />}</DeferredDetails>}
     {item.progress?.map((text, index) => <ChatMarkdown key={index} text={text} process />)}
     {content?.map((part, index) => <OutputPart key={index} value={part} />)}
-    {result?.structuredContent != null && <details><summary>{t("client.chat.viewStructuredResult")}</summary>
-      <OutputPart value={result.structuredContent} /></details>}
+    {result?.structuredContent != null && <DeferredDetails
+      summary={<summary>{t("client.chat.viewStructuredResult")}</summary>}>
+      {() => <OutputPart value={result.structuredContent} />}</DeferredDetails>}
     {!content && item.result != null && <OutputPart value={item.result} />}
     {item.output != null && <OutputPart value={item.output} />}
     {item.error != null && <p role="alert" className="chat-error">
