@@ -12,6 +12,7 @@ import type { LoungeComposerHandle } from './mention';
 import { LoungeHistory } from './LoungeHistory';
 import { LoungePreview } from './LoungePreview';
 import { LoungeAvatarSettings } from './LoungeAvatarSettings';
+import { LoungeAvatar } from './LoungeAvatar';
 import { LoungeModeration } from './LoungeModeration';
 import { LoungeBlockDialog } from './LoungeBlockDialog';
 import { LoungeAbout } from './MobileLoungeSheet';
@@ -91,11 +92,17 @@ function MobileHeading({ model }: { model: MobileLounge }) {
     <button type="button" aria-label={t('client.lounge.backToChats')}
       onClick={() => model.setChats(true)}><ChevronLeft size={22} /></button>
     <div className={`lounge-heading-identity${contact ? ' is-private' : ''}`}>
-      <h1>{contact ? accountName(contact.user) : t('client.lounge.title')}</h1>
-      <button type="button" className="lounge-members-trigger" onClick={() => model.setSheet('members')}>
-        <i className={state.status === 'connected' && (!contact || contact.online === true) ? 'is-online' : ''} />
-        <span className={contact ? 'lounge-peer-status' : state.onlineCount !== undefined
-          ? 'lounge-online-count' : undefined}>{status}</span></button>
+      {contact && <LoungeAvatar user={contact.user} onProfile={() => model.setProfile(contact.user)} />}
+      <div className="lounge-heading-details">
+        <h1>{contact ? <button type="button" className="lounge-heading-account"
+          aria-label={t('client.lounge.viewProfile', { account: accountName(contact.user) })}
+          onClick={() => model.setProfile(contact.user)}>{accountName(contact.user)}</button>
+          : t('client.lounge.title')}</h1>
+        <button type="button" className="lounge-members-trigger" onClick={() => model.setSheet('members')}>
+          <i className={state.status === 'connected' && (!contact || contact.online === true) ? 'is-online' : ''} />
+          <span className={contact ? 'lounge-peer-status' : state.onlineCount !== undefined
+            ? 'lounge-online-count' : undefined}>{status}</span></button>
+      </div>
     </div>
     <button type="button" className="lounge-chats-trigger" aria-label={t('client.lounge.chats')}
       onClick={() => model.setChats(true)}>

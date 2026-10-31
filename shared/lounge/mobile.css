@@ -25,7 +25,13 @@
 .lounge-mobile .lounge-mobile-heading h1 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.4;
   min-width: 0; overflow-wrap: anywhere; }
 .lounge-mobile-heading .lounge-heading-identity { display: flex; align-items: center; flex: 1; min-width: 0; gap: 0; }
-.lounge-heading-identity.is-private { flex-direction: column; align-items: flex-start; }
+.lounge-heading-details { display: flex; align-items: center; flex: 1; min-width: 0; }
+.lounge-heading-identity.is-private { gap: 10px; }
+.lounge-heading-identity.is-private .lounge-heading-details { flex-direction: column; align-items: flex-start; }
+.lounge-heading-identity.is-private .lounge-avatar { width: 42px; height: 42px; flex-basis: 42px;
+  border-radius: 15px; background: var(--lounge-blue-bg); color: var(--lounge-blue); }
+.lounge-heading-account { display: block; max-width: 100%; border: 0; padding: 0;
+  background: transparent; color: inherit; text-align: start; overflow: hidden; text-overflow: ellipsis; }
 .lounge-heading-identity.is-private h1 { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lounge-heading-identity.is-private .lounge-members-trigger { min-height: 24px; margin-left: 0; }
 .lounge-mobile-heading .lounge-members-trigger { min-width: 0; flex-shrink: 1; color: var(--lounge-muted);
