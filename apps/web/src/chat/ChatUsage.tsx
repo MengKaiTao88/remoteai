@@ -1,5 +1,6 @@
 import { displayError, displayText } from '../i18n/index';
-import { t, useLanguage } from '../i18n';
+import { getLocale, t, useLanguage } from '../i18n';
+import { formatAccountCredits } from '../../../../shared/remote-chat/accountCredits';
 import { Tooltip } from 'antd';
 import { useVisibleChatUsage } from './useVisibleChatUsage';
 import { formatCost, formatThreadTokens, formatTokens, usageTrailing,
@@ -13,11 +14,12 @@ import { QuotaProgress } from '../../../../shared/chat/QuotaProgress';
 import { ChatContextProgress } from './ChatContextProgress';
 
 export function ChatUsage({ read, active, ready, tokenUsage, onContextSettings,
-  quotaProgress = false,
+  quotaProgress = false, showAccountCredits = false,
   readConversationMetrics, threadId }: {
   read: ReadUsage; active: boolean; ready: boolean; tokenUsage?: ThreadTokenUsage;
   onContextSettings?: () => void;
   quotaProgress?: boolean;
+  showAccountCredits?: boolean;
   readConversationMetrics?: ReadConversationMetrics; threadId?: string | null;
 }) {
   useLanguage();
@@ -38,6 +40,10 @@ export function ChatUsage({ read, active, ready, tokenUsage, onContextSettings,
         <span>{t("client.chat.today")} <strong className="chat-usage-tokens">{formatTokens(usage.totalTokens)} Token</strong></span>
         <span>· <strong className="chat-usage-cost">{formatCost(usage.estimatedCostUsd)}</strong></span>
       </> : <span>{notice}</span>}
+      {showAccountCredits && <span className="chat-usage-credits">{t('client.chat.accountCredits')}{' '}
+        <strong className="chat-usage-tokens">{formatAccountCredits(usage?.accountCredits, getLocale(),
+          t('client.chat.accountCreditsUnlimited'))}</strong>
+      </span>}
       {readConversationMetrics && <span className="chat-usage-performance">
         <ConversationPerformanceValues metrics={metrics} />
       </span>}

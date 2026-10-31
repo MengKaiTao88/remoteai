@@ -66,7 +66,7 @@ export function ChatSettings({ models, selection, saving, ready, error, updateSe
       {!!error && <button type="button" className="chat-button" onClick={() => { void updateSettings(selection); }}>
         {t("client.chat.saveAgain")}</button>}
       <ChatUsage read={readUsage} active={!field && !contextOpen} ready={ready} tokenUsage={tokenUsage}
-        quotaProgress={!desktop}
+        quotaProgress={!desktop} showAccountCredits={!desktop}
         readConversationMetrics={readConversationMetrics} threadId={threadId}
         onContextSettings={threadId ? () => setContextOpen(true) : undefined} />
     </div>

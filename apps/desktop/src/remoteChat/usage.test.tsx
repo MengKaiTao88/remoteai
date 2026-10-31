@@ -48,7 +48,8 @@ it('preserves desktop account, concurrent and API display rules', () => {
 });
 
 it('reads the same desktop summary through the mobile controller and host', async () => {
-  vi.mocked(invoke).mockResolvedValue(usage);
+  const snapshot = { ...usage, accountCredits: { hasCredits: true, unlimited: false, balance: '62500.125' } };
+  vi.mocked(invoke).mockResolvedValue(snapshot);
   const host = new ChatOperations();
   const request = vi.fn(async (method: 'request' | 'connect' | 'respond', body?: unknown) => {
     const response = await host.execute({ kind: 'request', id: 'usage:1', method, body });
@@ -59,7 +60,7 @@ it('reads the same desktop summary through the mobile controller and host', asyn
     request: async <T,>(method: 'request' | 'connect' | 'respond', body?: unknown) => await request(method, body) as T,
     start: vi.fn(), stop: vi.fn(),
   }));
-  expect(await controller.readUsage()).toEqual(usage);
+  expect(await controller.readUsage()).toEqual(snapshot);
   expect(request).toHaveBeenCalledWith('request', { operation: 'usageSummary' });
   expect(invoke).toHaveBeenCalledWith('codex_gui_usage_summary');
 });
@@ -108,4 +109,17 @@ it('does not overlap a pending refresh after briefly hiding the settings', async
   await act(async () => vi.advanceTimersByTimeAsync(5000));
   expect(result.usage).toEqual(usage);
   expect(read).toHaveBeenCalledTimes(2);
+});
+
+it('refreshes the selected account credits and clears them when the host no longer returns an account', async () => {
+  const credits = { hasCredits: true, unlimited: false, balance: '62500.125' };
+  const read = vi.fn<ReadUsage>().mockResolvedValue({ ...usage, accountCredits: credits });
+  await act(async () => root.render(<Probe read={read} />));
+  expect(result.usage?.accountCredits).toEqual(credits);
+  read.mockResolvedValue({ ...usage, accountCredits: { ...credits, hasCredits: false, balance: '0' } });
+  await act(async () => vi.advanceTimersByTimeAsync(5000));
+  expect(result.usage?.accountCredits?.balance).toBe('0');
+  read.mockResolvedValue(usage);
+  await act(async () => vi.advanceTimersByTimeAsync(5000));
+  expect(result.usage?.accountCredits).toBeUndefined();
 });

@@ -27,7 +27,8 @@ export const settingsFixture = {
   contextSettings: { read: async () => ({ capacity: null }), write: async () => ({ capacity: null }) },
   refreshModels: async () => {},
   connection: { client: accounts, deviceName: 'ZH', chooseDevice: () => {} },
-  readUsage: async () => ({ totalTokens: 437_770_000, estimatedCostUsd: 640.61, primaryRemainingPercent: 78 }),
+  readUsage: async () => ({ totalTokens: 437_770_000, estimatedCostUsd: 640.61, primaryRemainingPercent: 78,
+    accountCredits: { hasCredits: true, unlimited: false, balance: '62500.125' } }),
   readConversationMetrics: async () => ({ totalOutputTokens: 0, totalOutputTimeMs: 0, outputRequestCount: 0 }),
   tokenUsage: {
     total: { totalTokens: 24_980_000 }, last: { totalTokens: 244_900 }, modelContextWindow: 258_400,

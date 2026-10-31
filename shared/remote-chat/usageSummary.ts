@@ -1,4 +1,5 @@
 import type { UsageSummary } from './usage';
+import { decodeAccountCredits } from './accountCredits';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -27,6 +28,7 @@ export function decodeUsageSummary(value: unknown): UsageSummary {
   }
   // Older hosts may omit optional quota and API estimates. Keep valid totals usable in that case.
   const estimatedQuota = decodeEstimatedQuota(value.estimatedQuota);
+  const accountCredits = decodeAccountCredits(value.accountCredits);
   return {
     totalTokens: value.totalTokens,
     estimatedCostUsd: value.estimatedCostUsd,
@@ -34,5 +36,6 @@ export function decodeUsageSummary(value: unknown): UsageSummary {
     primaryRemainingAggregated: value.primaryRemainingAggregated === true,
     providerEstimatedCost: decodeProviderCost(value.providerEstimatedCost),
     ...(estimatedQuota ? { estimatedQuota } : {}),
+    ...(accountCredits ? { accountCredits } : {}),
   };
 }

@@ -2,7 +2,8 @@ import { displayText } from '../i18n/index';
 import { displayError } from '../i18n/index';
 import { createThemedStyles } from '../theme/styles';
 import { textMetrics } from '../theme/text';
-import { t, useLanguage } from '../i18n';
+import { getLocale, t, useLanguage } from '../i18n';
+import { formatAccountCredits } from '../../../../shared/remote-chat/accountCredits';
 import { StyleSheet, Text, View } from 'react-native';
 import { useChatUsage } from '../../../../shared/remote-chat/client/useChatUsage';
 import { formatCost, formatThreadTokens, formatTokens, usageTrailing,
@@ -41,6 +42,10 @@ export function ChatUsage({ read, active, ready, tokenUsage, onContextSettings, 
         {t("client.chat.today")}{' '}<Text style={styles.tokens}>{formatTokens(usage.totalTokens)} Token</Text>
         {' · '}<Text style={styles.cost}>{formatCost(usage.estimatedCostUsd)}</Text>
       </Text> : <Text style={styles.row}>{notice}</Text>}
+      <Text style={styles.row}>{t('client.chat.accountCredits')}{' '}
+        <Text style={styles.tokens}>{formatAccountCredits(usage?.accountCredits, getLocale(),
+          t('client.chat.accountCreditsUnlimited'))}</Text>
+      </Text>
       <Text style={styles.row}><ConversationPerformanceValues metrics={metrics} /></Text>
     </View>
   </View>;

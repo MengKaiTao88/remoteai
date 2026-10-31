@@ -1,4 +1,5 @@
 import { defaultText, type MessageTranslator } from '../localization/messages';
+import type { AccountCredits } from './accountCredits';
 export interface UsageSummary {
   totalTokens: number;
   estimatedCostUsd: number;
@@ -6,6 +7,7 @@ export interface UsageSummary {
   primaryRemainingAggregated: boolean;
   providerEstimatedCost: { amountUsd: number; aggregated: boolean } | null;
   estimatedQuota?: { remainingUsd: number; capacityUsd: number | null };
+  accountCredits?: AccountCredits;
 }
 
 export type ReadUsage = () => Promise<unknown>;

@@ -9,6 +9,7 @@ use crate::{
     storage::Paths,
 };
 
+mod account_credits;
 mod provider_cost;
 mod quota_refresh;
 
@@ -32,6 +33,7 @@ pub(crate) struct CodexUsageSummary {
     primary_remaining_aggregated: bool,
     provider_estimated_cost: Option<ProviderEstimatedCost>,
     estimated_quota: Option<crate::cloud::EstimatedOfficialQuota>,
+    account_credits: Option<crate::models::CreditsSnapshot>,
 }
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
@@ -51,6 +53,7 @@ pub(crate) fn load(
             primary_remaining_aggregated: false,
             provider_estimated_cost: None,
             estimated_quota: None,
+            account_credits: None,
         });
     }
     let paths = crate::storage::resolve_paths(app)?;
@@ -87,6 +90,7 @@ fn load_for_selection(
     };
     let provider_estimated_cost = provider_cost::load(paths, state, &entries, &costs)?;
     let mut summary = summarize(&entries, primary_remaining, provider_estimated_cost, &costs);
+    summary.account_credits = account_credits::load(paths, state);
     if primary_remaining.is_some() {
         let ids = if state.concurrent_account_routing_enabled {
             crate::local_proxy::enabled_concurrent_account_ids(paths, state)?
@@ -165,6 +169,7 @@ fn summarize(
         primary_remaining_aggregated: primary_remaining.is_some_and(|(_, aggregated)| aggregated),
         provider_estimated_cost,
         estimated_quota: None,
+        account_credits: None,
     }
 }
 

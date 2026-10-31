@@ -24,6 +24,8 @@ export interface MessageParams3 {
   "client.chat.1K1000TokensLeaveBlankToUseThe": Record<string, never>;
   "client.chat.access": { "value1": string | number };
   "client.chat.accountAndComputer": Record<string, never>;
+  "client.chat.accountCredits": Record<string, never>;
+  "client.chat.accountCreditsUnlimited": Record<string, never>;
   "client.chat.accountUsageRanking": Record<string, never>;
   "client.chat.actions": { "value1": string | number };
   "client.chat.activity": Record<string, never>;
@@ -198,6 +200,4 @@ export interface MessageParams3 {
   "client.chat.estimatedCost": Record<string, never>;
   "client.chat.every6Hours": Record<string, never>;
   "client.chat.exitCode": Record<string, never>;
-  "client.chat.exitGoalMode": Record<string, never>;
-  "client.chat.expand": Record<string, never>;
 }
