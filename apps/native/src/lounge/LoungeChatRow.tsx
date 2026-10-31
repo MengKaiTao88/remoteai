@@ -18,20 +18,20 @@ export function LoungeChatRow({ row, model, actions }: {
   return <LoungeSwipeRow enabled={!!row.user && !!model.state.directResetAvailable && model.state.status === 'connected'}
     remove={() => model.setDeleting(row.user)}>
     <View style={styles.chatRow}>
-      <View style={styles.chatAvatar}>
-      {row.user ? <>
-        <LoungeAvatar user={row.user} onProfile={() => model.setProfile(row.user)} onLongPress={actions} />
-        <View pointerEvents="none" style={[styles.avatarPresence, !row.online && styles.offlineDot]} />
-      </> : <Pressable accessible={false} style={styles.avatar} onPress={() => model.select()} onLongPress={actions}>
-        <Ionicons name="chatbubbles-outline" size={22} color={color('#456c96', 'info')} /></Pressable>}
-      {row.unread > 0 && <View pointerEvents="none" style={styles.chatAvatarBadge}>
-        <Text style={styles.chatAvatarBadgeText}>{row.unread > 99 ? '99+' : row.unread}</Text></View>}
-      </View>
       <Pressable accessibilityRole="button" style={styles.chatRowMain}
         accessibilityLabel={row.user ? t('client.lounge.directWith', { account: accountName(row.user) })
           : t('client.lounge.groupChat')}
         accessibilityHint={row.contact ? t(contactStatus(row.contact)) : undefined}
         onPress={() => model.select(row.user)} onLongPress={actions}>
+        <View style={styles.chatAvatar}>
+          {row.user ? <>
+            <LoungeAvatar user={row.user} />
+            <View pointerEvents="none" style={[styles.avatarPresence, !row.online && styles.offlineDot]} />
+          </> : <View style={styles.avatar}>
+            <Ionicons name="chatbubbles-outline" size={22} color={color('#456c96', 'info')} /></View>}
+          {row.unread > 0 && <View pointerEvents="none" style={styles.chatAvatarBadge}>
+            <Text style={styles.chatAvatarBadgeText}>{row.unread > 99 ? '99+' : row.unread}</Text></View>}
+        </View>
         <View style={styles.heading}>
           <Text style={styles.rowTitle}>{row.user ? accountName(row.user) : t('client.lounge.groupChat')}</Text>
           <Text numberOfLines={1} ellipsizeMode="tail" style={styles.muted}>{conversationPreviewText(row)}</Text>

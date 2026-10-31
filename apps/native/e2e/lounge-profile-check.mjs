@@ -24,7 +24,7 @@ export async function verifyNativeProfile({ adb, tap, find, nodes, screenshot, h
   await tap('删除'); await find('删除这段私聊？');
   failDelete(true); await tap('删除'); await find('删除失败，请稍后重试。');
   await screenshot(`profile-delete-error-${scale}`); await tap('取消'); failDelete(false);
-  await tap(profile); await tap('删除'); await find('删除这段私聊？');
+  await tap(direct); await tap(profile); await tap('删除'); await find('删除这段私聊？');
   await screenshot(`profile-delete-confirm-${scale}`); await tap('删除'); await find('搜索聊天');
   assert.ok(!(await nodes()).some(node => node['content-desc'] === direct), 'Profile deletion removes the row');
   await restart();
