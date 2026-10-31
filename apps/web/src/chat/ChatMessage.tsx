@@ -1,4 +1,5 @@
 import { t, useLanguage } from '../i18n';
+import { DeferredDetails } from '../../../../shared/chat/DeferredDetails';
 import { memo } from 'react';
 import { Quote } from 'lucide-react';
 import type { Item } from './types';
@@ -40,9 +41,10 @@ export const ChatMessage = memo(function ChatMessage({ item, onOpen, process = f
     {user ? (!desktop || content.text || content.quotes.length > 0 || references.length > 0)
       && <div className="chat-user-message">
       <ChatMessageReferences references={files.references} />
-      {content.quotes.map((quote, index) => <details className="chat-message-quote" key={index}>
-        <summary><Quote size={14} /><span>{quote}</span></summary><blockquote>{quote}</blockquote>
-      </details>)}
+      {content.quotes.map((quote, index) => <DeferredDetails className="chat-message-quote" key={index}
+        summary={<summary><Quote size={14} /><span>{quote}</span></summary>}>
+        {() => <blockquote>{quote}</blockquote>}
+      </DeferredDetails>)}
       <MessageAttachments key={text} attachments={files.attachments} t={t}
         renderFile={file => <ChatFileLink href={file.path}>{file.name}</ChatFileLink>} />
       {files.text && <ChatMarkdown text={files.text} desktop={desktop} />}

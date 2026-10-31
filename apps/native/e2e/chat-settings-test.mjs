@@ -104,6 +104,7 @@ try {
     const tree = await nodes();
     assert.ok(!tree.some(node => node.text === '聊天设置' || node['content-desc'] === '关闭聊天设置'));
     assert.ok(tree.some(node => node.text === '今日 437.77M Token · 640.61USD'));
+    assert.ok(tree.some(node => node.text === '额度点数 62,500.125'));
     await screenshot(`initial-${scale}`);
     await verifySheetGestures();
     await tap('低');

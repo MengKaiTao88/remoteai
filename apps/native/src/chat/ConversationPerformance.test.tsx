@@ -43,7 +43,8 @@ it('shows current tokens and USD cost with performance on the final row', () => 
     threadId: 'mobile-thread', tokenUsage: { total: { totalTokens: 2_500 }, last: { totalTokens: 500 } } });
   const summary = Children.toArray(view.props.children).at(-1);
   const rows = isValidElement<{ children?: ReactNode }>(summary) ? Children.toArray(summary.props.children) : [];
-  expect(rows).toHaveLength(3);
+  expect(rows).toHaveLength(4);
+  expect(text(rows.at(-2))).toBe('额度点数 —');
   expect(text(view)).toContain('当前 2.50K Token · 1.23USD');
   expect(text(rows.at(-1))).toBe('75.0% TSR · 150.0 TPS · 1.25 TTFT');
   expect(useConversationMetrics).toHaveBeenCalledWith(readConversationMetrics, 'mobile-thread', true);

@@ -102,7 +102,8 @@ test('mobile deletion: swipe, both menu gestures, failure, restart and fresh exc
   await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click();
   await expect(row).toContainText('old private history');
   relay.rejectDelete(false);
-  await button(page, profileLabel).click(); await button(page, '删除').click();
+  await button(page, privateLabel).click();
+  await page.locator('.lounge-heading .lounge-avatar').click(); await button(page, '删除').click();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.getByRole('dialog').filter({ hasText: '将移除该用户' })
     .getByRole('button', { name: '删除', exact: true }).click();

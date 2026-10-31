@@ -3,6 +3,7 @@ import type { ChatMessagesProps } from '../../../../shared/remote-chat/client/me
 import { isNearHistoryStart, shouldFollowScroll, shouldShowScrollToBottom }
   from '../../../../shared/chat/scrollPosition';
 import { useScrollMovement } from '../../../../shared/chat/useScrollMovement';
+import { useVirtualScroll } from '../../../../shared/chat/virtualScroll';
 import { useHistoryPull } from '../../../../shared/chat/useHistoryPull';
 import { useHistoryContinuation } from '../../../../shared/chat/useHistoryContinuation';
 
@@ -25,6 +26,7 @@ export function useHistoryScroll({ thread, loading, loadingMore, hasMore, loadOl
   const [showBottom, setShowBottom] = useState(false);
   const fetching = useRef(false);
   const movement = useScrollMovement();
+  useVirtualScroll({ viewport: list, following, movement });
   const anchor = useRef<{ element: Element; top: number }>();
   const scope = useRef(thread?.id);
   useLayoutEffect(() => {

@@ -36,7 +36,7 @@ for (const width of [320, 390]) for (const theme of ['light', 'dark']) {
     await expect(row).toBeVisible(); await row.click({ button: 'right' });
     const sheet = page.locator('.lounge-chat-actions-sheet');
     await expect(sheet.getByRole('heading', { name: 'bob' })).toBeVisible();
-    const actions = ['发起私聊', '置顶', '屏蔽此人', '删除'];
+    const actions = ['发起私聊', '置顶', '消息免打扰', '屏蔽此人', '删除'];
     await expect(sheet.getByRole('menuitem')).toHaveText(actions);
     await expect(sheet.getByRole('menuitem', { name: '删除', exact: true })).toBeInViewport();
     await page.screenshot({ path: `../../.codex-tmp/lounge-actions-${width}-${theme}.png`, animations: 'disabled' });

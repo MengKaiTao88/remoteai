@@ -43,6 +43,7 @@ pub(super) fn clear_cloud_credentials<R: Runtime>(app: &tauri::AppHandle<R>) -> 
 
 pub(super) fn api_client() -> Result<Client, String> {
     crate::system_proxy::apply(Client::builder())
+        .gzip(true)
         .timeout(Duration::from_secs(20))
         .build()
         .map_err(|error| format!("Failed to create cloud HTTP client: {error}"))
@@ -50,6 +51,7 @@ pub(super) fn api_client() -> Result<Client, String> {
 
 pub(super) fn feedback_client() -> Result<Client, String> {
     crate::system_proxy::apply(Client::builder())
+        .gzip(true)
         .timeout(Duration::from_secs(60))
         .build()
         .map_err(|error| format!("Failed to create feedback HTTP client: {error}"))

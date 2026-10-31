@@ -31,7 +31,7 @@ function activityLabel(item: Item) {
 
 export function ChatActivity({ item, onOpen, running, inline = false, onInspect, count, content }: {
   item: Item; onOpen: (id: string) => void; running?: boolean;
-  inline?: boolean; onInspect?: () => void; count?: number; content?: ReactNode;
+  inline?: boolean; onInspect?: () => void; count?: number; content?: () => ReactNode;
 }) {
   useLanguage();
   const [expanded, setExpanded] = useState(false);
@@ -50,7 +50,7 @@ export function ChatActivity({ item, onOpen, running, inline = false, onInspect,
       <span className="chat-activity-text">{label}</span>
       {count && <span className="chat-activity-count">{count}</span>}<ChevronRight size={15} /></button>
     {inline && expanded && <div className="chat-inline-tool-content chat-detail-stack">
-      {content ?? <ChatToolContent item={item} />}
+      {content ? content() : <ChatToolContent item={item} />}
     </div>}
   </div>;
 }

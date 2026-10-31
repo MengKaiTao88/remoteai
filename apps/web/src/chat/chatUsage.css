@@ -11,6 +11,7 @@
 }
 .chat-usage-tokens { color: var(--app-accent, #0b8065); }
 .chat-usage-thread, .chat-usage-performance { flex-basis: 100%; }
+.chat-usage-credits { flex-basis: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
 .chat-usage-quota-line { flex-basis: 100%; min-width: 0; line-height: 20px; overflow-wrap: anywhere; }
 .chat-conversation-tsr, .chat-conversation-tps, .chat-conversation-ttft { white-space: nowrap; }
 .chat-conversation-metrics { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }

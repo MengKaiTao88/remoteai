@@ -27,6 +27,9 @@ async function touchDrag(page: Page, from: Locator, to: Locator, cancel = false)
 test('compact settings support touch dragging, cancellation, clicking and keyboard selection', async ({ page }, info) => {
   await page.goto('e2e/chat-settings-harness.html');
   if (info.project.name === 'mobile') {
+    const credits = page.locator('.chat-usage-credits');
+    await expect(credits).toHaveText('额度点数 62,500.125');
+    await expect(credits).toBeVisible();
     await expect(page.locator('.sheet-header')).toHaveCount(0);
     await expect(page.getByRole('button', { name: '关闭', exact: true })).toHaveCount(0);
   }
@@ -60,6 +63,7 @@ test('compact settings support touch dragging, cancellation, clicking and keyboa
   await expect(context.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '95');
   await expect(page.locator('.chat-usage-cost').last()).toContainText('640.61USD');
   await expect(page.locator('.chat-usage')).not.toContainText('预估');
+  await expect(page.locator('.chat-usage-credits')).toHaveText('额度点数 62,500.125');
   const gap = await context.evaluate(element => {
     const label = element.querySelector('.chat-context-progress-content > span')!;
     const range = document.createRange();

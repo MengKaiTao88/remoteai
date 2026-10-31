@@ -1,4 +1,5 @@
 import { displayText } from '../i18n/index';
+import { ViewportContent } from '../../../../shared/chat/ViewportContent';
 import { t, useLanguage } from '../i18n';
 import { createContext, useContext, useState } from 'react';
 import { useChatImage, type ImagePreviewOptions } from '../../../../shared/remote-chat/client/useChatImage';
@@ -12,7 +13,13 @@ import thumbnailStyles from '../../../../shared/chat/toolImageThumbnail.module.c
 
 export const ChatImageContext = createContext<ImagePreviewOptions | null>(null);
 
-export function ChatImage({ source, description = t("client.chat.image"), compact }: {
+type ChatImageProps = { source?: string; description?: string; compact?: boolean };
+
+export function ChatImage(props: ChatImageProps) {
+  return <ViewportContent key={props.source} image>{() => <VisibleChatImage {...props} />}</ViewportContent>;
+}
+
+function VisibleChatImage({ source, description = t("client.chat.image"), compact }: {
   source?: string; description?: string; compact?: boolean;
 }) {
   useLanguage();

@@ -10,17 +10,18 @@ import { LoungeUnreadBadge } from './LoungeUnreadBadge';
 
 export function MobileLoungeChatRow({ row, model }: { row: ConversationRow; model: MobileLounge }) {
   return <div className="lounge-chat-row">
-    <span className="lounge-chat-avatar">
-    {row.user ? <>
-      <LoungeAvatar user={row.user} onProfile={() => model.setProfile(row.user)} />
-      <span aria-hidden className={`lounge-avatar-presence${row.online ? ' is-online' : ''}`} />
-    </> : <span className="lounge-avatar" aria-hidden onClick={() => model.select()}>
-      <MessagesSquare size={22} /></span>}
-    <LoungeUnreadBadge count={row.unread} /></span>
     <button className="lounge-chat-row-main" type="button"
       aria-label={row.user ? t('client.lounge.directWith', { account: accountName(row.user) }) : t('client.lounge.groupChat')}
       aria-description={row.contact ? t(contactStatus(row.contact)) : undefined}
       onClick={() => model.select(row.user)}>
+      <span className="lounge-chat-avatar">
+        {row.user ? <>
+          <LoungeAvatar user={row.user} />
+          <span aria-hidden className={`lounge-avatar-presence${row.online ? ' is-online' : ''}`} />
+        </> : <span className="lounge-avatar" aria-hidden>
+          <MessagesSquare size={22} /></span>}
+        <LoungeUnreadBadge count={row.unread} />
+      </span>
       <span className="lounge-chat-row-copy"><strong>{row.user ? accountName(row.user) : t('client.lounge.groupChat')}</strong>
         <span>{conversationPreviewText(row)}</span></span>
       <span className="lounge-chat-row-meta">

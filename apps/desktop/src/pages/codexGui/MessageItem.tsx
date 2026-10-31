@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { ViewportContent } from '../../../../../shared/chat/ViewportContent';
 import { useGuiLanguage } from '../../i18n/useGuiLanguage';
 import { ModelChangeNotice } from "./ModelChangeNotice";
 import type { Item } from "./types";
@@ -45,10 +46,10 @@ export const MessageItem = memo(function MessageItem({ item, streaming, startedA
 }) {
   useGuiLanguage();
   if (item.type === "modelChange") return <ModelChangeNotice item={item} />;
-  if (item.type === "userMessage") return <UserMessage item={item} startedAt={startedAt}
-    onEdit={onEdit} onDelete={onDelete} editDisabled={editDisabled} />;
-  if (item.type === "agentMessage") return <AgentMessage item={item} streaming={streaming}
-    completedAt={completedAt} onFork={onFork} forkDisabled={forkDisabled} />;
+  if (item.type === "userMessage") return <ViewportContent>{() => <UserMessage item={item} startedAt={startedAt}
+    onEdit={onEdit} onDelete={onDelete} editDisabled={editDisabled} />}</ViewportContent>;
+  if (item.type === "agentMessage") return <ViewportContent>{() => <AgentMessage item={item} streaming={streaming}
+    completedAt={completedAt} onFork={onFork} forkDisabled={forkDisabled} />}</ViewportContent>;
   const text = toolText(item);
   if (item.type === "reasoning" && !text.trim()) return null;
   return <ActivityRow item={item} text={text} />;
