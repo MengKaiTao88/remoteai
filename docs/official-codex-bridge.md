@@ -61,6 +61,10 @@ The remote handshake disables CLI-managed file previews and streams in bridge mo
 clients use the bounded image-preview RPC instead of waiting for an unavailable download queue.
 Numeric opening turns are withheld until the owner publishes native message IDs, avoiding duplicate
 messages in connected viewers.
+Official asynchronous questions are presented as selectable answer cards using the existing user-input
+protocol. Their lifetime belongs to the conversation: completing the turn that asked the question does
+not dismiss the card. Submitting an answer uses the original native question IDs; the authoritative
+gateway resolves it for every connected viewer.
 
 ## Acceptance
 
@@ -71,6 +75,9 @@ Use a disposable conversation, and keep both devices on it:
 - While a task is active, use a steering message and stop it. Check both views converge.
 - Trigger a benign approval in a separately configured test chat. Approve or decline once; the other
   view must clear it. The adapter inherits the native policy and never enables approvals by itself.
+- Ask an asynchronous question with two harmless options. Wait for the originating turn to complete,
+  choose the second option on mobile Web and submit once. Verify the structured answer in official
+  Codex, the assistant's follow-up, and that the card stays cleared after reloading the page.
 - Turn off phone networking, complete a desktop turn, reconnect, and check complete history without
   duplicates. Close/reopen the phone page and confirm the task continues on the computer.
 - Stop/restart the gateway, then reopen the conversation. Check recovery without replaying a message.

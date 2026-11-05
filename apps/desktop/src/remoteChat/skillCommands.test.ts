@@ -9,12 +9,16 @@ import { GuiController } from '../pages/codexGui/controller';
 import { getGuiController } from '../pages/codexGui/session';
 import { ChatOperations } from './operations';
 import { remoteQueue } from './queue';
+import { invoke } from '../api/backend';
 
 vi.mock('../pages/codexGui/composerBridge', () => ({ guiComposer: {
   validateSend: async () => ({ model: 'model', effort: 'high', access: 'workspace-write' }),
 } }));
 vi.mock('../../../../shared/conversation/api', () => ({ guiApi: { connect: vi.fn(), request: vi.fn(), respond: vi.fn() } }));
 vi.mock('../pages/codexGui/session', () => ({ getGuiController: vi.fn() }));
+vi.mock('../api/backend', async importOriginal => ({
+  ...await importOriginal<typeof import('../api/backend')>(), invoke: vi.fn(),
+}));
 const skill: Skill = { name: 'review', path: 'C:/skills/review/SKILL.md', description: '检查代码', enabled: true };
 const thread: Thread = { id: 'chat', preview: '', cwd: 'C:/project', updatedAt: 1, turns: [] };
 const models = [{ id: 'model', model: 'model', displayName: 'Model', isDefault: true,
@@ -25,6 +29,7 @@ let handlers: ConnectionEvents;
 let remote: Thread;
 beforeEach(async () => {
   vi.resetAllMocks();
+  vi.mocked(invoke).mockResolvedValue({ managedExternally: false });
   hostController = new GuiController();
   vi.mocked(getGuiController).mockReturnValue(hostController);
   vi.spyOn(remoteQueue, 'request').mockResolvedValue({ revision: 0, threads: {} });

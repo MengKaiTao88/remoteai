@@ -30,6 +30,9 @@ commands mirror source changes into that directory; edit the original files, not
 To update shared dependencies or host integration fixtures, initialize the source repositories used by the relevant
 fixtures, then run `npm run export:web` in the parent. Review `vendor/source-lock.json`, run the child's
 checks, and commit and push the child before updating its gitlink. Hash checks reject edited snapshots.
+For changes limited to shared sources, use `npm run export:web -- --shared-only`. This updates shared
+sources and their revision while retaining the Web repository's verified desktop and Native snapshots
+and provenance. Use the full export when intentionally updating those host integration dependencies.
 Native source is needed when refreshing cross-platform comparison fixtures, not when building the
 standalone Web application. Translation resources come from the pinned public `@remoteai/i18n` release.
 

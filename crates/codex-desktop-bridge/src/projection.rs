@@ -104,6 +104,7 @@ pub(super) fn approvals(view: &Value) -> Vec<Approval> {
                         | "item/permissions/requestApproval"
                         | "item/tool/requestUserInput"
                         | "tool/requestUserInput"
+                        | "bridge/requestUserInputAsync"
                 )
             {
                 return None;
@@ -116,16 +117,22 @@ pub(super) fn approvals(view: &Value) -> Vec<Approval> {
             let id = format!("bridge:{}:{}", thread_id, original_id);
             let mut params = request["params"].clone();
             params["threadId"] = json!(thread_id);
-            params["turnId"] = rows(&view["turns"])
-                .iter()
-                .rev()
-                .find(|turn| turn["status"] == "inProgress")
-                .map(|turn| turn["id"].clone())
-                .unwrap_or(Value::Null);
+            params["turnId"] = if method == "bridge/requestUserInputAsync" {
+                // Async questions outlive their originating turn. Only the gateway can resolve them.
+                Value::Null
+            } else {
+                rows(&view["turns"])
+                    .iter()
+                    .rev()
+                    .find(|turn| turn["status"] == "inProgress")
+                    .map(|turn| turn["id"].clone())
+                    .unwrap_or(Value::Null)
+            };
             Some(Approval {
                 thread_id,
                 original_id,
-                event: json!({"id": id, "method": if method == "tool/requestUserInput" {
+                event: json!({"id": id, "method": if matches!(method,
+                    "tool/requestUserInput" | "bridge/requestUserInputAsync") {
                 "item/tool/requestUserInput" } else { method }, "params": params}),
             })
         })

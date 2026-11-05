@@ -99,6 +99,36 @@ fn cached_or_unsupported_approvals_never_become_actionable() {
     assert!(projection::approvals(&state).is_empty());
 }
 
+#[tokio::test]
+async fn async_questions_outlive_turn_completion_and_submit_through_the_native_gateway() {
+    let fixture = fixture(false).await;
+    let client = client(&fixture).await;
+    let mut state = view("working");
+    let native_id = format!("async:{THREAD}:question-item");
+    state["requests"] = json!([{"id":native_id, "method":"bridge/requestUserInputAsync",
+        "supported":true, "params":{"questions":[{"id":"question", "question":"Choose",
+        "options":[{"label":"A"}, {"label":"B"}]}]}}]);
+    client.accept(&state).await.unwrap();
+    let pending = client.pending().await;
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0]["method"], "item/tool/requestUserInput");
+    assert!(pending[0]["params"]["turnId"].is_null());
+    assert_eq!(
+        pending[0]["params"]["questions"][0]["options"][1]["label"],
+        "B"
+    );
+    state["sequence"] = json!(2);
+    state["turns"][0]["status"] = json!("completed");
+    client.accept(&state).await.unwrap();
+    assert_eq!(client.pending().await, pending);
+    client
+        .respond(json!({"id":pending[0]["id"], "answers":{"question":{"answers":["B"]}}}))
+        .await
+        .unwrap();
+    assert!(client.pending().await.is_empty());
+    client.close().await;
+}
+
 struct Fixture {
     url: String,
     sends: Arc<AtomicUsize>,
@@ -197,6 +227,14 @@ async fn fixture(drop_send: bool) -> Fixture {
                     } else if path.starts_with("/api/sessions?") {
                         json!({"sessions": [{"id": THREAD, "title": "Fixture", "cwd": "C:\\fixture", "recency": 100}]})
                     } else if path.contains("/respond?") {
+                        let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
+                        if body["requestId"]
+                            .as_str()
+                            .is_some_and(|id| id.starts_with("async:"))
+                        {
+                            assert_eq!(body["requestId"], format!("async:{THREAD}:question-item"));
+                            assert_eq!(body["response"]["answers"]["question"], json!(["B"]));
+                        }
                         json!({"ok": true})
                     } else if path.starts_with(&format!("/api/sessions/{THREAD}?")) {
                         view("working")

@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { inspectSourceBoundaries } from '../shared/scripts/source-boundaries.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const destination = path.resolve(process.argv[2] ?? path.join(root, 'apps/web'));
+const arguments_ = process.argv.slice(2);
+const sharedOnly = arguments_.includes('--shared-only');
+const destination = path.resolve(arguments_.find(value => value !== '--shared-only')
+  ?? path.join(root, 'apps/web'));
 const vendor = path.join(destination, 'vendor');
 const boundaries = inspectSourceBoundaries({ shared: path.join(root, 'shared'), applications: [destination] });
 if (boundaries.violations.length) throw new Error(JSON.stringify(boundaries.violations, null, 2));
@@ -14,16 +17,22 @@ const sourcePattern = /\.(?:[cm]?[jt]sx?|css|less|html)$/;
 const textPattern = /\.(?:[cm]?[jt]sx?|css|less|html|json|md|svg|txt|sig)$/;
 const slash = value => value.replaceAll('\\', '/');
 const hash = contents => createHash('sha256').update(contents).digest('hex');
-const pending = new Set([
+const hostDependencies = [
   'scripts/test-browser.mjs', 'scripts/test-browser.d.mts', 'scripts/i18n-fixture.mjs',
   'apps/desktop/vite.config.ts', 'apps/desktop/e2e/chat-harness.html',
   'apps/desktop/e2e/chat-harness.ts', 'apps/desktop/e2e/mobile-fixture.mjs',
   'apps/desktop/src-tauri/icons/32x32.png', 'apps/desktop/src-tauri/icons/128x128.png',
   'apps/desktop/src-tauri/tauri.conf.json', 'shared/localization/testLocale.ts',
-]);
-const files = {};
+];
 const manifestPath = path.join(vendor, 'source-lock.json');
-const previous = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, 'utf8')).files : {};
+const previousManifest = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, 'utf8')) : undefined;
+if (sharedOnly && !previousManifest) throw new Error('A shared-only export requires an existing dependency snapshot.');
+const previous = previousManifest?.files ?? {};
+const pending = new Set(sharedOnly
+  ? Object.keys(previous).filter(name => name.startsWith('shared/')) : hostDependencies);
+// Shared changes must not replace a newer published host or Native snapshot with this checkout's versions.
+const files = sharedOnly
+  ? Object.fromEntries(Object.entries(previous).filter(([name]) => !name.startsWith('shared/'))) : {};
 
 function walk(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
@@ -43,6 +52,7 @@ function collect(filename) {
   const source = resolveSource(filename);
   if (!source) return;
   const relative = slash(path.relative(root, source));
+  if (sharedOnly && !relative.startsWith('shared/')) return;
   // Web is the host, and translations are supplied by the installed public package.
   if (/^(shared|apps\/(desktop|native)|scripts)\//.test(relative)) pending.add(relative);
 }
@@ -91,14 +101,18 @@ if (!i18n.startsWith('https://github.com/piperhex/remoteai-i18n/releases/downloa
 const license = fs.readFileSync(path.join(root, 'LICENSE'), 'utf8').replaceAll('\r\n', '\n').replace(/\n+$/, '\n');
 fs.writeFileSync(path.join(vendor, 'LICENSE'), license);
 files.LICENSE = hash(license);
+const snapshotFiles = sharedOnly ? Object.fromEntries([
+  ...Object.keys(previous), ...Object.keys(files).filter(name => !Object.hasOwn(previous, name)),
+].filter(name => Object.hasOwn(files, name)).map(name => [name, files[name]])) : files;
+const nativeSource = sharedOnly ? previousManifest.nativeSource
+  : fs.existsSync(path.join(root, 'apps/native/.git')) ? {
+    repository: 'https://github.com/piperhex/remoteai-native.git', revision: git(path.join(root, 'apps/native')),
+  } : undefined;
 fs.writeFileSync(manifestPath, JSON.stringify({
-  repository: 'https://github.com/piperhex/remoteai.git', revision: git(root),
+  repository: 'https://github.com/piperhex/remoteai.git', revision: sharedOnly ? previousManifest.revision : git(root),
   sharedSource: { repository: 'https://github.com/piperhex/remoteai-shared.git', revision: git(path.join(root, 'shared')) },
-  ...(fs.existsSync(path.join(root, 'apps/native/.git')) ? {
-    nativeSource: { repository: 'https://github.com/piperhex/remoteai-native.git',
-      revision: git(path.join(root, 'apps/native')) },
-  } : {}),
-  i18n, files,
+  ...(nativeSource ? { nativeSource } : {}),
+  i18n, files: snapshotFiles,
 }, null, 2) + '\n');
 for (const relative of Object.keys(previous)) {
   const target = path.resolve(vendor, relative);
