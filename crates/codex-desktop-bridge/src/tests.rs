@@ -9,7 +9,7 @@ use tokio::{
     net::TcpListener,
 };
 
-const THREAD: &str = "00000000-0000-4000-8000-000000000001";
+pub(super) const THREAD: &str = "00000000-0000-4000-8000-000000000001";
 
 fn view(text: &str) -> Value {
     json!({"id": THREAD, "title": "Fixture", "cwd": "C:\\fixture", "connected": true,
@@ -129,10 +129,11 @@ async fn async_questions_outlive_turn_completion_and_submit_through_the_native_g
     client.close().await;
 }
 
-struct Fixture {
+pub(super) struct Fixture {
     url: String,
-    sends: Arc<AtomicUsize>,
-    posts: Arc<AtomicUsize>,
+    pub(super) sends: Arc<AtomicUsize>,
+    pub(super) posts: Arc<AtomicUsize>,
+    pub(super) model_confirmed: Arc<std::sync::atomic::AtomicBool>,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -142,18 +143,23 @@ impl Drop for Fixture {
     }
 }
 
-async fn fixture(drop_send: bool) -> Fixture {
+pub(super) async fn fixture(drop_send: bool) -> Fixture {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let sends = Arc::new(AtomicUsize::new(0));
     let posts = Arc::new(AtomicUsize::new(0));
     let send_count = sends.clone();
     let post_count = posts.clone();
+    let model = Arc::new(tokio::sync::Mutex::new(Value::Null));
+    let model_confirmed = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let confirmation = model_confirmed.clone();
     let task = tokio::spawn(async move {
         loop {
             let (mut socket, _) = listener.accept().await.unwrap();
             let sends = send_count.clone();
             let posts = post_count.clone();
+            let model = model.clone();
+            let confirmation = confirmation.clone();
             tokio::spawn(async move {
                 let mut bytes = Vec::new();
                 let mut chunk = [0; 8192];
@@ -221,6 +227,15 @@ async fn fixture(drop_send: bool) -> Fixture {
                         assert!(content_length > 500_000);
                         assert!(bytes[header_end..].starts_with(b"\x89PNG\r\n\x1a\n"));
                         json!({"ok": true})
+                    } else if path.contains("/catalog?") {
+                        json!({"models":[{"id":"model-a", "name":"Model A", "isDefault":true,
+                            "defaultEffort":"high", "efforts":["low","high"]},
+                            {"id":"model-b", "name":"Model B", "defaultEffort":"low", "efforts":["low"]}]})
+                    } else if path.contains("/settings?") {
+                        let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
+                        *model.lock().await = body.clone();
+                        json!({"applied":true, "confirmed":confirmation.load(Ordering::SeqCst),
+                            "model":body["model"], "effort":body["effort"]})
                     } else if path.contains("/poll?") {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         json!({"state": null})
@@ -237,7 +252,14 @@ async fn fixture(drop_send: bool) -> Fixture {
                         }
                         json!({"ok": true})
                     } else if path.starts_with(&format!("/api/sessions/{THREAD}?")) {
-                        view("working")
+                        let mut state = view("working");
+                        let selected = model.lock().await;
+                        if selected.is_object() {
+                            state["model"] = selected["model"].clone();
+                            state["effort"] = selected["effort"].clone();
+                            state["sequence"] = json!(2);
+                        }
+                        state
                     } else {
                         status = "404 Not Found";
                         json!({"error": "missing"})
@@ -253,11 +275,12 @@ async fn fixture(drop_send: bool) -> Fixture {
         url,
         sends,
         posts,
+        model_confirmed,
         task,
     }
 }
 
-async fn client(fixture: &Fixture) -> Arc<Client> {
+pub(super) async fn client(fixture: &Fixture) -> Arc<Client> {
     Client::connect(
         Config::new(&fixture.url, "fixture".into(), "not-a-real-password".into()).unwrap(),
     )

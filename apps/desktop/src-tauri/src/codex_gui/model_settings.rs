@@ -172,6 +172,15 @@ pub(crate) async fn codex_gui_model_settings(
     app: AppHandle,
     thread_id: Option<String>,
 ) -> std::result::Result<ModelSettingsSnapshot, String> {
+    if super::uses_official_desktop() {
+        let value = app
+            .state::<super::GuiState>()
+            .official_bridge
+            .model_settings(thread_id.as_deref())
+            .await
+            .map_err(|error| error.to_string())?;
+        return serde_json::from_value(value).map_err(|_| ModelSettingsError::Invalid.to_string());
+    }
     access(app, thread_id, None)
         .await
         .map_err(|error| error.to_string())
@@ -200,6 +209,20 @@ pub(crate) async fn codex_gui_set_model_settings(
 ) -> std::result::Result<ModelSettingsSnapshot, String> {
     let state = app.state::<ModelSettingsState>();
     let _write = state.writes.lock().await;
+    if super::uses_official_desktop() {
+        let selection =
+            serde_json::to_value(selection).map_err(|_| ModelSettingsError::Invalid.to_string())?;
+        let value = app
+            .state::<super::GuiState>()
+            .official_bridge
+            .set_model_settings(thread_id.as_deref(), selection)
+            .await
+            .map_err(|error| error.to_string())?;
+        let snapshot: ModelSettingsSnapshot =
+            serde_json::from_value(value).map_err(|_| ModelSettingsError::Invalid.to_string())?;
+        super::web::publish(&app, CHANGED_EVENT, &snapshot);
+        return Ok(snapshot);
+    }
     let mut snapshot = access(app.clone(), thread_id.clone(), Some(selection.clone()))
         .await
         .map_err(|error| error.to_string())?;

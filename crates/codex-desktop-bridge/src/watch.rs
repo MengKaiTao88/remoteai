@@ -127,6 +127,11 @@ impl Client {
             .await
             .insert(id.to_owned(), view.clone());
         self.publish_turns(previous.as_ref(), view);
+        if super::models::selection(view) != previous.as_ref().and_then(super::models::selection) {
+            if let Some(snapshot) = super::models::snapshot(view) {
+                self.emit(json!({"method":"bridge/modelSettings", "params":snapshot}));
+            }
+        }
         let current = projection::approvals(view);
         let mut approvals = self.approvals.lock().await;
         let obsolete: Vec<String> = approvals

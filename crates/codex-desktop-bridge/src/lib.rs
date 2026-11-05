@@ -3,11 +3,12 @@
 mod http;
 mod images;
 mod input;
+mod models;
 mod projection;
 mod requests;
 mod watch;
 
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{broadcast, Mutex};
 use zeroize::Zeroizing;
@@ -136,19 +137,13 @@ impl Client {
     }
 }
 
-pub fn models() -> Value {
-    // A single explicit inherited choice prevents the GUI's defaults from changing the native thread.
-    json!({"data": [{"id": INHERIT_MODEL, "model": INHERIT_MODEL,
-        "displayName": "Codex Desktop", "isDefault": true, "defaultReasoningEffort": "medium",
-        "supportedReasoningEfforts": [{"reasoningEffort": "medium", "description": "Codex Desktop"}]}],
-        "nextCursor": null})
-}
-
 fn thread_id(request: &Value) -> Result<&str> {
     let id = request["threadId"].as_str().ok_or(Error::Invalid)?;
     uuid::Uuid::parse_str(id).map_err(|_| Error::Invalid)?;
     Ok(id)
 }
 
+#[cfg(test)]
+mod model_tests;
 #[cfg(test)]
 mod tests;

@@ -6,7 +6,7 @@ impl Client {
     /// Closed chat operation set. No native RPC, arbitrary URL or filesystem proxy is exposed.
     pub async fn request(self: &Arc<Self>, request: Value) -> Result<Value> {
         match request["operation"].as_str().ok_or(Error::Invalid)? {
-            "models" => Ok(super::models()),
+            "models" => self.models(&request).await,
             "skills" => Ok(json!({"data": []})),
             "plugins" => Ok(json!({"data": []})),
             "list" => self.list(&request).await,
@@ -118,6 +118,9 @@ impl Client {
             .find(|turn| turn["status"] == "inProgress");
         if request["operation"] == "steer" && active.map(|t| &t["id"]) != Some(&request["turnId"]) {
             return Err(Error::Stale);
+        }
+        if request["operation"] == "send" {
+            self.apply_send_model(request, &before).await?;
         }
         let submission = request["submissionId"]
             .as_str()

@@ -11,7 +11,9 @@ Supported: discover existing **local desktop** conversations, read their history
 command progress, send text and images (including the GUI queue), steer the current turn,
 stop the verified current turn, rename a conversation,
 answer ordinary command/file/permission approvals and user-input questions, and reconnect after transport
-failure. Model selection displays `Codex Desktop`: messages inherit the native conversation's settings.
+failure. The model picker reads the official owner's available models and reasoning efforts. Existing
+conversations load their actual native selection. An explicit change is validated and confirmed by the
+owner, then synchronized across local, remote and Web viewers; an active inference is not restarted.
 The sidebar uses official project membership and puts projectless chats in Recent, independently of cwd.
 For Desktop versions that have not migrated membership to app-server, it reads the project assignments
 and order from `.codex-global-state.json` without modifying that file.
@@ -22,7 +24,7 @@ official Codex uses it; a second listener on the same loopback port can shadow t
 
 This first build switches the entire chat backend at process startup. It does not yet provide a per-thread
 source selector. Unsupported operations return an explicit error: new chats, fork/edit/delete/archive,
-Skills, model/permission switching, goals, MCP forms, project tools, SSH/WSL conversations,
+Skills, permission switching, goals, MCP forms, project tools, SSH/WSL conversations,
 and GUI account switching. These controls may still be visible in the existing UI. Use official Codex
 Desktop for them. Up to 16 recently read conversations are watched; older watches are released as new
 ones are opened. Phone background suspension pauses delivery, not the native task.
@@ -72,6 +74,9 @@ Use a disposable conversation, and keep both devices on it:
 
 - Send a short message from official Codex. Check that phone progress and its final reply update.
 - Send the next message from the phone. Check it appears in that same official conversation.
+- Open model settings from the phone, choose a model and supported reasoning effort, and verify the
+  official owner's selection. Send a harmless test turn and reload the phone page; both views must
+  retain the same model. Restore the disposable conversation's original selection after verification.
 - While a task is active, use a steering message and stop it. Check both views converge.
 - Trigger a benign approval in a separately configured test chat. Approve or decline once; the other
   view must clear it. The adapter inherits the native policy and never enables approvals by itself.

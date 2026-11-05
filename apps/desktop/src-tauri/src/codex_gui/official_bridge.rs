@@ -28,6 +28,14 @@ impl State {
                     loop {
                         match events.recv().await {
                             Ok(mut event) => {
+                                if event["method"] == "bridge/modelSettings" {
+                                    super::web::publish(
+                                        &app,
+                                        "codex-gui-model-settings-changed",
+                                        &event["params"],
+                                    );
+                                    continue;
+                                }
                                 super::official_sidebar::apply(&mut event).await;
                                 super::web::publish(&app, "codex-gui-event", event);
                             }
@@ -64,7 +72,9 @@ impl State {
         let mut summary = false;
         let mut details = true;
         let body = match request {
-            GuiRequest::Models { .. } => json!({"operation": "models"}),
+            GuiRequest::Models { cache_only, cursor } => {
+                json!({"operation": "models", "cacheOnly":cache_only, "cursor":cursor})
+            }
             GuiRequest::Skills { .. } => json!({"operation": "skills"}),
             GuiRequest::Plugins { .. } => json!({"operation": "plugins"}),
             GuiRequest::List {
@@ -150,6 +160,28 @@ impl State {
         let reply: Value = serde_json::to_value(reply).map_err(|_| GuiError::InvalidRequest)?;
         self.client()?
             .respond(reply)
+            .await
+            .map_err(GuiError::OfficialBridge)
+    }
+
+    pub(super) async fn model_settings(&self, thread_id: Option<&str>) -> Result<Value> {
+        let Some(id) = thread_id else {
+            return Ok(json!({"threadId":null, "selection":null, "revision":0}));
+        };
+        self.client()?
+            .model_settings(id)
+            .await
+            .map_err(GuiError::OfficialBridge)
+    }
+
+    pub(super) async fn set_model_settings(
+        &self,
+        thread_id: Option<&str>,
+        selection: Value,
+    ) -> Result<Value> {
+        let id = thread_id.ok_or(GuiError::InvalidRequest)?;
+        self.client()?
+            .set_model_settings(id, &selection)
             .await
             .map_err(GuiError::OfficialBridge)
     }
