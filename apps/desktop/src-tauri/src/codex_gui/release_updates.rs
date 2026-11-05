@@ -33,12 +33,21 @@ pub(super) fn initialize(app: &AppHandle) {
 }
 
 pub(crate) fn start(app: &AppHandle) {
+    if crate::codex_gui::official_bridge::enabled() {
+        return;
+    }
     app.state::<CliUpdateState>()
         .scheduler
         .get_or_init(|| automatic::start(app.clone()));
 }
 
 pub(super) fn status(app: &AppHandle) -> Result<CliStatus> {
+    if crate::codex_gui::official_bridge::enabled() {
+        return Ok(CliStatus {
+            version: Some("Codex Desktop".into()),
+            release: None,
+        });
+    }
     initialize(app);
     let state = app.state::<CliUpdateState>();
     let _metadata = state
@@ -70,6 +79,13 @@ fn check(app: &AppHandle) -> Result<ReleaseInfo> {
 pub(crate) async fn codex_gui_cli_check(
     app: AppHandle,
 ) -> std::result::Result<ReleaseInfo, String> {
+    if crate::codex_gui::official_bridge::enabled() {
+        return Ok(ReleaseInfo {
+            version: "Codex Desktop".into(),
+            size: 0,
+            ready: true,
+        });
+    }
     tauri::async_runtime::spawn_blocking(move || check(&app))
         .await
         .map_err(|_| GuiError::Release.to_string())?

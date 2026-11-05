@@ -10,5 +10,7 @@ export function queueSendError(error: unknown, dispatched: boolean): string {
   const message = error instanceof Error ? error.message : error;
   // Only known pre-send validation failures have a definite outcome and safe display text.
   if (typeof message === 'string' && IMAGE_INPUT_ERRORS.has(message)) return displayError(message);
+  if (message === 'client.errors.thisOperationIsNotSupportedByThisClient'
+    || message === 'client.errorsCodexGui.invalidChatRequestRefreshAndTryAgain') return displayError(message);
   return dispatched ? uiText("client.conversation.couldNotConfirmWhetherTheMessageWasSentCheckThe") : uiText("client.conversation.couldNotSendTheMessagePleaseTryAgain");
 }

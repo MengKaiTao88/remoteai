@@ -3,8 +3,11 @@ import { projectName } from "../../../../../shared/conversation/projectCatalog";
 import type { GuiState, Thread } from "../../../../../shared/conversation/types";
 import { isThreadRunning } from "./threadRunning";
 import { prioritizeRunningThreads } from "../../../../../shared/chat/threadOrder";
+import { officialSections } from './officialSidebar';
 
 export function threadGroups(state: GuiState) {
+  const official = officialSections(state.threads);
+  if (official) return official;
   const pinnedIds = new Set(state.threads.filter(thread => state.pins.includes(thread.id)
     && !state.grouping.projects[thread.cwd]).map(thread => thread.id));
   const pinned = state.threads.filter((thread) => pinnedIds.has(thread.id));

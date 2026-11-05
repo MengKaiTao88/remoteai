@@ -1,6 +1,10 @@
 pub(crate) fn restore_local_proxy_if_enabled<R: Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> Result<bool, String> {
+    // A follower must not shadow the owner's model endpoint or rewrite its account/configuration.
+    if crate::codex_gui::uses_official_desktop() {
+        return Ok(false);
+    }
     let paths = resolve_paths(app)?;
     if !read_state(&paths).local_proxy_enabled {
         return Ok(false);
@@ -51,6 +55,9 @@ pub(crate) async fn start_local_proxy<R: Runtime + 'static>(
 fn start_local_proxy_blocking<R: Runtime>(
     app: tauri::AppHandle<R>,
 ) -> Result<LocalProxyStatus, String> {
+    if crate::codex_gui::uses_official_desktop() {
+        return Err("client.errors.thisOperationIsNotSupportedByThisClient".to_owned());
+    }
     let paths = resolve_paths(&app)?;
     let write_codex = crate::claude_code::should_write_codex_for_app(&app)?;
     // Validate the selected official credential before interrupting a running client.
@@ -177,6 +184,9 @@ fn stop_local_proxy_blocking<R: Runtime>(
     app: tauri::AppHandle<R>,
     restore_conversations: bool,
 ) -> Result<LocalProxyStatus, String> {
+    if crate::codex_gui::uses_official_desktop() {
+        return Err("client.errors.thisOperationIsNotSupportedByThisClient".to_owned());
+    }
     let _switch_guard = crate::commands::account_switch_lock()
         .lock()
         .map_err(|_| "Account switch lock is poisoned".to_string())?;

@@ -184,7 +184,7 @@ pub(crate) struct GuiEvent {
     pub(crate) id: Option<Value>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ApprovalReply {
     pub(crate) id: Value,

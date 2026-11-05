@@ -1,5 +1,5 @@
 //! Keep execution payloads in the host until a viewer opens one exact item.
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::{
@@ -14,7 +14,7 @@ const PREVIEW_CHARS: usize = 160;
 #[path = "tool_details_tests.rs"]
 mod tests;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Target {
     thread_id: String,

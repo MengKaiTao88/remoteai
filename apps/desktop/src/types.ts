@@ -265,6 +265,7 @@ export interface LocalProxyLanApiKeyInput {
 export type ProxyServiceTier = "default" | "priority" | "ultrafast";
 
 export interface LocalProxyStatus {
+  managedExternally?: boolean;
   activeProviderGroup?: string | null;
   running: boolean;
   serviceTier?: ProxyServiceTier;

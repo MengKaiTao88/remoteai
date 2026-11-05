@@ -4,6 +4,7 @@ import type { GuiEvent, GuiState, Thread } from '../../../../../shared/conversat
 import { initialState, savePreferences } from './preferences';
 import { readProjects, folderName } from '../../../../../shared/conversation/projectCatalog';
 import { emptySidebar, type SidebarSnapshot } from '../../../../../shared/remote-chat/sidebar';
+import { officialGrouping } from './officialSidebar';
 
 type Binding = Pick<GuiController, 'getSnapshot' | 'subscribe' | 'readState'>;
 
@@ -42,6 +43,7 @@ export class SidebarBridge {
   }
 
   private publish(state = this.binding?.getSnapshot() ?? initialState()) {
+    const grouping = officialGrouping([...this.known.values()]) ?? state.grouping;
     const names = new Map(readProjects().map((project) => [project.path, project.name]));
     const threads = Object.fromEntries([...this.known].map(([id, thread]) => {
       const cwd = state.projectOverrides[id] ?? thread.cwd;
@@ -50,12 +52,12 @@ export class SidebarBridge {
         running: thread.status?.type === 'active' || Boolean(state.conversations[id]?.activeTurn)
           || state.pendingRequest?.threadId === id }];
     }));
-    const sameGroups = this.value.grouping === state.grouping
-      || JSON.stringify(this.value.grouping) === JSON.stringify(state.grouping);
+    const sameGroups = this.value.grouping === grouping
+      || JSON.stringify(this.value.grouping) === JSON.stringify(grouping);
     if (sameGroups && JSON.stringify([threads, state.threadReadState, state.pins, state.pinnedProjects])
       === JSON.stringify([this.value.threads, this.value.readState, this.value.pins, this.value.pinnedProjects])
       && this.value.revision >= 0) return this.value;
-    this.value = { threads, pins: state.pins, pinnedProjects: state.pinnedProjects, grouping: state.grouping,
+    this.value = { threads, pins: state.pins, pinnedProjects: state.pinnedProjects, grouping,
       readState: state.threadReadState, revision: this.value.revision + 1 };
     this.listeners.forEach((listener) => listener(this.value));
     return this.value;

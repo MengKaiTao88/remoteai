@@ -54,6 +54,9 @@ pub(crate) mod model_context;
 pub(crate) mod model_settings;
 pub(crate) mod notification_navigation;
 mod notifications;
+mod official_bridge;
+mod official_bridge_inputs;
+mod official_sidebar;
 mod platform;
 pub(crate) mod plugin_client;
 mod prediction;
@@ -100,6 +103,7 @@ use protocol::{ApprovalReply, GuiEvent, GuiRequest, GuiResponse};
 
 #[derive(Default)]
 pub(crate) struct GuiState {
+    official_bridge: official_bridge::State,
     dictation: dictation::Sessions,
     pub(crate) model_discovery: model_discovery::ModelDiscovery,
     workspaces: Arc<workspace_activity::WorkspaceActivity>,
@@ -119,6 +123,11 @@ impl Default for DownloadStreams {
     fn default() -> Self {
         Self(Arc::new(file_stream::FileStreams::downloads()))
     }
+}
+
+/// Whether this process serves conversations owned by official Codex Desktop.
+pub(crate) fn uses_official_desktop() -> bool {
+    official_bridge::enabled()
 }
 
 async fn prepare_paths(app: AppHandle) -> Result<(PathBuf, PathBuf)> {
@@ -157,6 +166,9 @@ async fn connect(
     reuse_existing: bool,
     setup_desktop_plugins: bool,
 ) -> Result<Vec<GuiEvent>> {
+    if official_bridge::enabled() {
+        return state.official_bridge.connect(app).await;
+    }
     let _activity = state.activity.read().await;
     let mut current = state.client.lock().await;
     if let Some(client) = current.as_ref() {
@@ -196,6 +208,9 @@ pub(crate) async fn codex_gui_request(
 
 /// Share request validation and typed failures with background GUI operations.
 async fn execute_request(state: &GuiState, request: GuiRequest) -> Result<GuiResponse> {
+    if official_bridge::enabled() {
+        return state.official_bridge.request(request).await;
+    }
     // Filesystem browsing must not wait for chat startup, reconnects or CLI replacement.
     let request = match request {
         GuiRequest::ProjectDirectories {
@@ -378,6 +393,13 @@ pub(crate) async fn codex_gui_respond(
     state: State<'_, GuiState>,
     reply: ApprovalReply,
 ) -> std::result::Result<(), String> {
+    if official_bridge::enabled() {
+        return state
+            .official_bridge
+            .respond(reply)
+            .await
+            .map_err(|error| error.to_string());
+    }
     async { connected(&state).await?.respond(reply).await }
         .await
         .map_err(|error| error.to_string())
@@ -386,6 +408,7 @@ pub(crate) async fn codex_gui_respond(
 pub(crate) fn shutdown(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        app.state::<GuiState>().official_bridge.close().await;
         if let Some(client) = app.state::<GuiState>().client.lock().await.take() {
             client.stop().await;
         }

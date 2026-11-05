@@ -6,8 +6,12 @@ import { chatApprovals, chatHandshake } from '../../../../shared/remote-chat/han
 import { CONNECTION_ERRORS } from '../../../../shared/remote-chat/connectionErrors';
 import { ChatRpc } from '../../../../shared/remote-chat/rpc';
 import { REQUEST_TIMEOUT_MS } from '../../../../shared/remote-chat/protocol';
+import { invoke } from '../api/backend';
 
 vi.mock('../../../../shared/conversation/api', () => ({ guiApi: { connect: vi.fn(), request: vi.fn(), respond: vi.fn() } }));
+vi.mock('../api/backend', async importOriginal => ({
+  ...await importOriginal<typeof import('../api/backend')>(), invoke: vi.fn(),
+}));
 afterEach(() => { vi.resetAllMocks(); vi.useRealTimers(); });
 
 it.each([undefined, chatHandshake])('connects compatible phones and preserves pending approvals', async (body) => {
@@ -29,6 +33,16 @@ it.each([{ protocolVersion: 2 }, { protocolVersion: '1' }, null, {}])(
     expect(guiApi.connect).not.toHaveBeenCalled();
   },
 );
+
+it('uses bounded image RPCs when the desktop bridge has no managed file preview client', async () => {
+  vi.mocked(guiApi.connect).mockResolvedValue([]);
+  vi.mocked(invoke).mockResolvedValue({ managedExternally: true });
+  const result = await new ChatOperations().execute({ kind: 'request', id: 'bridge', method: 'connect',
+    body: chatHandshake });
+  expect(result.error).toBeUndefined();
+  expect(result.data).toMatchObject({ fileBulkV1: false, filePreviewsV1: false, portStreamsV1: false,
+    conversationViewsV1: true, approvals: [] });
+});
 
 it('rejects incompatible PC replies but accepts legacy approval lists', () => {
   expect(() => chatApprovals({ protocolVersion: 2, approvals: [] })).toThrow(CONNECTION_ERRORS.incompatible);

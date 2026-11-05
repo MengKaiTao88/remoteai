@@ -1195,7 +1195,7 @@ export function DashboardApp() {
     : activeAccount && !activeAccount.localProxyCompatible
       ? t("providers.proxy.agentIdentityUnsupported")
       : undefined;
-  const proxyStatusControls = (
+  const proxyStatusControls = providerManager.localProxy?.managedExternally ? null : (
     <ProxyStatusControls manager={providerManager}
       clientOperation={chatGptOperation} onClientOperationChange={setChatGptOperation}
       notify={notify} onOpenSettings={() => setShowProxySettings(true)}

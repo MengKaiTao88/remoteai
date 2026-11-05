@@ -307,7 +307,7 @@ pub(crate) fn remote_control_config<R: Runtime>(
         websocket_url: url.to_string(),
         access_token,
         device_id: installation.device_id,
-        device_name: sysinfo::System::host_name().unwrap_or_else(|| "Remote AI".to_string()),
+        device_name: remote_device_name(),
         platform: installation.platform,
         app_version: app.package_info().version.to_string(),
         active_account_id: manager_state.active_account_id,
@@ -316,6 +316,16 @@ pub(crate) fn remote_control_config<R: Runtime>(
         active_provider_group: manager_state.active_provider_group,
         local_proxy_running: crate::local_proxy::is_running(),
     }))
+}
+
+fn remote_device_name() -> String {
+    let hostname = sysinfo::System::host_name().unwrap_or_else(|| "Remote AI".to_string());
+    if crate::codex_gui::uses_official_desktop() {
+        // Brand the separately registered host so phones can distinguish two apps on one computer.
+        format!("{hostname} · Codex Desktop")
+    } else {
+        hostname
+    }
 }
 
 pub(super) fn cloud_request<R: Runtime>(

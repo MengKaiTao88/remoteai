@@ -87,6 +87,9 @@ fn save(path: &Path, selection: &GuiAccountSelection) -> Result<SelectionSnapsho
 
 /// Copy the previous selection once, then ignore changes to the shared switch state.
 pub(crate) fn read<R: Runtime>(app: &AppHandle<R>) -> Result<GuiAccountSelection, SelectionError> {
+    if super::official_bridge::enabled() {
+        return Ok(GuiAccountSelection::None);
+    }
     snapshot(app).map(|snapshot| snapshot.selection)
 }
 
@@ -241,6 +244,9 @@ pub(crate) fn switch_account<R: Runtime>(
     app: &AppHandle<R>,
     selection: GuiAccountSelection,
 ) -> Result<GuiAccountSelection, SelectionError> {
+    if super::official_bridge::enabled() {
+        return Err(SelectionError::Unavailable);
+    }
     validate(app, &selection)?;
     let _guard = SELECTION_LOCK.lock().map_err(|_| SelectionError::Storage)?;
     let root = app

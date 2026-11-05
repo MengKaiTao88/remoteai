@@ -243,12 +243,15 @@ pub fn run() {
                     eprintln!("failed to initialize the Codex renderer channel: {error}");
                 }
             }
-            match local_proxy::restore_local_proxy_if_enabled(app.handle()) {
-                Ok(true) => {}
-                Ok(false) => providers::cleanup_stale_local_proxy_config(app.handle())?,
-                Err(error) => {
-                    eprintln!("failed to restore local proxy: {error}");
-                    providers::cleanup_stale_local_proxy_config(app.handle())?;
+            // The bridge follows an existing desktop and must preserve its model endpoint.
+            if !codex_gui::uses_official_desktop() {
+                match local_proxy::restore_local_proxy_if_enabled(app.handle()) {
+                    Ok(true) => {}
+                    Ok(false) => providers::cleanup_stale_local_proxy_config(app.handle())?,
+                    Err(error) => {
+                        eprintln!("failed to restore local proxy: {error}");
+                        providers::cleanup_stale_local_proxy_config(app.handle())?;
+                    }
                 }
             }
             official_models::setup(app.handle().clone());

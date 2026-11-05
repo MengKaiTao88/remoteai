@@ -377,8 +377,13 @@ export class ChatOperations {
     try {
       const approvals = await guiApi.connect({ reuseExisting: true });
       this.titles.refreshSettings();
+      // A follower exposes chat-scoped image RPCs, while managed file previews need a CLI-owned client.
+      const proxy = body === undefined ? undefined
+        : await invoke<{ managedExternally?: boolean }>('get_local_proxy_status');
+      const managedFiles = proxy?.managedExternally !== true;
       return body === undefined ? approvals
-        : { ...chatHandshake, approvals, fileBulkV1: true, filePreviewsV1: true, portStreamsV1: true,
+        : { ...chatHandshake, approvals, fileBulkV1: managedFiles, filePreviewsV1: managedFiles,
+          portStreamsV1: managedFiles,
           conversationViewsV1: true };
     } catch (error) { throw new Error(guiConnectionError(error)); }
   }
