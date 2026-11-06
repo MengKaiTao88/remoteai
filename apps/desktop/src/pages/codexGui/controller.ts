@@ -37,6 +37,7 @@ import { GuiThreadTitles } from "./threadTitles";
 import type { ApprovalReply, GuiEvent, GuiState, Model, Settings, Thread, Turn } from "../../../../../shared/conversation/types";
 import type { Item, MessageInput, SkillReference } from "../../../../../shared/conversation/types";
 import { isTextDelta, StreamFrame } from '../../../../../shared/chat/streamFrame';
+import { consumeBackendModelRefresh } from './backendScope';
 
 export class GuiController {
   readonly groups = createGuiGroups({ snapshot: () => this.state, patch: patch => this.patch(patch) });
@@ -156,8 +157,10 @@ export class GuiController {
   }
 
   /** Keep confirmed local and remote sends visible even if interruption precedes the user item. */
-  acceptSentTurn = (threadId: string, turn: Turn, input: MessageInput) => {
-    this.acceptTurn(threadId, withSentMessage(turn, [{ ...input, id: turn.id }], 0));
+  acceptSentTurn = (threadId: string, turn: Turn, input: MessageInput,
+    receipt: { userMessageIndex?: number; messageId?: string } = {}) => {
+    this.acceptTurn(threadId, withSentMessage(turn,
+      [{ ...input, id: receipt.messageId ?? turn.id }], receipt.userMessageIndex ?? 0));
   };
 
   private flushStream = () => {
@@ -243,7 +246,8 @@ export class GuiController {
       this.patch({ connection: "ready", approvals, error: "" });
       this.modelCatalog.activate();
       const results = await Promise.allSettled([
-        this.refresh(false, false), this.modelCatalog.restore().catch(() => {
+        this.refresh(false, false), (consumeBackendModelRefresh()
+          ? this.modelCatalog.refresh() : this.modelCatalog.restore()).catch(() => {
           // A missing local catalog waits for an explicit retry or source change.
         }), this.modelSettings.refresh(),
       ]);

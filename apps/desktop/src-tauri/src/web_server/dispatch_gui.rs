@@ -3,6 +3,10 @@ fn dispatch_gui_command(app: AppHandle, command: &str, args: Value) -> Result<Va
     use tauri::Manager;
 
     match command {
+        "codex_gui_backend" => serialize(block_on(codex_gui::backend::codex_gui_backend(app))),
+        "codex_gui_switch_backend" => serialize(block_on(codex_gui::backend::codex_gui_switch_backend(
+            app, argument(&args, "backend")?, argument(&args, "scope")?,
+        ))),
         "codex_gui_browser" => serialize(block_on(crate::provider_browser::automation::codex_gui_browser(
             app, argument(&args, "request")?,
         ))),
@@ -25,9 +29,11 @@ fn dispatch_gui_command(app: AppHandle, command: &str, args: Value) -> Result<Va
         "remote_ai_help_ask" => serialize(block_on(codex_gui::help_assistant::remote_ai_help_ask(
             app.clone(), app.state::<GuiState>(), argument(&args, "request")?,
         ))),
-        "codex_gui_queue_read" => serialize(block_on(codex_gui::queue_store::codex_gui_queue_read(app))),
+        "codex_gui_queue_read" => serialize(block_on(codex_gui::queue_store::codex_gui_queue_read(
+            app, argument(&args, "scope")?,
+        ))),
         "codex_gui_queue_save" => serialize(block_on(codex_gui::queue_store::codex_gui_queue_save(
-            app, argument(&args, "snapshot")?,
+            app, argument(&args, "snapshot")?, argument(&args, "scope")?,
         ))),
         "codex_gui_request_settings" => serialize(block_on(
             crate::local_proxy::gui_runtime::codex_gui_request_settings(app),
@@ -58,11 +64,13 @@ fn dispatch_gui_command(app: AppHandle, command: &str, args: Value) -> Result<Va
             codex_gui::scheduled_tasks::codex_gui_scheduled_tasks(app, argument(&args, "request")?),
         )),
         "codex_gui_model_settings" => serialize(block_on(
-            codex_gui::model_settings::codex_gui_model_settings(app, argument(&args, "threadId")?),
+            codex_gui::model_settings::codex_gui_model_settings(
+                app, argument(&args, "threadId")?, argument(&args, "scope")?,
+            ),
         )),
         "codex_gui_set_model_settings" => serialize(block_on(
             codex_gui::model_settings::codex_gui_set_model_settings(
-                app, argument(&args, "threadId")?, argument(&args, "selection")?,
+                app, argument(&args, "threadId")?, argument(&args, "selection")?, argument(&args, "scope")?,
             ),
         )),
         "codex_gui_auto_switch_settings" => serialize(block_on(
@@ -98,13 +106,13 @@ fn dispatch_gui_command(app: AppHandle, command: &str, args: Value) -> Result<Va
             app.clone(), app.state::<GuiState>(), argument(&args, "threadId")?,
         ))),
         "codex_gui_connect" => serialize(block_on(codex_gui::connect_web(
-            app.clone(), app.state::<GuiState>(), argument(&args, "reuseExisting")?,
+            app.clone(), app.state::<GuiState>(), argument(&args, "reuseExisting")?, argument(&args, "scope")?,
         ))),
         "codex_gui_request" => serialize(block_on(codex_gui::codex_gui_request(
-            app.state::<GuiState>(), argument(&args, "request")?,
+            app.state::<GuiState>(), argument(&args, "request")?, argument(&args, "scope")?,
         ))),
         "codex_gui_respond" => serialize(block_on(codex_gui::codex_gui_respond(
-            app.state::<GuiState>(), argument(&args, "reply")?,
+            app.state::<GuiState>(), argument(&args, "reply")?, argument(&args, "scope")?,
         ))),
         "codex_gui_events" => serialize(codex_gui::web::poll(
             &app, argument(&args, "cursor")?, argument(&args, "viewedThreads")?,

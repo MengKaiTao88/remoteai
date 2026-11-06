@@ -2,6 +2,18 @@
 
 Keep all instructions in this `AGENTS.md` file in English.
 
+## Local-Only Workspace Policy (User Instruction)
+
+- Maintain this customized Codex integration locally. Do not push code, submodule changes, or release
+  artifacts to Remote AI repositories unless the user explicitly authorizes uploads again.
+- This user instruction overrides automatic-push requirements elsewhere in these notes for the parent
+  repository and its submodules. Preserve existing local commits and uncommitted work.
+- Keep automatic Remote AI application updates disabled. Preserve empty application updater endpoints
+  in local packages so upstream releases cannot replace this customized build automatically.
+- This local edition follows Codex across the complete interface: use neutral light/dark colors,
+  page layout, navigation, message presentation, disclosures, composers, pickers, menus and dialogs.
+  Do not preserve Remote AI's decorative green styling. Keep semantic diff/status colors where useful.
+
 ## Internationalization Submodule
 
 - `packages/i18n` is the required `https://github.com/piperhex/remoteai-i18n.git` submodule.

@@ -171,7 +171,13 @@ async fn access(
 pub(crate) async fn codex_gui_model_settings(
     app: AppHandle,
     thread_id: Option<String>,
+    scope: Option<super::backend::Scope>,
 ) -> std::result::Result<ModelSettingsSnapshot, String> {
+    let _scope = super::backend::lease(
+        app.state::<super::GuiState>().backend_activity.clone(),
+        scope,
+    )
+    .await?;
     if super::uses_official_desktop() {
         let value = app
             .state::<super::GuiState>()
@@ -206,7 +212,13 @@ pub(crate) async fn codex_gui_set_model_settings(
     app: AppHandle,
     thread_id: Option<String>,
     selection: ModelSelection,
+    scope: Option<super::backend::Scope>,
 ) -> std::result::Result<ModelSettingsSnapshot, String> {
+    let _scope = super::backend::lease(
+        app.state::<super::GuiState>().backend_activity.clone(),
+        scope,
+    )
+    .await?;
     let state = app.state::<ModelSettingsState>();
     let _write = state.writes.lock().await;
     if super::uses_official_desktop() {

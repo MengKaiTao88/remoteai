@@ -47,6 +47,7 @@ import { GUI_VIEW_TITLES, type GuiView } from "./codexGui/GuiNavigation";
 import type { SkillsMarketPageProps } from "./skillsMarket/types";
 import paneStyles from "./codexGui/workspacePanes.module.less";
 import { useOpenNotifiedThread, type ThreadNavigation } from "./codexGui/useNotificationNavigation";
+import { ConversationBackendPicker } from './codexGui/ConversationBackendPicker';
 
 const GuiPluginsPage = lazy(() => import("./codexGui/GuiPluginsPage"));
 const GuiMigrationPage = lazy(() => import("./codexGui/GuiMigrationPage"));
@@ -141,6 +142,7 @@ function Workspace({ active, accountPicker, windowControls, plugins, hostPicker,
           </strong>
         </div>
         <div className={styles.headerActions} data-tauri-drag-region={isDesktopApp || undefined}>
+          {canManageCodexConnection && <ConversationBackendPicker disabled={state.sending || state.workspaceBusy} />}
           {isDesktopApp && <AssistanceButton />}
           {isDesktopApp && <MobileConnectionStatus />}
           {installer.version && <Button type="text" icon={<RefreshCw size={16} />} aria-label={uiText("client.composer.reconnectCodex")}

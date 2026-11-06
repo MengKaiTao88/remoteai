@@ -6,6 +6,7 @@ import { MessageItem } from "./MessageItem";
 import { groupConsecutiveActivities, latestActivity } from "../../../../../shared/conversation/activityGroups";
 import styles from "../../../../../shared/conversation/styles.module.less";
 import activityStyles from "./ActivityRow.module.less";
+import { activityGroupStatus } from '../../../../../shared/conversation/activitySummary';
 
 interface Props { items: Item[]; running: boolean; startedAt?: number | null }
 
@@ -13,8 +14,8 @@ function ActivityGroup({ items, running, startedAt }: Props) {
   const latest = latestActivity(items);
   if (!latest) return null;
   return <div data-activity-group={items[0].id} data-history-anchor>
-    <DeferredDetails className={activityStyles.row} status={latest.status}
-      summary={<ActivitySummary item={latest} text="" count={items.length} />}>
+    <DeferredDetails className={activityStyles.row} status={activityGroupStatus(items)}
+      summary={<ActivitySummary item={latest} text="" items={items} />}>
       {() => <div className={activityStyles.activityList}>{items.map((item) => (
         <div key={item.id} data-message-id={item.id}>
           <MessageItem item={item} startedAt={startedAt} streaming={running && item.status !== "completed"} />

@@ -102,6 +102,20 @@ it('returns each enqueue receipt even when another writer updates the same queue
   expect(messages).toHaveLength(2);
 });
 
+it('acknowledges and publishes a busy-turn message without waiting for the running turn to finish', async () => {
+  const updates = vi.fn();
+  const unsubscribe = queue.subscribe(updates);
+  const result = await queue.request({ ...input, text: 'Continue after the current check' });
+  expect(result).toMatchObject({ enqueuedId: expect.any(String), threads: { phone: [
+    { text: 'Continue after the current check', busy: false },
+  ] } });
+  expect(updates).toHaveBeenCalledWith(expect.objectContaining({ threads: result.threads }));
+  expect(thread.turns?.[0].status).toBe('inProgress');
+  expect(vi.mocked(guiApi.request).mock.calls.some(([body]) => body.operation === 'sendBatch')).toBe(false);
+  expect(queue.read().threads.phone[0].id).toBe(result.enqueuedId);
+  unsubscribe();
+});
+
 it('generates a title when the first successful phone message goes through the queue', async () => {
   thread.turns = [];
   await queue.request(input);

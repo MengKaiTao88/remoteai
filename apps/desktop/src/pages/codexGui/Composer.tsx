@@ -1,4 +1,5 @@
 import { displayText } from '../../../../../shared/localization/uiText';
+import { MessageDeliveryMode } from '../../../../../shared/chat/MessageDeliveryMode';
 import { CodexVersionStatus } from '../../../../../shared/codex-status/CodexVersionStatus';
 import { readCodexServiceStatus } from '../../api/codexServiceStatus';
 import { uiText } from "../../../../../shared/localization/uiText";
@@ -151,6 +152,7 @@ export const Composer = forwardRef<ComposerHandle, {
         <ComposerAddMenu cwd={project} active={active} disabled={disabled} anchor={composer}
           onFiles={() => setDialog("files")} onGoal={() => setDialog("goal")}
           onPlugin={(plugin) => addAttachments([plugin])} onSkill={(skill) => skillInput.current?.addSkill(skill)} />
+        <MessageDeliveryMode disabled={disabled || reading} />
         <div className={styles.composerSecondary}>
           <AccessPicker value={state.settings.access}
             disabled={false} onChange={(access: AccessMode) => controller.settings({ access })} />

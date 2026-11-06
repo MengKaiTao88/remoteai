@@ -2,6 +2,9 @@ use super::{projection, thread_id, Client, Error, Result};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
+const ATTACH_RECOVERY_ATTEMPTS: usize = 40;
+const ATTACH_RECOVERY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+
 impl Client {
     /// Closed chat operation set. No native RPC, arbitrary URL or filesystem proxy is exposed.
     pub async fn request(self: &Arc<Self>, request: Value) -> Result<Value> {
@@ -66,6 +69,8 @@ impl Client {
         }
         let data: Vec<Value> = source
             .iter()
+            // The gateway's host-scoped endpoint returns a cumulative prefix for this offset.
+            .skip(offset)
             .take(limit)
             .map(|row| {
                 let mut thread = projection::thread(row);
@@ -75,8 +80,10 @@ impl Client {
                 thread
             })
             .collect();
-        Ok(json!({"data": data, "nextCursor": if source.len() > limit {
-            Some((offset + limit).to_string()) } else { None }}))
+        Ok(
+            json!({"data": data, "nextCursor": if source.len() > offset + limit {
+            Some((offset + limit).to_string()) } else { None }}),
+        )
     }
 
     pub(super) async fn read(self: &Arc<Self>, id: &str) -> Result<Value> {
@@ -91,14 +98,28 @@ impl Client {
     }
 
     async fn resume(self: &Arc<Self>, id: &str) -> Result<Value> {
+        let path = format!("/api/sessions/{id}?host=local");
+        if self.http.get(&path).await?["connected"] == true {
+            return self.read(id).await;
+        }
         // Opening/continuing is explicit. Background history/watch requests never activate the app.
-        self.http
+        let attach = self
+            .http
             .post(
                 &format!("/api/sessions/{id}/reconnect?host=local"),
                 &json!({"activate": true}),
             )
-            .await?;
-        self.read(id).await
+            .await;
+        // The owner may attach just after the gateway's acknowledgement deadline.
+        // Read its state without replaying the activation request or any message.
+        for _ in 0..ATTACH_RECOVERY_ATTEMPTS {
+            if self.http.get(&path).await?["connected"] == true {
+                return self.read(id).await;
+            }
+            tokio::time::sleep(ATTACH_RECOVERY_INTERVAL).await;
+        }
+        attach?;
+        Err(Error::Disconnected)
     }
 
     async fn send(self: &Arc<Self>, request: &Value) -> Result<Value> {

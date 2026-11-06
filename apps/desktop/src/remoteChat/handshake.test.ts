@@ -44,6 +44,15 @@ it('uses bounded image RPCs when the desktop bridge has no managed file preview 
     conversationViewsV1: true, approvals: [] });
 });
 
+it('keeps official chat file capabilities separate from a proxy owned by the same app', async () => {
+  vi.mocked(guiApi.connect).mockResolvedValue([]);
+  vi.mocked(invoke).mockResolvedValue({ managedExternally: false, conversationManagedExternally: true });
+  const result = await new ChatOperations().execute({ kind: 'request', id: 'unified', method: 'connect',
+    body: chatHandshake });
+  expect(result.error).toBeUndefined();
+  expect(result.data).toMatchObject({ fileBulkV1: false, filePreviewsV1: false, portStreamsV1: false });
+});
+
 it('rejects incompatible PC replies but accepts legacy approval lists', () => {
   expect(() => chatApprovals({ protocolVersion: 2, approvals: [] })).toThrow(CONNECTION_ERRORS.incompatible);
   expect(() => chatApprovals({ ...chatHandshake, approvals: null })).toThrow(CONNECTION_ERRORS.invalid);

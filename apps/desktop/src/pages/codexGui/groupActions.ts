@@ -1,9 +1,11 @@
 import { mutateGrouping, readGrouping } from '../../../../../shared/chat/groups/mutations';
-import { type GroupClient, type Grouping, type GroupMember } from '../../../../../shared/chat/groups/model';
+import { type GroupClient, type Grouping, type GroupMember,
+  type GroupMembersQuery } from '../../../../../shared/chat/groups/model';
 import type { GuiState, ListResponse, Thread } from '../../../../../shared/conversation/types';
 import { guiApi } from '../../../../../shared/conversation/api';
 import { readProjects, projectName } from '../../../../../shared/conversation/projectCatalog';
 import { readMembersPage, readMembersQuery } from '../../../../../shared/chat/groups/memberPaging';
+import { backendSnapshot } from './backendScope';
 
 const STORAGE_KEY = 'codex-switch:gui-custom-groups';
 
@@ -35,7 +37,7 @@ export function forgetGroupedProject(grouping: Grouping, path: string): Grouping
   return next;
 }
 
-async function allThreads(archived: boolean): Promise<Thread[]> {
+export async function readGroupThreads(archived: boolean): Promise<Thread[]> {
   const threads: Thread[] = [];
   let cursor: string | undefined;
   const seen = new Set<string>();
@@ -49,15 +51,26 @@ async function allThreads(archived: boolean): Promise<Thread[]> {
   return threads;
 }
 
+function pageOfficialMembers(members: GroupMember[], query: GroupMembersQuery) {
+  const search = query.search.toLocaleLowerCase();
+  const matches = members.filter(member => `${member.title} ${member.cwd}`.toLocaleLowerCase().includes(search));
+  const page = Math.min(query.page, Math.max(1, Math.ceil(matches.length / query.pageSize)));
+  const offset = (page - 1) * query.pageSize;
+  return { data: matches.slice(offset, offset + query.pageSize), total: matches.length, page, pageSize: query.pageSize };
+}
+
 export function createGuiGroups(host: { snapshot: () => GuiState; patch: (patch: Partial<GuiState>) => void }): GroupClient {
-  return {
+  const client: GroupClient = {
     membersPage: async query => {
+      const paging = readMembersQuery(query);
+      // The official owner exposes paginated thread metadata, rather than the GUI's local index action.
+      if (backendSnapshot().backend === 'official') return pageOfficialMembers(await client.members(), paging);
       const state = host.snapshot();
       const saved = readProjects();
       const paths = new Set([...state.projects, ...saved.map(project => project.path),
         ...Object.keys(state.grouping.projects)]);
       const projects = [...paths].filter(Boolean).map(path => ({ path, name: projectName(path) }));
-      return readMembersPage(await guiApi.request({ operation: 'groupMembersPage', ...readMembersQuery(query),
+      return readMembersPage(await guiApi.request({ operation: 'groupMembersPage', ...paging,
         projects, projectOverrides: state.projectOverrides }));
     },
     mutate: async mutation => {
@@ -66,7 +79,7 @@ export function createGuiGroups(host: { snapshot: () => GuiState; patch: (patch:
       host.patch({ grouping });
     },
     members: async () => {
-      const [recent, archived] = await Promise.all([allThreads(false), allThreads(true)]);
+      const [recent, archived] = await Promise.all([readGroupThreads(false), readGroupThreads(true)]);
       const state = host.snapshot();
       const threads = new Map<string, GroupMember>();
       const add = (thread: Thread, isArchived: boolean) => threads.set(thread.id, { kind: 'thread', id: thread.id,
@@ -81,4 +94,5 @@ export function createGuiGroups(host: { snapshot: () => GuiState; patch: (patch:
       return [...projects, ...threads.values()];
     },
   };
+  return client;
 }

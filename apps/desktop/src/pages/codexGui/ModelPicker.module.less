@@ -15,7 +15,7 @@
   svg { flex-shrink: 0; } }
 .speedSeparator { margin-right: .35em; }
 .panel { width: min(224px, calc(100vw - 24px)); max-width: 400px; color: var(--ink); background: var(--panel);
-  border: 1px solid var(--line); border-radius: 16px; font-size: 12px; line-height: 18px; }
+  border: 1px solid var(--line); border-radius: 10px; font-size: 12px; line-height: 18px; }
 .reasoning { padding: 12px; }
 .summary { display: flex; align-items: flex-start; position: relative; min-height: 40px; }
 .modelHeading {
@@ -23,7 +23,7 @@
   padding: 0 24px 4px; border: 0; background: transparent; cursor: pointer; font: inherit;
   &:hover .modelName { color: var(--ink); }
 }
-.effortName { display: flex; align-items: center; gap: 3px; color: #9560ed;
+.effortName { display: flex; align-items: center; gap: 3px; color: var(--ink);
   font-size: 13px; line-height: 18px; font-weight: 600;
   svg { color: var(--muted); } }
 .modelName { max-width: 100%; color: var(--muted); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
@@ -33,13 +33,13 @@
 .slider {
   display: block; appearance: none; -webkit-appearance: none; width: 100%; height: 24px;
   margin: 0; border: 0; border-radius: 999px; outline-offset: 5px; cursor: pointer;
-  background: linear-gradient(105deg, #315ae9 0%, #8564fd 53%, #ac6dff 100%);
+  background: linear-gradient(transparent 10px, var(--line) 10px, var(--line) 14px, transparent 14px);
   &::-webkit-slider-thumb {
-    appearance: none; -webkit-appearance: none; width: 28px; height: 28px; position: relative; z-index: 1;
-    border: 1px solid #dedee4; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #00000012;
+    appearance: none; -webkit-appearance: none; width: 18px; height: 18px; position: relative; z-index: 1;
+    border: 1px solid var(--line); border-radius: 50%; background: var(--ink); box-shadow: 0 1px 3px #00000012;
   }
   &::-moz-range-thumb {
-    width: 26px; height: 26px; border: 1px solid #dedee4; border-radius: 50%; background: #fff;
+    width: 18px; height: 18px; border: 1px solid var(--line); border-radius: 50%; background: var(--ink);
     box-shadow: 0 1px 3px #00000012;
   }
   &:disabled { opacity: .5; cursor: default; }

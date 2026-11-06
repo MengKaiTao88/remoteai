@@ -135,8 +135,12 @@ fn encode(snapshot: &QueueSnapshot) -> Result<String> {
 
 fn connect(root: &Path) -> Result<Connection> {
     std::fs::create_dir_all(root).map_err(|_| QueueError::Storage)?;
-    let connection =
-        Connection::open(root.join("codex-gui-outbox.db")).map_err(|_| QueueError::Storage)?;
+    let connection = Connection::open(root.join(if super::uses_official_desktop() {
+        "codex-official-outbox.db"
+    } else {
+        "codex-gui-outbox.db"
+    }))
+    .map_err(|_| QueueError::Storage)?;
     connection
         .busy_timeout(std::time::Duration::from_secs(5))
         .map_err(|_| QueueError::Storage)?;
@@ -201,7 +205,13 @@ async fn access(app: AppHandle, snapshot: Option<QueueSnapshot>) -> Result<Queue
 #[tauri::command]
 pub(crate) async fn codex_gui_queue_read(
     app: AppHandle,
+    scope: Option<super::backend::Scope>,
 ) -> std::result::Result<QueueSnapshot, String> {
+    let _scope = super::backend::lease(
+        app.state::<super::GuiState>().backend_activity.clone(),
+        scope,
+    )
+    .await?;
     access(app, None).await.map_err(|error| error.to_string())
 }
 
@@ -209,7 +219,13 @@ pub(crate) async fn codex_gui_queue_read(
 pub(crate) async fn codex_gui_queue_save(
     app: AppHandle,
     snapshot: QueueSnapshot,
+    scope: Option<super::backend::Scope>,
 ) -> std::result::Result<QueueSnapshot, String> {
+    let _scope = super::backend::lease(
+        app.state::<super::GuiState>().backend_activity.clone(),
+        scope,
+    )
+    .await?;
     access(app, Some(snapshot))
         .await
         .map_err(|error| error.to_string())

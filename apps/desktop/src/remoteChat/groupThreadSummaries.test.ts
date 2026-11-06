@@ -5,7 +5,8 @@ import { emptyGrouping } from '../../../../shared/chat/groups/model';
 import type { Thread } from '../../../../shared/conversation/types';
 import { ThreadListCache } from '../../../../shared/remote-chat/client/threadListCache';
 
-const fixture = vi.hoisted(() => ({ read: vi.fn(), snapshot: vi.fn(), sidebar: vi.fn() }));
+const fixture = vi.hoisted(() => ({ read: vi.fn(), snapshot: vi.fn(), sidebar: vi.fn(), backend: 'gui' }));
+vi.mock('../pages/codexGui/backendScope', () => ({ backendSnapshot: () => ({ backend: fixture.backend }) }));
 vi.mock('../pages/codexGui/session', () => ({ getGuiController: () => ({
   readThreadList: fixture.read, getSnapshot: fixture.snapshot,
 }) }));
@@ -16,12 +17,25 @@ const older: Thread = { ...recent, id: 'older', name: 'Grouped chat', updatedAt:
 
 beforeEach(() => {
   vi.resetAllMocks();
+  fixture.backend = 'gui';
   fixture.snapshot.mockReturnValue({ grouping: { ...emptyGrouping(),
     groups: [{ id: 'group', name: 'Group', parentId: null }],
     threads: { older: 'group', recent: 'group', removed: null, orphan: 'missing' } } });
   fixture.read.mockResolvedValue({ data: [recent], nextCursor: 'next-page' });
   fixture.sidebar.mockReturnValue({ threads: { older: { running: true } } });
   vi.mocked(guiApi.request).mockResolvedValue([older, { ...recent, name: 'Stale index title' }]);
+});
+
+it('finds official grouped chats in later metadata pages without requesting the GUI-only index', async () => {
+  fixture.backend = 'official';
+  vi.mocked(guiApi.request).mockImplementation(async request => {
+    if (request.operation !== 'list') throw new Error('Unsupported GUI operation');
+    return request.cursor ? { data: [older] } : { data: [recent], nextCursor: 'older-page' };
+  });
+  const result = await readRemoteThreadList({ archived: false });
+  expect(result).toEqual({ data: [recent, { ...older, status: { type: 'active' } }], nextCursor: 'next-page' });
+  expect(guiApi.request).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(guiApi.request).mock.calls.every(([request]) => request.operation === 'list')).toBe(true);
 });
 
 it('includes old grouped chats in the first reply without draining recent pages or loading chat bodies', async () => {

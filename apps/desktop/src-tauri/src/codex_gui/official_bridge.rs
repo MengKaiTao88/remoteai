@@ -3,7 +3,7 @@ use super::{
     error::{GuiError, Result},
     protocol::{ApprovalReply, GuiEvent, GuiRequest, GuiResponse},
 };
-use csw_codex_desktop_bridge::{Client, Config};
+use csw_codex_desktop_bridge::Client;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -13,7 +13,7 @@ use tokio::sync::OnceCell;
 pub(super) struct State(OnceCell<Arc<Client>>);
 
 pub(super) fn enabled() -> bool {
-    std::env::var_os("REMOTEAI_CODEX_BRIDGE_URL").is_some()
+    super::backend::current() == super::backend::Backend::Official
 }
 
 impl State {
@@ -21,13 +21,18 @@ impl State {
         let client = self
             .0
             .get_or_try_init(|| async move {
-                let config = Config::from_env()?.ok_or(csw_codex_desktop_bridge::Error::Invalid)?;
-                let client = Client::connect(config).await?;
+                let config = super::gateway_runtime::config(app.clone()).await?;
+                let client = Client::connect(config)
+                    .await
+                    .map_err(GuiError::OfficialBridge)?;
                 let mut events = client.subscribe();
                 tauri::async_runtime::spawn(async move {
                     loop {
                         match events.recv().await {
                             Ok(mut event) => {
+                                if !enabled() {
+                                    continue;
+                                }
                                 if event["method"] == "bridge/modelSettings" {
                                     super::web::publish(
                                         &app,
@@ -51,10 +56,9 @@ impl State {
                         }
                     }
                 });
-                Ok::<_, csw_codex_desktop_bridge::Error>(client)
+                Ok::<_, GuiError>(client)
             })
-            .await
-            .map_err(GuiError::OfficialBridge)?;
+            .await?;
         client
             .pending()
             .await

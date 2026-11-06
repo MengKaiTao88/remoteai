@@ -1,6 +1,7 @@
 import type { GuiState, Settings, ThreadReadState } from "../../../../../shared/conversation/types";
 import { ACCESS_OPTIONS } from "../../../../../shared/remote-chat/composer";
 import { loadGrouping } from './groupActions';
+import { backendStorageKey } from './backendScope';
 
 const STORAGE_KEY = "codex-switch:gui";
 const DEFAULT_SETTINGS: Settings = { cwd: "", model: "", effort: "", access: "workspace-write" };
@@ -23,7 +24,7 @@ export function initialState(): GuiState {
   let projectOverrides: Record<string, string> = {};
   let selected: string | null = null;
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+    const parsed: unknown = JSON.parse(localStorage.getItem(backendStorageKey(STORAGE_KEY)) ?? "{}");
     const saved = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
     threadReadState = readThreadStates(saved.threadReadState);
     if (typeof saved.selected === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(saved.selected)) selected = saved.selected;
@@ -45,7 +46,7 @@ export function initialState(): GuiState {
 
 export function savePreferences(state: GuiState) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cwd: state.settings.cwd, selected: state.selected,
+    localStorage.setItem(backendStorageKey(STORAGE_KEY), JSON.stringify({ cwd: state.settings.cwd, selected: state.selected,
       access: state.settings.access,
       pins: state.pins, projects: state.projects, pinnedProjects: state.pinnedProjects,
       projectOverrides: state.projectOverrides, threadReadState: state.threadReadState }));

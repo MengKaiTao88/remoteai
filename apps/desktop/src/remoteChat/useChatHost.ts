@@ -32,9 +32,12 @@ export function useChatHost() {
       finally { pending = false; }
     };
     const timer = setInterval(() => { void heartbeat(); }, HOST_HEARTBEAT_MS);
+    const unload = () => host.close();
+    window.addEventListener('beforeunload', unload);
     void heartbeat();
     return () => {
       active = false; clearInterval(timer); host.close(); releaseSession();
+      window.removeEventListener('beforeunload', unload);
       void invoke('remote_chat_host_alive', { active: false, rendererId: RENDERER_ID }).catch(() => {
         // During process shutdown the host no longer exists, so the lease cannot be explicitly cleared.
       });

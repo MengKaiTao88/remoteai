@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ComposerBridge } from './composerBridge';
+import { activateOfficialConversation } from './officialConversation';
 import { GuiController } from './controller';
 import { guiApi } from '../../../../../shared/conversation/api';
 import type { ModelSettingsApi, ModelSettingsSnapshot } from './threadModelSettings';
@@ -12,6 +13,7 @@ import { historyDelta } from '../../../../../shared/remote-chat/historySync';
 import type { ConnectionEvents } from '../../../../../shared/remote-chat/client/connection';
 
 vi.mock('../../../../../shared/conversation/api', () => ({ guiApi: { request: vi.fn(), connect: vi.fn(), subscribe: vi.fn() } }));
+vi.mock('./officialConversation', () => ({ activateOfficialConversation: vi.fn() }));
 const models: Model[] = [{ id: 'model', model: 'model', displayName: 'Model', isDefault: true,
   defaultReasoningEffort: 'low', supportedReasoningEfforts: ['low', 'high', 'xhigh'].map(reasoningEffort =>
     ({ reasoningEffort, description: '' })) }];
@@ -40,6 +42,18 @@ beforeEach(async () => {
   await pc.modelSettings.ready(null);
 });
 afterEach(() => { cleanup.forEach(stop => stop()); pc.dispose(); });
+
+it('waits for official activation before reading a remote conversation model', async () => {
+  let activated!: () => void;
+  vi.mocked(activateOfficialConversation).mockImplementationOnce(() => new Promise(resolve => { activated = resolve; }));
+  const ready = vi.spyOn(pc.modelSettings, 'ready');
+  const reading = bridge.read('phone');
+  await vi.waitFor(() => expect(activateOfficialConversation).toHaveBeenCalledWith('phone'));
+  expect(ready).not.toHaveBeenCalledWith('phone');
+  activated();
+  await expect(reading).resolves.toMatchObject({ threadId: 'phone' });
+  expect(ready).toHaveBeenCalledWith('phone');
+});
 
 it('isolates phone settings from the PC conversation and its new-conversation defaults', async () => {
   await pc.select('pc'); pc.settings({ effort: 'low' });

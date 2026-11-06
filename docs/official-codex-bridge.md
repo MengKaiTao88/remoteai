@@ -1,4 +1,4 @@
-# Official Codex Desktop handoff: Windows test build
+# Official Codex Desktop handoff and integrated Windows chat modes
 
 This opt-in backend connects Remote AI's existing local GUI, authenticated remote desktop chat host,
 and phone Web UI to Codex Mobile Bridge on the same computer. Official Codex Desktop remains the
@@ -19,17 +19,19 @@ For Desktop versions that have not migrated membership to app-server, it reads t
 and order from `.codex-global-state.json` without modifying that file.
 The existing Remote AI remote connection and Web chat protocol are reused; a Web redeployment is not
 required for these operations. Both desktop and phone connect to the same native thread IDs.
-Bridge mode does not restore or start Remote AI's model proxy. Keep the original proxy running if
-official Codex uses it; a second listener on the same loopback port can shadow the original on Windows.
+The integrated application retains its normal model proxy in either chat mode. The legacy isolated
+launcher does not restore or start that proxy; keep the original proxy running when testing that launcher.
+A second listener on the same loopback port can shadow the original on Windows.
 
-This first build switches the entire chat backend at process startup. It does not yet provide a per-thread
-source selector. Unsupported operations return an explicit error: new chats, fork/edit/delete/archive,
+The legacy isolated test build selects its chat backend at process startup; the integrated application
+has a header selector for GUI and official Codex modes. Unsupported official operations return an explicit error:
+new chats, fork/edit/delete/archive,
 Skills, permission switching, goals, MCP forms, project tools, SSH/WSL conversations,
 and GUI account switching. These controls may still be visible in the existing UI. Use official Codex
 Desktop for them. Up to 16 recently read conversations are watched; older watches are released as new
 ones are opened. Phone background suspension pauses delivery, not the native task.
 
-## Start
+## Start the legacy isolated test build
 
 The portable test directory contains `RemoteAI-OfficialCodex.exe`, its `resources` directory, Bridge
 source, `Start.cmd`, `Start-OfficialCodex.ps1`, and `initialize_gateway.py`.
@@ -94,6 +96,28 @@ desktop/phone edits and native rollbacks are outside this first build's guarante
 
 ## Implementation
 
+The integrated Windows application offers **Remote AI GUI** and **Official Codex** in the chat header.
+It retains one application profile, cloud identity and proxy service. Selecting a mode verifies the
+connection, saves the choice and reloads the chat view in the same process. Existing GUI and official
+tasks keep running, and the model proxy stays connected. A generation guard rejects writes from stale views.
+Each mode has separate last-chat preferences and a separate durable outbox. Phones keep the same device
+connection; refresh/reconnect after the desktop changes modes. The desktop owner controls this switch;
+remote viewers follow its selected conversation source.
+
+Explicitly opening an official conversation attaches its native owner before reading model settings.
+Passive history reads do not activate it. If activation finishes after the gateway acknowledgement
+deadline, the adapter reconciles with read-only polling instead of replaying the activation or a message.
+Indexed history timestamps in seconds and live timestamps in milliseconds are normalized to Unix seconds.
+
+Prepare the optional bundled gateway before building an integrated Windows package:
+`scripts/official-codex/Prepare-Runtime.ps1 -BridgePath <pinned-bridge-checkout> -Python <python-3.12.exe>`.
+It exports immutable bridge sources and a trusted local Python runtime into ignored application resources.
+The app starts the loopback gateway on demand. Credentials are protected by Windows DPAPI in application
+data and never cross renderer or remote transports. Source checks also work without these optional resources.
+Windows helper paths use the existing execution-path normalizer so canonical verbatim drive paths do not
+cause Windows PowerShell to misclassify the bundled local script. The application retains the gateway
+child directly and records fixed startup stage identifiers without writing helper output or credentials.
+
 Build from an initialized checkout with Node/npm and the Windows Rust/MSVC toolchain:
 `scripts/official-codex/Build-Test.ps1`, then
 `scripts/official-codex/Package-Test.ps1 -BridgePath <pinned-bridge-checkout>`.
@@ -120,3 +144,46 @@ The test package includes unmodified [Codex Mobile Bridge](https://github.com/tr
 source pinned to `0721aa7dafa6177751ba7e568e0ad0efee05655b`, under its MIT license. Preserve its `LICENSE`
 and attribution. No Bridge source is copied into the adapter. Its internal Codex IPC compatibility is
 version-dependent. Packaging and publishing a release do not imply upstream endorsement.
+
+## Local Codex-style edition
+
+This workspace is maintained locally. Application updater endpoints remain empty and changes are not
+pushed to the Remote AI repositories. The original cloud account and device identity are preserved.
+
+The desktop local workspace, desktop remote workspace and locally built Web client share neutral light
+and dark appearance tokens. The chat workspace uses one conversation sidebar; application navigation
+remains available from the desktop navigation menu or Web's header menu. Process summaries, consecutive
+tool groups and individual outputs expand in place. Outputs are mounted only while expanded, long
+operation lists scroll internally, and manually inspected details survive streamed updates and completion.
+Official-mode group management reads the owner's recent and archived metadata pages, including older
+grouped chats, instead of calling the GUI-only metadata index. This also serves remote/Web group dialogs.
+The gateway returns cumulative session prefixes; the adapter slices each requested offset and ends the
+cursor at the last page. Regression coverage checks disjoint pages and an exhausted cursor so complete
+metadata reads cannot repeatedly return the first conversations.
+
+Busy conversations expose the existing queue/steer preference beside the composer. Queued messages
+remain in the host-owned persisted queue. A successful remote `steer` now creates the same confirmed
+message receipt used by desktop sends, so clearing the remote draft does not leave an empty history
+while the native owner has not emitted its user item. Receipts survive lagging history reads and are
+replaced by authoritative items without duplicating repeated identical supplements. Failed requests do
+not create confirmed receipts.
+
+The existing public Remote AI Web site can use the host-side receipt fix without changing its address.
+Its downloaded UI is controlled by that site's operator; local appearance changes cannot replace the
+public site's static files. The customized Web build is available separately for a user-controlled host.
+This integration does not patch the official Codex desktop client's own UI or message queue.
+
+For a fresh local Web dependency installation, prepare the customized language archive before building.
+Run `npm run pack:release` in `packages/i18n`, then run the following in `apps/web`:
+
+```powershell
+npm install --offline --no-audit --no-fund --no-save --package-lock=false --ignore-scripts ../../packages/i18n/dist/remoteai-i18n-0.1.5.tgz
+```
+
+This installs the local edition's additional language keys without changing the published dependency or
+lockfile. Repeat it after `npm ci`; do not publish this customized archive as an upstream release.
+
+Validation includes desktop/Web production builds, localization and source-boundary checks, focused
+message and disclosure regression tests, bundled Chromium at desktop/mobile widths and enlarged fonts,
+and an original-account public Web test. In that test a supplement appeared during the running turn in
+890 ms, survived a page reload and received its final reply with one visible user message.

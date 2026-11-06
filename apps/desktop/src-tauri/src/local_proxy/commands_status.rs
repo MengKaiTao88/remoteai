@@ -77,7 +77,8 @@ fn status<R: Runtime>(app: &tauri::AppHandle<R>) -> LocalProxyStatus {
         ProxyServiceTier::Default
     };
     LocalProxyStatus {
-        managed_externally: crate::codex_gui::uses_official_desktop(),
+        managed_externally: crate::codex_gui::backend::isolated_follower(),
+        conversation_managed_externally: crate::codex_gui::uses_official_desktop(),
         active_provider_group,
         running,
         service_tier,

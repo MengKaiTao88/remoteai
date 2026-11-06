@@ -320,7 +320,7 @@ pub(crate) fn remote_control_config<R: Runtime>(
 
 fn remote_device_name() -> String {
     let hostname = sysinfo::System::host_name().unwrap_or_else(|| "Remote AI".to_string());
-    if crate::codex_gui::uses_official_desktop() {
+    if crate::codex_gui::backend::isolated_follower() {
         // Brand the separately registered host so phones can distinguish two apps on one computer.
         format!("{hostname} · Codex Desktop")
     } else {

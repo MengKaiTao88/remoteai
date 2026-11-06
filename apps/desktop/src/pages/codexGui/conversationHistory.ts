@@ -4,6 +4,7 @@ import { pagedConversationSnapshot as conversation } from './conversationSnapsho
 import { trackProcessingApproval } from '../../../../../shared/conversation/processingApprovals';
 import type { GuiEvent, GuiState, Thread, Turn } from '../../../../../shared/conversation/types';
 import type { HistoryPage } from '../../../../../shared/remote-chat/historyPage';
+import { activateOfficialConversation } from './officialConversation';
 
 interface HistoryResponse { thread: Thread; page?: HistoryPage }
 
@@ -27,6 +28,8 @@ export class ConversationHistory {
   }
 
   async select(id: string, current: () => boolean) {
+    await activateOfficialConversation(id);
+    if (!current()) return;
     const before = this.host.getSnapshot().conversations[id];
     const start = before?.historyPage?.start;
     const { thread, page } = await guiApi.request<HistoryResponse>({ operation: 'read', threadId: id,

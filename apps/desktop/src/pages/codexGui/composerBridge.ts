@@ -6,6 +6,7 @@ import type { Model, ListResponse } from '../../../../../shared/conversation/typ
 import { composerPatch, DEFAULT_COMPOSER, MODEL_CATALOG_ERROR, type ComposerSettings,
   type ComposerSnapshot, type RequestSpeed } from '../../../../../shared/remote-chat/composer';
 import { guiRequestSpeed, type RequestSpeedSource } from './requestSpeedBridge';
+import { activateOfficialConversation } from './officialConversation';
 
 type Binding = Pick<GuiController, 'getSnapshot' | 'subscribe' | 'settings' | 'modelCatalog' | 'modelSettings'>;
 const MAX_OBSERVED_CONVERSATIONS = 128;
@@ -112,6 +113,7 @@ export class ComposerBridge {
 
   async read(threadId?: string | null): Promise<ComposerSnapshot> {
     if (threadId !== undefined && !this.binding) throw new Error(uiText("client.composer.theComputerIsNotReadyYetPleaseTryAgainShortly"));
+    if (threadId) await activateOfficialConversation(threadId);
     await this.binding?.modelCatalog.recover();
     await Promise.all([this.readSelection(), this.speed?.read().then((speed) => this.publishSpeed(speed))
       .catch(() => { /* Model selection stays usable if the host cannot report its speed yet. */ }),

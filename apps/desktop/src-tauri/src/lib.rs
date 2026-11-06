@@ -194,6 +194,7 @@ pub fn run() {
             #[cfg(windows)]
             installer_lifecycle::setup(app.handle())?;
             codex_home::initialize_paths(app.handle())?;
+            codex_gui::backend::initialize(app.handle())?;
             storage::migrate_app_settings_for_version(app.handle())?;
             let settings = storage::read_app_settings(app.handle())?;
             client_integration::setup(app.handle())?;
@@ -244,7 +245,7 @@ pub fn run() {
                 }
             }
             // The bridge follows an existing desktop and must preserve its model endpoint.
-            if !codex_gui::uses_official_desktop() {
+            if !codex_gui::backend::isolated_follower() {
                 match local_proxy::restore_local_proxy_if_enabled(app.handle()) {
                     Ok(true) => {}
                     Ok(false) => providers::cleanup_stale_local_proxy_config(app.handle())?,
@@ -385,6 +386,8 @@ pub fn run() {
             codex_gui::account_selection::codex_gui_account_selection,
             codex_gui::account_selection::codex_gui_switch_account,
             codex_gui::model_settings::codex_gui_model_settings,
+            codex_gui::backend::codex_gui_backend,
+            codex_gui::backend::codex_gui_switch_backend,
             codex_gui::queue_store::codex_gui_queue_read,
             codex_gui::queue_store::codex_gui_queue_save,
             codex_gui::context_settings::codex_gui_context_settings,

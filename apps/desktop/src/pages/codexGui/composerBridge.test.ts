@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ComposerBridge } from './composerBridge';
+import { uiText } from '../../../../../shared/localization/uiText';
+import { MODEL_CATALOG_ERROR } from '../../../../../shared/remote-chat/composer';
 import { GuiController } from './controller';
 import { guiApi } from '../../../../../shared/conversation/api';
 import { composerLabel, type RequestSpeed } from '../../../../../shared/remote-chat/composer';
@@ -82,7 +84,7 @@ it('does not publish an empty catalog over the last phone-only selection', async
   const changed = vi.fn();
   const stop = bridge.subscribe(changed);
   vi.mocked(guiApi.request).mockResolvedValue({ data: [], nextCursor: null });
-  await expect(bridge.read()).rejects.toThrow('模型列表');
+  await expect(bridge.read()).rejects.toThrow(uiText(MODEL_CATALOG_ERROR));
   expect(changed).not.toHaveBeenCalled();
   vi.mocked(guiApi.request).mockResolvedValue({ data: models, nextCursor: null });
   expect(await bridge.read()).toMatchObject({ models: previous.models, settings: previous.settings });

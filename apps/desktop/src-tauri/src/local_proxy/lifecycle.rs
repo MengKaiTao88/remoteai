@@ -2,7 +2,7 @@ pub(crate) fn restore_local_proxy_if_enabled<R: Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> Result<bool, String> {
     // A follower must not shadow the owner's model endpoint or rewrite its account/configuration.
-    if crate::codex_gui::uses_official_desktop() {
+    if crate::codex_gui::backend::isolated_follower() {
         return Ok(false);
     }
     let paths = resolve_paths(app)?;
@@ -55,7 +55,7 @@ pub(crate) async fn start_local_proxy<R: Runtime + 'static>(
 fn start_local_proxy_blocking<R: Runtime>(
     app: tauri::AppHandle<R>,
 ) -> Result<LocalProxyStatus, String> {
-    if crate::codex_gui::uses_official_desktop() {
+    if crate::codex_gui::backend::isolated_follower() {
         return Err("client.errors.thisOperationIsNotSupportedByThisClient".to_owned());
     }
     let paths = resolve_paths(&app)?;
@@ -184,7 +184,7 @@ fn stop_local_proxy_blocking<R: Runtime>(
     app: tauri::AppHandle<R>,
     restore_conversations: bool,
 ) -> Result<LocalProxyStatus, String> {
-    if crate::codex_gui::uses_official_desktop() {
+    if crate::codex_gui::backend::isolated_follower() {
         return Err("client.errors.thisOperationIsNotSupportedByThisClient".to_owned());
     }
     let _switch_guard = crate::commands::account_switch_lock()

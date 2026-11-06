@@ -409,13 +409,18 @@ impl Client {
         if !self.events_enabled.load(Ordering::Acquire) {
             return;
         }
-        super::push_notifications::receive(&self.app, &event, &self.notification_session);
+        let visible = !super::official_bridge::enabled();
+        if visible {
+            super::push_notifications::receive(&self.app, &event, &self.notification_session);
+        }
         super::conversation_context::display(&mut event.params);
         match self.live_history.lock() {
             Ok(mut history) => history.receive(&event),
             Err(_) => eprintln!("Codex GUI live history is unavailable"),
         }
-        super::web::publish(&self.app, "codex-gui-event", event);
+        if visible {
+            super::web::publish(&self.app, "codex-gui-event", event);
+        }
     }
 
     pub(super) fn merge_live_history(&self, data: &mut Value) {

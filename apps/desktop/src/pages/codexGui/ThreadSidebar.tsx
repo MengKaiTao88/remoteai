@@ -1,7 +1,7 @@
 import { uiText } from "../../../../../shared/localization/uiText";
 import { useGuiLanguage } from '../../../../../shared/localization/useGuiLanguage';
 import { useMemo, useState, type ReactNode } from "react";
-import { App, Button, Input, Modal, Segmented, Spin } from "antd";
+import { App, Button, Input, Modal, Select, Spin } from "antd";
 import { ThreadContextMenu } from "../../../../../shared/chat/ThreadContextMenu";
 import { Layers, RefreshCw, Search } from "lucide-react";
 import { threadMenuItems } from "../../../../../shared/chat/threadMenuItems";
@@ -119,7 +119,8 @@ function ThreadSidebarContent({ state, controller, accountPicker, focused, onTog
     <GuiNavigation view={view} sending={state.sending} onNavigate={onNavigate}
       scheduledTasksAvailable={scheduledTasksAvailable}
       onNewConversation={() => { onNavigate("conversation"); controller.newConversation(); }} />
-    <Segmented className={styles.threadFilter} block size="small" value={state.archived ? "archived" : "recent"}
+    <Select className={styles.threadFilter} variant="borderless" size="small"
+      aria-label={uiText('client.chat.chatList')} value={state.archived ? "archived" : "recent"}
       options={[{ label: uiText("client.chat.recent"), value: "recent" }, { label: uiText("client.mobile.archived"), value: "archived" }]}
       onChange={(value) => controller.filter("", value === "archived")} disabled={state.connection !== "ready"} />
     <div className={styles.threadList} aria-busy={state.loading} {...pagination}>

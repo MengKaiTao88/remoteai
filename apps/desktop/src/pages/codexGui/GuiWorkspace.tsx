@@ -10,6 +10,7 @@ import { useGuiLayout } from "./useGuiLayout";
 import { GuiHostPicker } from "../../../../../shared/conversation/GuiHostPicker";
 import { RemoteGuiWorkspaces } from "./remote/RemoteGuiWorkspaces";
 import type { ThreadNavigation } from "./useNotificationNavigation";
+import { backendSnapshot } from './backendScope';
 
 export function GuiWorkspace(props: {
   active: boolean; accounts: Account[]; providers: Provider[]; privacyMode: boolean;
@@ -37,7 +38,8 @@ export function GuiWorkspace(props: {
     focusMode={focusMode} providers={selection.providers} aggregateApis={selection.aggregateApis ?? []}
     hostPicker={isDesktopApp && <GuiHostPicker navigation={computers} active={localActive} />}
     windowControls={props.windowControls} plugins={props.plugins} accountPicker={
-      <ProxyAccountPicker active={localActive} computers={isDesktopApp ? computers : undefined}
+      backendSnapshot().backend === 'gui' && <ProxyAccountPicker active={localActive}
+        computers={isDesktopApp ? computers : undefined}
         accounts={selection.accounts} providers={selection.providers}
         aggregateApis={selection.aggregateApis ?? []} privacyMode={props.privacyMode}
         busy={false} loading={props.loading || selection.loading} selectionError={selection.error}

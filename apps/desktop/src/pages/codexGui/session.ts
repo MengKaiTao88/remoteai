@@ -7,6 +7,7 @@ import { modelSettingsApi } from './modelSettingsApi';
 import { queueStorage } from './queueStorage';
 import { watchModelCatalog } from './modelCatalogRefresh';
 import { readGuiProviderModels } from './providerModelSource';
+import { backendSnapshot } from './backendScope';
 
 let controller: GuiController | undefined;
 let owners = 0;
@@ -24,9 +25,10 @@ export function retainGuiSession() {
   const current = getGuiController();
   if (owners++ === 0) {
     current.activate();
-    if (hasLocalBackend) current.modelCatalog.setProviderSource(readGuiProviderModels);
+    const managed = hasLocalBackend && backendSnapshot().backend === 'gui';
+    if (managed) current.modelCatalog.setProviderSource(readGuiProviderModels);
     const models = hasLocalBackend ? current.modelSettings.start(modelSettingsApi) : undefined;
-    const catalog = hasLocalBackend ? watchModelCatalog(current.modelCatalog, current.report) : undefined;
+    const catalog = managed ? watchModelCatalog(current.modelCatalog, current.report) : undefined;
     const composer = guiComposer.attach(current);
     const sidebar = guiSidebar.attach(current);
     detach = () => { models?.(); catalog?.(); composer(); sidebar(); current.dispose(); };

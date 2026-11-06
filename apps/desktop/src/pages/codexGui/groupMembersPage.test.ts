@@ -4,6 +4,7 @@ import { readMembersPage, readMembersQuery } from '../../../../../shared/chat/gr
 import { createGuiGroups } from './groupActions';
 import { initialState } from './preferences';
 import { guiApi } from '../../../../../shared/conversation/api';
+import * as backendScope from './backendScope';
 
 beforeEach(() => { localStorage.clear(); vi.restoreAllMocks(); });
 
@@ -28,4 +29,23 @@ it('rejects malformed paging and a pre-paging host response', () => {
   }
   expect(() => readMembersPage({ revision: 1 })).toThrow('updateRemoteAiOnYourComputerAndTryAgain');
   expect(() => readMembersPage({ data: [], total: -1, page: 1, pageSize: 20 })).toThrow();
+});
+
+it('pages official metadata across recent and archived chats without the GUI-only paging operation', async () => {
+  vi.spyOn(backendScope, 'backendSnapshot').mockReturnValue({ backend: 'official', officialAvailable: true });
+  const state = { ...initialState(), projects: [], projectOverrides: { older: '/moved' } };
+  const request = vi.spyOn(guiApi, 'request').mockImplementation(async input => {
+    if (input.operation !== 'list') throw new Error('Unsupported GUI operation');
+    if (input.archived) return { data: [{ id: 'archived', name: 'Find archived', cwd: '/archive' }] };
+    if (input.cursor) return { data: [{ id: 'older', name: 'Find older', cwd: '/original' }] };
+    return { data: [{ id: 'recent', name: 'Recent', cwd: '/recent' }], nextCursor: 'next' };
+  });
+  const groups = createGuiGroups({ snapshot: () => state, patch: vi.fn() });
+  await expect(groups.membersPage!({ page: 99, pageSize: 20, search: ' find ' })).resolves.toEqual({
+    data: [
+      { kind: 'thread', id: 'older', title: 'Find older', cwd: '/moved', archived: false },
+      { kind: 'thread', id: 'archived', title: 'Find archived', cwd: '/archive', archived: true },
+    ], total: 2, page: 1, pageSize: 20,
+  });
+  expect(request.mock.calls.every(([input]) => input.operation === 'list')).toBe(true);
 });

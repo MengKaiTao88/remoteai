@@ -73,13 +73,13 @@ async fn tick(app: AppHandle) -> Result<()> {
 }
 
 async fn request(app: &AppHandle, request: GuiRequest) -> GuiResult<Value> {
-    codex_gui::execute_request(&app.state::<GuiState>(), request)
+    codex_gui::execute_gui_request(&app.state::<GuiState>(), request)
         .await
         .map(|response| response.data)
 }
 
 async fn execute(app: AppHandle, task: &ScheduledTask) -> Result<()> {
-    codex_gui::connect(app.clone(), &app.state::<GuiState>(), true, false)
+    codex_gui::connect_gui(app.clone(), &app.state::<GuiState>(), true, false)
         .await
         .map_err(|_| TaskError::Execution)?;
     // A fresh conversation never changes the currently selected chat or shares another task's turn.

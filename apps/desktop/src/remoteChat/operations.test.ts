@@ -5,8 +5,10 @@ import { guiApi } from '../../../../shared/conversation/api';
 import { remoteQueue } from './queue';
 import { guiComposer } from '../pages/codexGui/composerBridge';
 vi.mock('../../../../shared/conversation/api', () => ({ guiApi: { connect: vi.fn(), request: vi.fn(), respond: vi.fn() } }));
-vi.mock('./sendMessage', () => ({ sendRemoteMessage: (request: import('../../../../shared/conversation/types').Request) =>
-  guiApi.request(request) }));
+vi.mock('./sendMessage', () => ({
+  sendRemoteMessage: (request: import('../../../../shared/conversation/types').Request) => guiApi.request(request),
+  sendRemoteSteeringMessage: (request: import('../../../../shared/conversation/types').Request) => guiApi.request(request),
+}));
 vi.mock('../pages/codexGui/composerBridge', () => ({ guiComposer: {
   validateSend: vi.fn(), read: vi.fn(), refreshModels: vi.fn(),
 } }));

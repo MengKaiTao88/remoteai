@@ -83,3 +83,10 @@ it('ignores a late recovery reply after unmount and releases the host and sessio
   });
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('closes phone transports when a mode switch reloads the view while retaining the native GUI session', async () => {
+  await act(async () => root.render(<RemoteChatHost />));
+  await act(async () => { window.dispatchEvent(new Event('beforeunload')); });
+  expect(state.hosts[0].close).toHaveBeenCalledOnce();
+  expect(state.release).not.toHaveBeenCalled();
+});

@@ -9,6 +9,7 @@ import { startRemoteUpdateBridge } from "./remoteUpdate/bridge";
 import { applyThemeMode, loadThemeMode } from "./utils/themeMode";
 import "antd/dist/reset.css";
 import "./styles.css";
+import { initializeBackendScope, watchBackendScope } from './pages/codexGui/backendScope';
 
 applyThemeMode(loadThemeMode());
 const stopBrowserDefaultsGuard = installBrowserDefaultsGuard();
@@ -36,9 +37,18 @@ if (import.meta.hot) import.meta.hot.dispose(stopPresetStorage);
 document.documentElement.classList.toggle("floating-usage-page", currentWindowRoute === "bubble");
 document.documentElement.classList.toggle("token-usage-page", currentWindowRoute === "token-usage");
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+void initializeBackendScope().then(async () => {
+  if (!currentWindowRoute) {
+    const stop = await watchBackendScope().catch(() => undefined);
+    if (stop) {
+      window.addEventListener('beforeunload', stop, { once: true });
+      if (import.meta.hot) import.meta.hot.dispose(stop);
+    }
+  }
+  ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     {!currentWindowRoute && '__TAURI_INTERNALS__' in window && <RemoteChatHost />}
     <ApplicationTypography><App /></ApplicationTypography>
   </React.StrictMode>,
-);
+  );
+});

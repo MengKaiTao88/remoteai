@@ -115,6 +115,7 @@ pub(crate) struct ProviderBalanceItem {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LocalProxyStatus {
     pub(crate) managed_externally: bool,
+    pub(crate) conversation_managed_externally: bool,
     pub(crate) active_provider_group: Option<String>,
     pub(crate) running: bool,
     pub(crate) service_tier: crate::local_proxy::ProxyServiceTier,

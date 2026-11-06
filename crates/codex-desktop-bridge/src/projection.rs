@@ -44,8 +44,22 @@ pub(super) fn thread(view: &Value) -> Value {
 pub(super) fn turn(view: &Value) -> Value {
     let items: Vec<Value> = rows(&view["messages"]).iter().map(item).collect();
     json!({"id": view["id"], "status": view["status"].as_str().unwrap_or("completed"),
-        "startedAt": view["startedAt"].as_f64().map(|ms| ms / 1000.0),
+        "startedAt": unix_seconds(&view["startedAt"]),
+        "completedAt": unix_seconds(&view["completedAt"]),
+        "durationMs": view["durationMs"],
         "items": items, "error": view["error"], "diff": view["diff"]})
+}
+
+fn unix_seconds(value: &Value) -> Option<f64> {
+    // Indexed rollout history uses seconds; live desktop snapshots use milliseconds.
+    const MILLISECOND_TIMESTAMP_MINIMUM: f64 = 100_000_000_000.0;
+    value.as_f64().filter(|value| *value >= 0.0).map(|value| {
+        if value >= MILLISECOND_TIMESTAMP_MINIMUM {
+            value / 1000.0
+        } else {
+            value
+        }
+    })
 }
 
 fn item(row: &Value) -> Value {

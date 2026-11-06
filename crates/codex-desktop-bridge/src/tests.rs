@@ -131,9 +131,11 @@ async fn async_questions_outlive_turn_completion_and_submit_through_the_native_g
 
 pub(super) struct Fixture {
     url: String,
+    pub(super) sessions: Arc<tokio::sync::Mutex<Vec<Value>>>,
     pub(super) sends: Arc<AtomicUsize>,
     pub(super) posts: Arc<AtomicUsize>,
     pub(super) model_confirmed: Arc<std::sync::atomic::AtomicBool>,
+    pub(super) connected: Arc<std::sync::atomic::AtomicBool>,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -153,6 +155,11 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
     let model = Arc::new(tokio::sync::Mutex::new(Value::Null));
     let model_confirmed = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let confirmation = model_confirmed.clone();
+    let connected = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let connection = connected.clone();
+    let sessions = Arc::new(tokio::sync::Mutex::new(vec![json!({"id": THREAD,
+        "title": "Fixture", "cwd": "C:\\fixture", "recency": 100})]));
+    let session_rows = sessions.clone();
     let task = tokio::spawn(async move {
         loop {
             let (mut socket, _) = listener.accept().await.unwrap();
@@ -160,6 +167,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
             let posts = post_count.clone();
             let model = model.clone();
             let confirmation = confirmation.clone();
+            let connected = connection.clone();
+            let sessions = session_rows.clone();
             tokio::spawn(async move {
                 let mut bytes = Vec::new();
                 let mut chunk = [0; 8192];
@@ -240,7 +249,11 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         json!({"state": null})
                     } else if path.starts_with("/api/sessions?") {
-                        json!({"sessions": [{"id": THREAD, "title": "Fixture", "cwd": "C:\\fixture", "recency": 100}]})
+                        json!({"sessions": sessions.lock().await.clone()})
+                    } else if path.contains("/reconnect?") {
+                        connected.store(true, Ordering::SeqCst);
+                        status = "409 Conflict";
+                        json!({"error":"Acknowledgement deadline elapsed"})
                     } else if path.contains("/respond?") {
                         let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
                         if body["requestId"]
@@ -253,6 +266,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         json!({"ok": true})
                     } else if path.starts_with(&format!("/api/sessions/{THREAD}?")) {
                         let mut state = view("working");
+                        state["connected"] = json!(connected.load(Ordering::SeqCst));
                         let selected = model.lock().await;
                         if selected.is_object() {
                             state["model"] = selected["model"].clone();
@@ -273,9 +287,11 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
     });
     Fixture {
         url,
+        sessions,
         sends,
         posts,
         model_confirmed,
+        connected,
         task,
     }
 }

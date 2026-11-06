@@ -4,6 +4,8 @@ mod http;
 mod images;
 mod input;
 mod models;
+#[cfg(test)]
+mod pagination_tests;
 mod projection;
 mod requests;
 mod watch;
@@ -144,6 +146,10 @@ fn thread_id(request: &Value) -> Result<&str> {
 }
 
 #[cfg(test)]
+mod activation_tests;
+#[cfg(test)]
 mod model_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod timing_tests;

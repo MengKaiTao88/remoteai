@@ -6,6 +6,7 @@ mod attachment_tests;
 mod attachment_uploads;
 pub(crate) mod auto_switch_policy;
 pub(crate) mod auto_switch_settings;
+pub(crate) mod backend;
 mod cli_command;
 mod client;
 pub(crate) mod clipboard;
@@ -29,6 +30,7 @@ pub(crate) mod file_preview;
 pub(crate) mod file_stream;
 #[cfg(test)]
 mod fork_tests;
+mod gateway_runtime;
 pub(crate) mod git;
 mod goals;
 mod group_members;
@@ -103,6 +105,7 @@ use protocol::{ApprovalReply, GuiEvent, GuiRequest, GuiResponse};
 
 #[derive(Default)]
 pub(crate) struct GuiState {
+    pub(super) backend_activity: Arc<tokio::sync::RwLock<()>>,
     official_bridge: official_bridge::State,
     dictation: dictation::Sessions,
     pub(crate) model_discovery: model_discovery::ModelDiscovery,
@@ -143,7 +146,9 @@ pub(crate) async fn codex_gui_connect(
     app: AppHandle,
     state: State<'_, GuiState>,
     reuse_existing: Option<bool>,
+    scope: Option<backend::Scope>,
 ) -> std::result::Result<Vec<GuiEvent>, String> {
+    let _scope = backend::lease(state.backend_activity.clone(), scope).await?;
     connect(app, &state, reuse_existing.unwrap_or(false), true)
         .await
         .map_err(|error| error.to_string())
@@ -154,7 +159,9 @@ pub(crate) async fn connect_web(
     app: AppHandle,
     state: State<'_, GuiState>,
     reuse_existing: Option<bool>,
+    scope: Option<backend::Scope>,
 ) -> std::result::Result<Vec<GuiEvent>, String> {
+    let _scope = backend::lease(state.backend_activity.clone(), scope).await?;
     connect(app, &state, reuse_existing.unwrap_or(false), false)
         .await
         .map_err(|error| error.to_string())
@@ -169,6 +176,16 @@ async fn connect(
     if official_bridge::enabled() {
         return state.official_bridge.connect(app).await;
     }
+    connect_gui(app, state, reuse_existing, setup_desktop_plugins).await
+}
+
+async fn connect_gui(
+    app: AppHandle,
+    state: &GuiState,
+    reuse_existing: bool,
+    setup_desktop_plugins: bool,
+) -> Result<Vec<GuiEvent>> {
+    releases::start(&app);
     let _activity = state.activity.read().await;
     let mut current = state.client.lock().await;
     if let Some(client) = current.as_ref() {
@@ -200,7 +217,9 @@ async fn connect(
 pub(crate) async fn codex_gui_request(
     state: State<'_, GuiState>,
     request: GuiRequest,
+    scope: Option<backend::Scope>,
 ) -> std::result::Result<GuiResponse, String> {
+    let _scope = backend::lease(state.backend_activity.clone(), scope).await?;
     execute_request(&state, request)
         .await
         .map_err(|error| error.to_string())
@@ -211,6 +230,10 @@ async fn execute_request(state: &GuiState, request: GuiRequest) -> Result<GuiRes
     if official_bridge::enabled() {
         return state.official_bridge.request(request).await;
     }
+    execute_gui_request(state, request).await
+}
+
+async fn execute_gui_request(state: &GuiState, request: GuiRequest) -> Result<GuiResponse> {
     // Filesystem browsing must not wait for chat startup, reconnects or CLI replacement.
     let request = match request {
         GuiRequest::ProjectDirectories {
@@ -392,7 +415,9 @@ async fn execute_request(state: &GuiState, request: GuiRequest) -> Result<GuiRes
 pub(crate) async fn codex_gui_respond(
     state: State<'_, GuiState>,
     reply: ApprovalReply,
+    scope: Option<backend::Scope>,
 ) -> std::result::Result<(), String> {
+    let _scope = backend::lease(state.backend_activity.clone(), scope).await?;
     if official_bridge::enabled() {
         return state
             .official_bridge
@@ -413,6 +438,7 @@ pub(crate) fn shutdown(app: &AppHandle) {
             client.stop().await;
         }
         if tauri::async_runtime::spawn_blocking(move || {
+            gateway_runtime::shutdown();
             conversation_tools::shutdown(&app);
             crate::local_proxy::gui_runtime::shutdown(&app)
         })

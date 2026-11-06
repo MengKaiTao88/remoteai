@@ -76,7 +76,7 @@ it('shows earlier explanations alongside a collapsed command run', async () => {
   await render([explanation('before'), ...Array.from({ length: 300 }, (_, index) => command(`cmd-${index}`))]);
   expect(container.querySelector('[data-message-id="before"]')).not.toBeNull();
   expect(container.querySelectorAll('[data-message-id]')).toHaveLength(1);
-  expect(container.querySelector('summary')?.textContent).toBe('已运行 echo cmd-299');
+  expect(container.querySelector('summary')?.textContent).toBe('运行命令（300）');
 });
 
 it("shows one latest running operation while preserving explanations on either side", async () => {
@@ -85,7 +85,7 @@ it("shows one latest running operation while preserving explanations on either s
     command("latest", "inProgress"), explanation("after")]);
   expect(container.textContent).toContain("before");
   expect(container.textContent).toContain("after");
-  expect(container.textContent).toContain("正在运行 echo latest");
+  expect(container.textContent).toContain("修改文件（1） · 运行命令（2）进行中");
   expect(container.textContent).not.toContain("echo first");
   expect(container.textContent).not.toContain("sample.txt");
   expect(container.querySelectorAll("details")).toHaveLength(1);
@@ -109,19 +109,25 @@ it("retains expanded history and command details while new commands arrive and t
   expect(container.querySelector('[data-message-id="first"] details')).toBe(first);
   expect(first.open).toBe(true);
   expect(group.open).toBe(true);
-  expect(group.querySelector("summary")?.textContent).toContain("正在运行 echo third");
+  expect(group.querySelector("summary")?.textContent).toContain("运行命令（3）进行中");
   await render([command("first"), command("second"), command("third")], false);
   expect(group.open).toBe(true);
-  expect(group.querySelector("summary")?.textContent).toContain("已运行 echo third");
+  expect(group.querySelector("summary")?.textContent).toBe("运行命令（3）");
   await toggle(group, false);
   expect(container.querySelector('[data-message-id="first"]')).toBeNull();
 });
 
 it("prefers the last running command even if a later operation finishes first", async () => {
   await render([command("first", "inProgress"), command("second", "inProgress"), command("third")]);
-  expect(container.querySelector("summary")?.textContent).toBe("正在运行 echo second");
+  expect(container.querySelector("summary")?.textContent).toBe("运行命令（3）进行中");
   await render([command("first"), command("second"), command("third", "failed")], false);
-  expect(container.querySelector("summary")?.textContent).toBe("运行失败 echo third");
+  expect(container.querySelector("summary")?.textContent).toBe("运行命令（3）失败");
+});
+
+it('keeps an earlier failure visible when the latest operation succeeded', async () => {
+  await render([command('failed', 'failed'), command('success')], false);
+  expect(container.querySelector('details')?.dataset.status).toBe('failed');
+  expect(container.querySelector('summary')?.textContent).toBe('运行命令（2）失败');
 });
 
 it("keeps separate runs on either side of reasoning and messages", async () => {

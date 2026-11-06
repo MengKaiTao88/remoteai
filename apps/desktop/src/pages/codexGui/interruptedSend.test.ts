@@ -39,6 +39,62 @@ beforeEach(async () => {
 });
 afterEach(() => controller.dispose());
 
+it('publishes a confirmed remote mid-turn message before its server history item arrives', async () => {
+  history = { ...thread, turns: [{ ...turn, items: [user] }] };
+  await controller.loadRemoteThread(thread.id);
+  let remote = structuredClone(history);
+  const acknowledgements = new AcknowledgedMessages(() => controller);
+  const stop = acknowledgements.subscribe(event => { remote = updateThread(remote, event); });
+  const operations = new ChatOperations();
+  try {
+    const response = await operations.execute({ kind: 'request', id: 'steer-mid-turn', method: 'request', body: {
+      operation: 'steer', threadId: thread.id, turnId: turn.id,
+      text: 'Check the missing message now', images: [], skills: [],
+    } });
+    expect(response.error).toBeUndefined();
+    expect(remote.turns?.[0].items).toHaveLength(2);
+    expect(remote.turns?.[0].items[1]).toMatchObject({ localEcho: true,
+      content: [{ type: 'text', text: 'Check the missing message now' }] });
+    await controller.loadRemoteThread(thread.id);
+    expect(current().turns[0].items).toHaveLength(2);
+  } finally { stop(); }
+});
+
+it('keeps repeated supplements distinct and replaces receipts once with real history items', async () => {
+  history = { ...thread, turns: [{ ...turn, items: [user] }] };
+  await controller.loadRemoteThread(thread.id);
+  const operations = new ChatOperations();
+  const body = { operation: 'steer', threadId: thread.id, turnId: turn.id,
+    text: 'Repeated supplement', images: [], skills: [] };
+  for (const id of ['one', 'two']) {
+    expect((await operations.execute({ kind: 'request', id, method: 'request', body })).error).toBeUndefined();
+  }
+  expect(current().turns[0].items).toHaveLength(3);
+  expect(new Set(current().turns[0].items.map(item => item.id)).size).toBe(3);
+  for (const id of ['real-one', 'real-two']) receive({ method: 'item/completed', params: {
+    threadId: thread.id, turnId: turn.id, item: { id, type: 'userMessage', text: body.text },
+  } });
+  history = { ...history, turns: [{ ...turn, items: [user,
+    ...['real-one', 'real-two'].map(id => ({ id, type: 'userMessage', text: body.text })),
+  ] }] };
+  await controller.loadRemoteThread(thread.id);
+  expect(current().turns[0].items.map(item => item.id)).toEqual([user.id, 'real-one', 'real-two']);
+  expect(current().turns[0].items.some(item => item.localEcho)).toBe(false);
+});
+
+it('does not show a confirmed receipt when the steering request fails', async () => {
+  history = { ...thread, turns: [{ ...turn, items: [user] }] };
+  await controller.loadRemoteThread(thread.id);
+  const original = vi.mocked(guiApi.request).getMockImplementation()!;
+  vi.mocked(guiApi.request).mockImplementation(request => request.operation === 'steer'
+    ? Promise.reject(new Error('Connection interrupted before confirmation')) : original(request));
+  const response = await new ChatOperations().execute({ kind: 'request', id: 'failed-steer', method: 'request', body: {
+    operation: 'steer', threadId: thread.id, turnId: turn.id, text: 'Keep my draft', images: [], skills: [],
+  } });
+  expect(response.error).toBeTruthy();
+  expect(current().turns[0].items).toEqual([user]);
+});
+
 it.each(['before', 'after'])('keeps the first message when stopped %s the send receipt', async order => {
   const original = vi.mocked(guiApi.request).getMockImplementation()!;
   let finish!: (value: { turn: Turn }) => void;

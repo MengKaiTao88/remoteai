@@ -9,7 +9,8 @@ import { formatTurnDuration } from "../../../../../shared/conversation/turnTimin
 import { DeferredDetails } from "./DeferredDetails";
 import { collaborationSummary, isCollaborationActivity } from "../../../../../shared/conversation/collaborationActivity";
 import styles from "./ActivityRow.module.less";
-import { commandPreview } from "./commandPreview";
+import { activityFileNames, activityGroupLabel, activityGroupStatus, commandActivityLabel }
+  from '../../../../../shared/conversation/activitySummary';
 
 const TOOL_ACTIVITIES: Record<string, { label: string; icon: LucideIcon }> = {
   fileChange: { get label() { return uiText("client.shared.fileChanges"); }, icon: FilePenLine },
@@ -32,25 +33,12 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   get inProgress() { return uiText("client.chat.inProgress"); }, get completed() { return uiText("client.chat.completed"); }, get failed() { return uiText("client.taskReview.failed"); }, get declined() { return uiText("client.chat.declined"); }, get interrupted() { return uiText("client.chat.stopped"); },
 };
 
-function commandLabel(status: Item["status"]) {
-  if (status === "inProgress") return uiText("client.mobile.running");
-  if (status === "completed") return uiText("client.mobile.ran");
-  if (status === "failed") return uiText("client.mobile.runFailed");
-  if (status === "declined") return uiText("client.chat.declined");
-  if (status === "interrupted") return uiText("client.chat.stopped");
-  return uiText("client.chat.runCommand");
-}
-
 function activitySummary(item: Item, text: string) {
   if (isCollaborationActivity(item)) return { icon: Users, preview: collaborationSummary(item) };
   if (item.type === "reasoning") return { icon: Brain,
     preview: text.slice(0, MAX_ACTIVITY_PREVIEW).trim().split("\n")[0].replace(/[*_`#]/g, "") };
   if (item.type === "commandExecution") {
-    const action = item.commandActions?.find((entry) => entry.type !== "unknown");
-    const labels: Record<string, string> = { read: uiText("client.chat.readFile"), listFiles: uiText("client.chat.browseFiles"), search: uiText("client.chat.searchCode") };
-    const preview = action ? uiText("client.interface.message.7c639b", { value1: labels[action.type] || uiText("client.chat.runCommand"), value2: action.name || action.query || action.path || "" })
-      : `${commandLabel(item.status)} ${commandPreview(item.commandPreview ?? item.command ?? "")}`;
-    return { icon: SquareTerminal, preview };
+    return { icon: SquareTerminal, preview: commandActivityLabel(item) };
   }
   if (item.type === "sleep") return { icon: Clock,
     preview: uiText("client.mobile.wait", { value1: item.durationMs != null ? ` · ${formatTurnDuration(item.durationMs)}` : "" }) };
@@ -59,21 +47,25 @@ function activitySummary(item: Item, text: string) {
   }
   const { label, icon } = TOOL_ACTIVITIES[item.type] ?? DEFAULT_ACTIVITY;
   const content = item.type === "fileChange"
-    ? item.changes?.map((change) => change.path).join("、")
+    ? activityFileNames(item)
     : item.query || item.tool || item.review || item.text || item.path;
   const status = TOOL_STATUS_LABELS[item.status ?? ""];
   return { icon, preview: [label, content, status].filter(Boolean).join(" · ") };
 }
 
-export function ActivitySummary({ item, text, count }: { item: Item; text: string; count?: number }) {
+export function ActivitySummary({ item, text, items }: { item: Item; text: string; items?: Item[] }) {
   const reasoning = item.type === "reasoning";
   const summary = activitySummary(item, text);
   const Icon = summary.icon;
-  const preview = summary.preview.slice(0, MAX_ACTIVITY_PREVIEW).replace(/\s+/g, " ").trim();
+  const preview = (items ? activityGroupLabel(items) : summary.preview)
+    .slice(0, MAX_ACTIVITY_PREVIEW).replace(/\s+/g, " ").trim();
   const label = reasoning ? uiText("client.composer.reasoning", { value1: preview }) : preview;
-  return <summary className={styles.summary} aria-label={count ? uiText("client.mobile.viewAllActivities", { value1: label, value2: count }) : label}>
+  const status = items ? activityGroupStatus(items) : undefined;
+  return <summary className={styles.summary} title={preview}
+    aria-label={items ? uiText("client.mobile.viewAllActivities", { value1: label, value2: items.length }) : label}>
       <Icon className={styles.icon} size={15} aria-hidden="true" />
       <span className={styles.preview}>{preview}</span>
+      {status && status !== 'completed' && <small>{TOOL_STATUS_LABELS[status]}</small>}
       <ChevronDown className={styles.toggle} size={15} aria-hidden="true" />
     </summary>;
 }

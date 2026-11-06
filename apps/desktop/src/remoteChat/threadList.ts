@@ -3,6 +3,8 @@ import { getGuiController } from '../pages/codexGui/session';
 import type { GuiEvent, Thread } from '../../../../shared/conversation/types';
 import { guiApi } from '../../../../shared/conversation/api';
 import { guiSidebar } from '../pages/codexGui/sidebarBridge';
+import { backendSnapshot } from '../pages/codexGui/backendScope';
+import { readGroupThreads } from '../pages/codexGui/groupActions';
 
 export async function readRemoteThreadList(body: Record<string, unknown>) {
   if ((body.archived !== undefined && typeof body.archived !== 'boolean')
@@ -27,9 +29,11 @@ async function readGroupedSummaries(body: Record<string, unknown>): Promise<Thre
     .filter(([, groupId]) => groupId !== null && groups.has(groupId)).map(([id]) => id);
   if (!threadIds.length) return [];
   try {
-    const summaries = await guiApi.request<Thread[]>({
-      operation: 'groupThreadSummaries', threadIds, archived: body.archived === true,
-    });
+    const summaries = backendSnapshot().backend === 'official'
+      ? (await readGroupThreads(body.archived === true)).filter(thread => threadIds.includes(thread.id))
+      : await guiApi.request<Thread[]>({
+        operation: 'groupThreadSummaries', threadIds, archived: body.archived === true,
+      });
     const sidebar = guiSidebar.snapshot();
     return summaries.map(thread => ({ ...thread,
       status: { type: sidebar.threads[thread.id]?.running ? 'active' : 'idle' } }));
