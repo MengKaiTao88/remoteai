@@ -92,7 +92,6 @@ import { useProviderManager } from "../../hooks/useProviderManager";
 import { usePrivacyMode } from "../../hooks/usePrivacyMode";
 import { useResetCredits } from "../../hooks/useResetCredits";
 import { useThemeColor } from "../../hooks/useThemeColor";
-import { codexThemeTokens } from '../../../../../shared/appearance/codexTheme';
 import { useThemeMode } from "../../hooks/useThemeMode";
 import { useTokenUsagePreferences } from "../../hooks/useTokenUsagePreferences";
 import { useSseIdleTimeout } from "../../hooks/useSseIdleTimeout";
@@ -1272,11 +1271,12 @@ export function DashboardApp() {
         ? [antdTheme.darkAlgorithm, antdTheme.compactAlgorithm]
         : antdTheme.compactAlgorithm,
       token: {
-        ...codexThemeTokens(themeMode.appliedMode === 'dark'),
+        colorPrimary: themeColor.appliedColor,
+        borderRadius: 6,
+        fontFamily: "\"DM Sans\", \"Microsoft YaHei UI\", sans-serif",
       },
     }}>
-      <div data-codex-workspace={page === 'codexGui' || undefined}
-        className={`app-shell${NATIVE_WINDOW_CONTROLS_ENABLED ? " custom-titlebar-shell" : ""}${
+      <div className={`app-shell${NATIVE_WINDOW_CONTROLS_ENABLED ? " custom-titlebar-shell" : ""}${
         sidebarNavigationEnabled ? " sidebar-navigation-shell" : ""
       }${sidebarNavigationEnabled && navigationStyle.sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
         <DashboardTopbar menuItems={menuItems} nativeWindowControls={NATIVE_WINDOW_CONTROLS_ENABLED}

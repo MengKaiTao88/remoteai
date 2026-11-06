@@ -4,6 +4,7 @@ import { ConfigProvider, theme } from 'antd';
 import { TurnMessage } from '../src/pages/codexGui/TurnMessage';
 import { ChatMessages } from '../../../shared/remote-chat/views/ChatMessages';
 import { ApplicationTypography } from '../../../shared/appearance/ApplicationTypography';
+import { CodexAppearance } from '../../../shared/appearance/CodexAppearance';
 import { guiFontStyle, saveGlobalFontSize } from '../../../shared/appearance/fontSize';
 import { activityDisclosureThread } from '../../../shared/testing/activityDisclosureFixture';
 import { setThemeMode } from '../../web/src/theme/preference';
@@ -32,7 +33,7 @@ function Harness() {
     return () => window.removeEventListener('activity-disclosure-complete', complete);
   }, []);
   return <ConfigProvider theme={{ algorithm: mode === 'web' ? algorithm : [algorithm, theme.compactAlgorithm] }}>
-    <ApplicationTypography>
+    <ApplicationTypography><CodexAppearance>
       {mode === 'local' ? <main className={styles.page}
         style={{ ...guiFontStyle(font), display: 'block', height: '100dvh', overflow: 'auto' }}>
         <div className={styles.messageContent} style={{ boxSizing: 'border-box' }}>
@@ -42,7 +43,7 @@ function Harness() {
         style={{ ...guiFontStyle(font), height: '100dvh' }}>
         <section className="chat-conversation"><ChatMessages thread={thread} /></section>
       </main>}
-    </ApplicationTypography>
+    </CodexAppearance></ApplicationTypography>
   </ConfigProvider>;
 }
 createRoot(document.getElementById('root')!).render(<Harness />);

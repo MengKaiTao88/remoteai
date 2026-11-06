@@ -150,9 +150,12 @@ version-dependent. Packaging and publishing a release do not imply upstream endo
 This workspace is maintained locally. Application updater endpoints remain empty and changes are not
 pushed to the Remote AI repositories. The original cloud account and device identity are preserved.
 
-The desktop local workspace, desktop remote workspace and locally built Web client share neutral light
-and dark appearance tokens. The chat workspace uses one conversation sidebar; application navigation
-remains available from the desktop navigation menu or Web's header menu. Process summaries, consecutive
+The desktop local/remote GUI chat workspaces and the locally built Web chat share scoped neutral light
+and dark appearance tokens. Account management, token summaries, settings, the application shell and
+other host pages retain Remote AI's original theme, font and controls. Chat portals inherit their own
+workspace theme without writing appearance tokens to the document root. Opening Codex preserves the
+host's main navigation alongside the chat's conversation sidebar; only explicitly entering focus mode
+hides the desktop application navigation. Process summaries, consecutive
 tool groups and individual outputs expand in place. Outputs are mounted only while expanded, long
 operation lists scroll internally, and manually inspected details survive streamed updates and completion.
 Official-mode group management reads the owner's recent and archived metadata pages, including older

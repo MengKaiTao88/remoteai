@@ -11,6 +11,7 @@ import { GuiHostPicker } from "../../../../../shared/conversation/GuiHostPicker"
 import { RemoteGuiWorkspaces } from "./remote/RemoteGuiWorkspaces";
 import type { ThreadNavigation } from "./useNotificationNavigation";
 import { backendSnapshot } from './backendScope';
+import { CodexAppearance } from '../../../../../shared/appearance/CodexAppearance';
 
 export function GuiWorkspace(props: {
   active: boolean; accounts: Account[]; providers: Provider[]; privacyMode: boolean;
@@ -33,7 +34,7 @@ export function GuiWorkspace(props: {
   const localActive = props.active && !remote;
   const focusMode = useGuiLayout(props.active);
   const selection = useGuiAccountSelection({ ...props, active: localActive });
-  return <><div hidden={Boolean(remote)} style={{ height: '100%' }}>
+  return <CodexAppearance><div hidden={Boolean(remote)} style={{ height: '100%' }}>
     <CodexGuiPage active={localActive} notificationTarget={props.notificationTarget}
     focusMode={focusMode} providers={selection.providers} aggregateApis={selection.aggregateApis ?? []}
     hostPicker={isDesktopApp && <GuiHostPicker navigation={computers} active={localActive} />}
@@ -51,5 +52,5 @@ export function GuiWorkspace(props: {
         active={props.active} current={remote} identity={computers.identity} computers={computers}
         privacyMode={props.privacyMode} focusMode={focusMode} windowControls={props.windowControls} />
     }
-  </>;
+  </CodexAppearance>;
 }

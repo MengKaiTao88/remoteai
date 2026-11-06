@@ -10,9 +10,12 @@ Keep all instructions in this `AGENTS.md` file in English.
   repository and its submodules. Preserve existing local commits and uncommitted work.
 - Keep automatic Remote AI application updates disabled. Preserve empty application updater endpoints
   in local packages so upstream releases cannot replace this customized build automatically.
-- This local edition follows Codex across the complete interface: use neutral light/dark colors,
-  page layout, navigation, message presentation, disclosures, composers, pickers, menus and dialogs.
-  Do not preserve Remote AI's decorative green styling. Keep semantic diff/status colors where useful.
+- Apply Codex styling only inside the GUI chat workspace, including its conversation sidebar, messages,
+  disclosures, composer, pickers, menus and dialogs. Use neutral light/dark colors in that scope.
+  Preserve Remote AI's original application shell, account management, token summary, settings and other
+  application pages. Keep semantic diff/status colors where useful. Do not apply chat styling globally.
+- Opening Codex keeps Remote AI's main navigation visible by default. Hide the application navigation
+  only when the user explicitly enters the existing focus/fullscreen mode.
 
 ## Internationalization Submodule
 
