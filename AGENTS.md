@@ -4,6 +4,9 @@ Keep all instructions in this `AGENTS.md` file in English.
 
 ## Local-Only Workspace Policy (User Instruction)
 
+- The user authorized backing up this customized source to `MengKaiTao88` GitHub repositories on
+  2026-11-06. Push the parent customization branch and its modified submodules only to that account.
+  Do not open or update upstream pull requests or upload private runtime state, logs or credentials.
 - Maintain this customized Codex integration locally. Do not push code, submodule changes, or release
   artifacts to Remote AI repositories unless the user explicitly authorizes uploads again.
 - This user instruction overrides automatic-push requirements elsewhere in these notes for the parent
