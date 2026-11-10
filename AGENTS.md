@@ -20,6 +20,77 @@ Keep all instructions in this `AGENTS.md` file in English.
 - Opening Codex keeps Remote AI's main navigation visible by default. Hide the application navigation
   only when the user explicitly enters the existing focus/fullscreen mode.
 
+## Workspace, Dependency Reuse, and Storage Lifecycle
+
+- Use this existing checkout as the primary workspace for sequential tasks. Store code versions in Git
+  commits, branches and tags. Do not clone or copy the project into a new date/task directory by default.
+- Before changing branches, installing dependencies, building shared outputs or cleaning files, inspect
+  the current branch, existing changes and active conversations. Do not let concurrent tasks independently
+  switch branches, replace dependencies or delete outputs in the same working directory. If conversation
+  visibility is unavailable, report that limitation and preserve other tasks' work and shared outputs.
+- Create a temporary Git worktree only when parallel or isolated work requires it. Record its owner,
+  purpose, branch and completion condition. Default to at most two active temporary worktrees in addition
+  to the primary checkout; explain a task-specific need before exceeding that working set.
+
+### Dependency and Build Reuse
+
+- Reuse installed dependencies when they satisfy the current lockfile, toolchain, platform and workspace
+  requirements. Check their state before installing. Install only for missing, inconsistent, damaged or
+  intentionally changed dependencies, or an explicitly required clean reproducible installation. State
+  the concrete reason before reinstalling; do not infer that every new conversation needs a fresh install.
+- Preserve the existing npm version policy, lockfiles and npm workspace layout. Do not routinely run
+  `npm ci`: it removes and recreates `node_modules`. Do not switch package managers or point multiple
+  writable checkouts at one shared `node_modules` directory merely to save space.
+- Preserve independent submodule dependency boundaries and pinned revisions. Initialize only the
+  submodules needed for the task; respect the required shared/i18n initialization rules below. Do not
+  recursively update optional submodules or reinstall their dependencies without a task-related need.
+- Use existing package scripts for builds and checks, including `build:desktop`, `check:rust` and
+  `build:app`, according to the affected scope and existing verification requirements. Do not weaken
+  required checks or Git hooks to save storage. Avoid full installer builds when the task does not need
+  an installer and existing validation rules do not require one.
+- Keep stable, project-specific Cargo output locations. Do not create a new `target` directory per task,
+  globally override every project's `CARGO_TARGET_DIR`, or casually change toolchains, targets, features,
+  profiles or compiler flags that invalidate reuse. Compatible build inputs are required for cache reuse.
+- Preserve intentional output isolation in installer-helper and fixture scripts, and the package-level
+  release cleanup in `scripts/build-desktop-app.mjs` that prevents stale Tauri executables. Do not replace
+  that targeted step with unrestricted `cargo clean` or remove it solely to preserve caches.
+- Worktrees share Git metadata, not automatically dependency installations or compiled outputs. Do not
+  run concurrent builds that overwrite one shared output directory. Any centralized cache change must
+  account for build coordination, target/profile compatibility and paths expected by existing scripts.
+
+### Cleanup Inspection and Task Completion
+
+- For a cleanup inspection request, produce a read-only inventory first: exact paths, estimated bytes,
+  reproducibility, ownership, active-use checks, local Git state and a keep/review/cleanup classification.
+  A preview entry, `.gitignore` match or old timestamp alone does not establish that a file is disposable.
+- Prefer `npm run clean:preview` or `npm run clean -- --ai --dry-run` for inspection. The default
+  `npm run clean` and its `--build` mode remove Rust targets and other build caches; never use them as
+  automatic end-of-task cleanup. Even `--ai` includes `.artifacts` and may remove screenshots, installers,
+  recovery files or verification evidence that still need to be retained.
+- Preserve source, Git metadata, dependency lockfiles, useful primary-checkout dependencies/build caches,
+  uncommitted or unpushed work, stashes, submodule changes, configuration, credentials and important data.
+  Preserve nested repositories, links, recovery copies, patches and required evidence until their
+  ownership and retention needs are resolved. Do not assume an ignored file is backed up on GitHub.
+- Before removing an old checkout or worktree, inspect all local branches, upstream status, local-only
+  commits, staged/unstaged/untracked files, stashes, submodules and shared worktree dependencies. Refresh
+  or otherwise verify relevant remote state before claiming the code is backed up; stale remote-tracking
+  references and a clean working tree are not sufficient. Never use forced removal to bypass findings.
+- Execute deletion only within the user's authorized scope, after preserving required deliverables and
+  confirming that builds, development servers and other tasks no longer use the paths. Use allowlisted
+  cleanup tooling or verified absolute paths; preserve and report uncertain items instead of sweeping
+  all ignored files. Routine task cleanup applies only to verified disposable outputs owned by that task.
+- Retain useful primary-checkout dependencies and compilation caches. Temporary worktrees and their
+  dedicated outputs should be retired once their task is completed and their code/data are preserved.
+  Store retained release packages and verification evidence in deliberate delivery locations; do not
+  copy an entire runtime into a new artifact directory for every check unless that isolation is required.
+- Use soft storage budgets to trigger inspection, not silent deletion or hard build failures. Initial
+  review thresholds are about 40 GiB for primary-checkout compilation outputs and 10 GiB for scratch or
+  artifact outputs; adjust them to measured project needs. Inspect known output paths rather than
+  repeatedly scanning the whole disk. Retain designated baseline releases when rotating old packages.
+- At task completion, follow existing commit/push authorization and conversation-review rules, and report
+  any newly created worktrees, dependency reinstallations, nonstandard cache paths, significant retained
+  artifacts and pending cleanup. Separate successfully completed work from unrelated or unverified work.
+
 ## Internationalization Submodule
 
 - `packages/i18n` is the required `https://github.com/piperhex/remoteai-i18n.git` submodule.
