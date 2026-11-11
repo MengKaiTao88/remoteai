@@ -82,8 +82,11 @@ pub(crate) fn try_refresh_usage_blocking<R: Runtime>(
         .json()
         .map_err(|error| format!("解析用量响应失败：{error}"))?;
     let mut usage = parse_usage(&payload);
-    usage.api_expires_at = subscription_active_until(&auth.value);
     let previous = load_usage(&usage_path(&paths, id));
+    // Subscription metadata is supplementary: a failed lookup must not break quota refresh or disable an account.
+    usage.api_expires_at = subscription_expiration(&client, &auth.value).unwrap_or_else(|_| {
+        cached_subscription_expiration(previous.api_expires_at.clone())
+    });
     save_usage(&usage_path(&paths, id), &usage)?;
     crate::quota_window_sync::observe_usage(app, id, &previous, &usage);
     crate::codex_runtime::refresh_usage_summary();

@@ -3,6 +3,8 @@ use reqwest::blocking::{Client, Response};
 use serde_json::{json, Value};
 
 mod credits;
+mod subscription;
+pub(crate) use subscription::{cached_subscription_expiration, subscription_expiration};
 mod token_refresh;
 pub(crate) use token_refresh::{refresh_tokens, refresh_tokens_classified, TokenRefreshError};
 

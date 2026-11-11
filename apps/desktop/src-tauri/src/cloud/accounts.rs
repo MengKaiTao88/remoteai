@@ -29,7 +29,7 @@ pub(super) fn collect_local_accounts<R: Runtime>(
         let field_modified_at = load_or_init_account_field_modified_at(&paths, &id)?;
         let last_modified_at = load_or_init_last_modified(&paths, &id)?.to_rfc3339();
         let mut usage = load_usage(&usage_path(&paths, &id));
-        usage.api_expires_at = subscription_active_until(&auth);
+        usage.api_expires_at = cached_subscription_expiration(usage.api_expires_at.take());
         let plan = usage
             .plan
             .clone()

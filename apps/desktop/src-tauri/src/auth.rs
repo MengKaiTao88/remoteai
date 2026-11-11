@@ -37,6 +37,7 @@ fn nested_auth(claims: &Value) -> Option<&Value> {
     claims.get("https://api.openai.com/auth")
 }
 
+#[cfg(test)]
 pub(crate) fn subscription_active_until(auth: &Value) -> Option<String> {
     let claims = decode_jwt(token_string(auth, "id_token")?).ok()?;
     let value = nested_auth(&claims)?

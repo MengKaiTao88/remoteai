@@ -113,7 +113,7 @@ export class ComposerBridge {
 
   async read(threadId?: string | null): Promise<ComposerSnapshot> {
     if (threadId !== undefined && !this.binding) throw new Error(uiText("client.composer.theComputerIsNotReadyYetPleaseTryAgainShortly"));
-    if (threadId) await activateOfficialConversation(threadId);
+    // Phone selection and polling read metadata without opening a native owner window.
     await this.binding?.modelCatalog.recover();
     await Promise.all([this.readSelection(), this.speed?.read().then((speed) => this.publishSpeed(speed))
       .catch(() => { /* Model selection stays usable if the host cannot report its speed yet. */ }),
@@ -165,6 +165,7 @@ export class ComposerBridge {
   }
 
   async validateSend(body: { threadId?: string; model?: string; effort?: string }) {
+    if (body.threadId) await activateOfficialConversation(body.threadId);
     const snapshot = await this.read(body.threadId ?? null);
     const error = modelSelectionError(snapshot.models, snapshot.settings);
     if (error) throw new Error(uiText(error));

@@ -24,7 +24,8 @@ use tauri::{Emitter, Manager, Runtime};
 use uuid::Uuid;
 
 use crate::{
-    auth::{account_fields, canonicalize_chatgpt_auth, subscription_active_until, validate_auth},
+    auth::{account_fields, canonicalize_chatgpt_auth, validate_auth},
+    codex_api::cached_subscription_expiration,
     models::{
         AccountFieldModifiedAt, AppSettings, CloudAccountPayload, CloudAuthState, CloudSyncResult,
         DeletedCloudAccount, DeletedCloudProvider, ProviderFieldModifiedAt, ProviderProfile,

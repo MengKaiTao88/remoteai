@@ -120,7 +120,7 @@ pub(crate) fn list_accounts_blocking<R: Runtime>(
         let auto_switch_threshold =
             load_auto_switch_threshold(&auto_switch_threshold_path(&paths, &id));
         let mut usage = load_usage(&usage_path(&paths, &id));
-        usage.api_expires_at = subscription_active_until(&auth);
+        usage.api_expires_at = cached_subscription_expiration(usage.api_expires_at.take());
         let (official, metadata_editable) = load_official_account_access(&paths, &id);
         let plan = usage
             .plan

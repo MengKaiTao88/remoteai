@@ -43,15 +43,24 @@ beforeEach(async () => {
 });
 afterEach(() => { cleanup.forEach(stop => stop()); pc.dispose(); });
 
-it('waits for official activation before reading a remote conversation model', async () => {
+it('reads phone model settings without activating a native conversation window', async () => {
+  const ready = vi.spyOn(pc.modelSettings, 'ready');
+  await expect(bridge.read('phone')).resolves.toMatchObject({ threadId: 'phone' });
+  expect(activateOfficialConversation).not.toHaveBeenCalled();
+  expect(ready).toHaveBeenCalledWith('phone');
+  await bridge.read('phone');
+  expect(activateOfficialConversation).not.toHaveBeenCalled();
+});
+
+it('waits for official activation only when an existing phone conversation is sent', async () => {
   let activated!: () => void;
   vi.mocked(activateOfficialConversation).mockImplementationOnce(() => new Promise(resolve => { activated = resolve; }));
   const ready = vi.spyOn(pc.modelSettings, 'ready');
-  const reading = bridge.read('phone');
+  const reading = bridge.validateSend({ threadId: 'phone' });
   await vi.waitFor(() => expect(activateOfficialConversation).toHaveBeenCalledWith('phone'));
   expect(ready).not.toHaveBeenCalledWith('phone');
   activated();
-  await expect(reading).resolves.toMatchObject({ threadId: 'phone' });
+  await expect(reading).resolves.toMatchObject({ model: 'model' });
   expect(ready).toHaveBeenCalledWith('phone');
 });
 

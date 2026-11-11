@@ -28,13 +28,14 @@ mod client_unix;
 use crate::{
     agent_identity,
     auth::{
-        account_fields, canonicalize_chatgpt_auth, is_agent_identity_auth,
-        subscription_active_until, token_string, validate_auth,
+        account_fields, canonicalize_chatgpt_auth, is_agent_identity_auth, token_string,
+        validate_auth,
     },
     codex_api::{
-        consume_reset_credit_request, parse_reset_credits, parse_usage, quota_consumption_request,
-        quota_consumption_response_completed, refresh_tokens, reset_credits_request,
-        token_expiring, usage_request,
+        cached_subscription_expiration, consume_reset_credit_request, parse_reset_credits,
+        parse_usage, quota_consumption_request, quota_consumption_response_completed,
+        refresh_tokens, reset_credits_request, subscription_expiration, token_expiring,
+        usage_request,
     },
     models::{
         AccountSummary, AppInfo, AppSettings, ImageModelTarget, ManagerStateFile,
