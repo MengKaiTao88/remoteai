@@ -310,6 +310,7 @@ export function DashboardApp() {
   }, [cloud.state.authenticated, cloud.loading, page]);
   const totpManager = useTotpEntries({
     cloudAuthenticated: cloud.state.authenticated,
+    cloudIdentity: `${cloud.state.baseUrl}|${cloud.state.userId ?? cloud.state.userEmail}`,
     notify,
     t,
   });

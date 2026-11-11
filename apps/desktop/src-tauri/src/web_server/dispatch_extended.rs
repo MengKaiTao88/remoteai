@@ -242,6 +242,12 @@ fn dispatch_extended_command(app: AppHandle, command: &str, args: Value) -> Resu
             argument(&args, "id")?,
         ))),
         "cloud_pull_totp" => serialize(block_on(crate::cloud::cloud_pull_totp(app))),
+        "cloud_sync_totp" => serialize(block_on(crate::cloud::cloud_sync_totp(
+            app,
+            argument(&args, "entries")?,
+            argument(&args, "tombstones")?,
+            argument(&args, "modifiedAt")?,
+        ))),
         "cloud_list_deleted_accounts" => {
             serialize(block_on(crate::cloud::cloud_list_deleted_accounts(app)))
         }

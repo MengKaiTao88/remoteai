@@ -218,7 +218,14 @@ export function mergeTotpVaults(first: TotpVault, second: TotpVault): TotpVault 
 }
 
 export function totpVaultsEqual(first: TotpVault, second: TotpVault) {
-  return JSON.stringify(first) === JSON.stringify(second);
+  const contents = (vault: TotpVault) => [
+    [...vault.entries].sort((a, b) => a.id.localeCompare(b.id)).map(entry => [
+      entry.id, entry.issuer, entry.accountName, entry.secret, entry.algorithm,
+      entry.digits, entry.period, entry.createdAt, entry.updatedAt,
+    ]),
+    [...vault.tombstones].sort((a, b) => a.id.localeCompare(b.id)).map(item => [item.id, item.deletedAt]),
+  ];
+  return JSON.stringify(contents(first)) === JSON.stringify(contents(second));
 }
 
 function decodeBase32(secret: string) {

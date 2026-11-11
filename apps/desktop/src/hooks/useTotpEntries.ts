@@ -2,11 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { remoteErrorText } from "../../../../shared/localization/errors";
 import {
   publishTotpChange,
-  pullCloudTotp,
   subscribeToTotpChanges,
-  syncCloudTotp,
 } from "../api/backend";
 import type { Translate } from "../i18n";
+import { useTotpCloudSync } from './useTotpCloudSync';
 import {
   createTotpEntry,
   mergeTotpVaults,
@@ -71,19 +70,27 @@ function loadVault(): TotpVault {
 
 interface TotpEntriesOptions {
   cloudAuthenticated: boolean;
+  cloudIdentity: string;
   notify: (message: string) => void;
   t: Translate;
 }
 
-export function useTotpEntries({ cloudAuthenticated, notify, t }: TotpEntriesOptions) {
+export function useTotpEntries({ cloudAuthenticated, cloudIdentity, notify, t }: TotpEntriesOptions) {
   const [vault, setVault] = useState<TotpVault>(loadVault);
   const [cloudSyncEnabled, setCloudSyncEnabledState] = useState(
     () => window.localStorage.getItem(TOTP_CLOUD_SYNC_KEY) === "true",
   );
-  const [syncing, setSyncing] = useState(false);
   const vaultRef = useRef(vault);
-  const syncQueueRef = useRef<Promise<unknown>>(Promise.resolve());
-  const activeSyncCountRef = useRef(0);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === TOTP_CLOUD_SYNC_KEY) {
+        setCloudSyncEnabledState(window.localStorage.getItem(TOTP_CLOUD_SYNC_KEY) === 'true');
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(TOTP_STORAGE_KEY, JSON.stringify(vault));
@@ -106,52 +113,11 @@ export function useTotpEntries({ cloudAuthenticated, notify, t }: TotpEntriesOpt
     setVault(merged);
   }, []);
 
-  const syncVault = useCallback((snapshot: TotpVault) => {
-    activeSyncCountRef.current += 1;
-    setSyncing(true);
-    const operation = syncQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        const response = await syncCloudTotp(snapshot);
-        applyRemoteVault(response);
-      })
-      .catch((error) => notify(`${t("totp.cloudSyncFailed")}: ${remoteErrorText(String(error))}`))
-      .finally(() => {
-        activeSyncCountRef.current -= 1;
-        if (activeSyncCountRef.current === 0) setSyncing(false);
-      });
-    syncQueueRef.current = operation;
-    return operation;
-  }, [applyRemoteVault, notify, t]);
-
-  const pullVault = useCallback(() => {
-    activeSyncCountRef.current += 1;
-    setSyncing(true);
-    const operation = syncQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        const remote = await pullCloudTotp();
-        if (remote) applyRemoteVault(remote);
-        return true;
-      })
-      .catch((error) => {
-        notify(`${t("totp.cloudSyncFailed")}: ${remoteErrorText(String(error))}`);
-        return false;
-      })
-      .finally(() => {
-        activeSyncCountRef.current -= 1;
-        if (activeSyncCountRef.current === 0) setSyncing(false);
-      });
-    syncQueueRef.current = operation;
-    return operation;
-  }, [applyRemoteVault, notify, t]);
-
-  useEffect(() => {
-    if (!cloudAuthenticated) return;
-    void pullVault().then((pulled) => {
-      if (pulled && cloudSyncEnabled) void syncVault(vaultRef.current);
-    });
-  }, [cloudAuthenticated, cloudSyncEnabled, pullVault, syncVault]);
+  const { syncing, syncCloud } = useTotpCloudSync({
+    authenticated: cloudAuthenticated, identity: cloudIdentity, enabled: cloudSyncEnabled,
+    vaultRef, applyRemoteVault,
+    onError: error => notify(`${t("totp.cloudSyncFailed")}: ${remoteErrorText(String(error))}`),
+  });
 
   const commitVault = useCallback((
     update: (current: TotpVault, modifiedAt: string) => TotpVaultContents,
@@ -161,8 +127,8 @@ export function useTotpEntries({ cloudAuthenticated, notify, t }: TotpEntriesOpt
     if (!next) return;
     vaultRef.current = next;
     setVault(next);
-    if (cloudSyncEnabled && cloudAuthenticated) void syncVault(next);
-  }, [cloudAuthenticated, cloudSyncEnabled, syncVault]);
+    if (cloudSyncEnabled && cloudAuthenticated) void syncCloud();
+  }, [cloudAuthenticated, cloudSyncEnabled, syncCloud]);
 
   const addEntry = useCallback((draft: TotpDraft) => {
     commitVault((current, modifiedAt) => addToVault(current, draft, modifiedAt));
@@ -181,14 +147,6 @@ export function useTotpEntries({ cloudAuthenticated, notify, t }: TotpEntriesOpt
     setCloudSyncEnabledState(enabled);
     notify(t(enabled ? "totp.cloudSyncEnabled" : "totp.cloudSyncDisabled"));
   }, [notify, t]);
-
-  const syncCloud = useCallback(() => {
-    if (!cloudAuthenticated) return Promise.resolve();
-    return pullVault().then((pulled) => {
-      if (pulled && cloudSyncEnabled) return syncVault(vaultRef.current);
-      return undefined;
-    });
-  }, [cloudAuthenticated, cloudSyncEnabled, pullVault, syncVault]);
 
   return {
     addEntry,
