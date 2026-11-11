@@ -81,7 +81,7 @@ export class RemoteQueue {
     });
   }
 
-  async request(body: Record<string, unknown>, mode: ConnectionMode = 'relay'): Promise<QueueSnapshot> {
+  async request(body: Record<string, unknown>, mode: ConnectionMode = 'relay'): Promise<QueueEnqueueResult> {
     const controller = this.controller();
     if (controller.getSnapshot().connection !== 'ready') await controller.connect({ reuseExisting: true });
     if (controller.getSnapshot().connection !== 'ready') throw new Error('电脑暂未就绪，请稍后重试。');

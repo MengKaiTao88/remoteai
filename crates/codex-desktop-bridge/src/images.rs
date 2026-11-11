@@ -62,6 +62,23 @@ fn route(view: &Value, requested: &str) -> Option<ImageRoute> {
                 })
                 .flatten()
         })
+        .or_else(|| {
+            // The gateway authorizes model-authored file references against this
+            // chat's workspace. Use that ledger rather than trusting a raw path.
+            rows(&view["files"]).iter().find_map(|file| {
+                let id = file["id"].as_str()?;
+                let valid_id = id.len() == 64
+                    && id
+                        .bytes()
+                        .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase());
+                let matches = file["reference"].as_str() == Some(requested)
+                    || rows(&file["references"])
+                        .iter()
+                        .any(|reference| reference.as_str() == Some(requested));
+                (valid_id && file["image"] == true && matches)
+                    .then(|| ImageRoute::Gateway(format!("files/{id}")))
+            })
+        })
 }
 
 async fn gateway_route(route: ImageRoute) -> Result<String> {
@@ -139,5 +156,27 @@ mod tests {
             matches!(route(&view, &opaque), Some(ImageRoute::DesktopPath(path))
             if path == "C:/chat/image.png")
         );
+    }
+
+    #[test]
+    fn model_image_previews_use_only_the_requested_chats_authorized_file_ledger() {
+        let id = "a".repeat(64);
+        let path = "C:/project/figure.png";
+        let alias = "file:///C:/project/figure.png";
+        let mut view =
+            json!({"files":[{"id":id,"image":true,"reference":path,"references":[path,alias]}]});
+        for source in [path, alias] {
+            assert!(
+                matches!(route(&view, source), Some(ImageRoute::Gateway(route))
+                if route == format!("files/{id}"))
+            );
+        }
+        assert!(route(&view, "C:/private/secret.png").is_none());
+        assert!(route(&json!({"files":[]}), path).is_none());
+        view["files"][0]["image"] = json!(false);
+        assert!(route(&view, path).is_none());
+        view["files"][0]["image"] = json!(true);
+        view["files"][0]["id"] = json!("../private");
+        assert!(route(&view, path).is_none());
     }
 }
