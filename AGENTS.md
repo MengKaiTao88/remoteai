@@ -60,6 +60,11 @@ Keep all instructions in this `AGENTS.md` file in English.
 
 ### Cleanup Inspection and Task Completion
 
+- Treat `%USERPROFILE%/.codex/remoteai-image-archive` as durable chat attachment data, not a
+  rebuildable cache. Preserve it during storage cleanup and application replacement. Official-bridge
+  clipboard images must be retained per chat before Temp cleanup can invalidate their history references;
+  cached bytes must still require a matching attachment in the currently requested chat when read.
+
 - For a cleanup inspection request, produce a read-only inventory first: exact paths, estimated bytes,
   reproducibility, ownership, active-use checks, local Git state and a keep/review/cleanup classification.
   A preview entry, `.gitignore` match or old timestamp alone does not establish that a file is disposable.

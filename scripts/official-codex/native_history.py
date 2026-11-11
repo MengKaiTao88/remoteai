@@ -3,6 +3,7 @@ import json
 import sqlite3
 from contextlib import closing
 from pathlib import Path
+from image_archive import capture_history
 
 DEFAULT_ITEMS = 5_000
 MAX_ITEMS = 50_000
@@ -87,6 +88,7 @@ def install(store_class):
             result['latestModel'] = meta.get('model')
         if not result.get('latestReasoningEffort'):
             result['latestReasoningEffort'] = meta.get('reasoning_effort')
+        capture_history(store.home, thread_id, result)
         return result
 
     history._remoteai_retained_history = True
