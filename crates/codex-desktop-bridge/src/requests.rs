@@ -13,7 +13,7 @@ impl Client {
             "skills" => Ok(json!({"data": []})),
             "plugins" => Ok(json!({"data": []})),
             "list" => self.list(&request).await,
-            "read" => self.read(thread_id(&request)?).await,
+            "read" => self.read_history(&request).await,
             "imagePreview" => self.image_preview(&request).await,
             "resume" => self.resume(thread_id(&request)?).await,
             "send" | "steer" => self.send(&request).await,
@@ -100,12 +100,17 @@ impl Client {
                 break;
             }
             tokio::time::sleep(ATTACH_RECOVERY_INTERVAL).await;
-            view = self.http.get(&format!("/api/sessions/{id}?host=local")).await?;
+            view = self
+                .http
+                .get(&format!("/api/sessions/{id}?host=local"))
+                .await?;
         }
         let view = self.with_metadata(view).await;
         self.accept(&view).await?;
         self.watch(id).await?;
-        Ok(json!({"thread": projection::thread(&view)}))
+        Ok(
+            json!({"thread": projection::thread(&view), "historyMore": super::history::has_more(&view)}),
+        )
     }
 
     async fn resume(self: &Arc<Self>, id: &str) -> Result<Value> {

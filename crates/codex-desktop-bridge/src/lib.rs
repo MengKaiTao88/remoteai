@@ -1,5 +1,6 @@
 //! Adapts Codex Mobile Bridge's authenticated loopback API to Remote AI's chat protocol.
 //! The desktop owner remains responsible for execution, authentication and permissions.
+mod history;
 mod http;
 mod images;
 mod input;

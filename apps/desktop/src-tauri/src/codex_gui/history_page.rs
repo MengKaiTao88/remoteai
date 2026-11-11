@@ -28,7 +28,7 @@ pub(crate) struct HistoryCursor {
     item_id: String,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HistoryWindow {
     start: Option<HistoryCursor>,
@@ -86,6 +86,7 @@ fn boundary(turns: &[Value], window: &HistoryWindow) -> (usize, usize) {
 /// Move values instead of cloning potentially large tool results or inline images.
 pub(super) fn apply(data: &mut Value, window: &HistoryWindow) -> Result<()> {
     window.validate()?;
+    let upstream_more = data["historyMore"] == true;
     let turns = data["thread"]["turns"]
         .as_array_mut()
         .ok_or(GuiError::InvalidRequest)?;
@@ -108,7 +109,7 @@ pub(super) fn apply(data: &mut Value, window: &HistoryWindow) -> Result<()> {
             .first()
             .map(|item| json!({ "turnId": turn["id"], "itemId": item["id"] }))
     });
-    data["page"] = json!({ "hasMore": start > 0 });
+    data["page"] = json!({ "hasMore": start > 0 || upstream_more });
     if let Some(cursor) = cursor {
         data["page"]["start"] = cursor;
     }
@@ -193,6 +194,18 @@ mod tests {
                 .unwrap();
         apply(&mut source, &window).unwrap();
         assert_eq!(source["page"]["start"]["itemId"], "item-26");
+    }
+
+    #[test]
+    fn gateway_saved_history_keeps_an_earlier_page_available_at_the_local_boundary() {
+        let mut data = json!({"thread":{"turns":[{"id":"turn","items":[{"id":"tail","type":"userMessage"}]}]},
+            "historyMore":true});
+        apply(&mut data, &HistoryWindow::default()).unwrap();
+        assert_eq!(data["page"]["hasMore"], true);
+        assert_eq!(data["page"]["start"]["itemId"], "tail");
+        data["historyMore"] = json!(false);
+        apply(&mut data, &HistoryWindow::default()).unwrap();
+        assert_eq!(data["page"]["hasMore"], false);
     }
 
     #[test]

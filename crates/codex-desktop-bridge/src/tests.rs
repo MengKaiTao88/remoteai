@@ -137,6 +137,8 @@ pub(super) struct Fixture {
     pub(super) model_confirmed: Arc<std::sync::atomic::AtomicBool>,
     pub(super) connected: Arc<std::sync::atomic::AtomicBool>,
     pub(super) hydration_reads: Arc<AtomicUsize>,
+    pub(super) saved_total: Arc<AtomicUsize>,
+    pub(super) saved_limit: Arc<AtomicUsize>,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -160,6 +162,10 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
     let connection = connected.clone();
     let hydration_reads = Arc::new(AtomicUsize::new(0));
     let hydration = hydration_reads.clone();
+    let saved_total = Arc::new(AtomicUsize::new(0));
+    let saved_limit = Arc::new(AtomicUsize::new(40));
+    let total = saved_total.clone();
+    let saved = saved_limit.clone();
     let sessions = Arc::new(tokio::sync::Mutex::new(vec![json!({"id": THREAD,
         "title": "Fixture", "cwd": "C:\\fixture", "recency": 100})]));
     let session_rows = sessions.clone();
@@ -173,6 +179,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
             let connected = connection.clone();
             let sessions = session_rows.clone();
             let hydration = hydration.clone();
+            let total = total.clone();
+            let saved = saved.clone();
             tokio::spawn(async move {
                 let mut bytes = Vec::new();
                 let mut chunk = [0; 8192];
@@ -240,6 +248,12 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         assert!(content_length > 500_000);
                         assert!(bytes[header_end..].starts_with(b"\x89PNG\r\n\x1a\n"));
                         json!({"ok": true})
+                    } else if path.contains("/timeline?") {
+                        if path.contains("before=") {
+                            saved.fetch_add(100, Ordering::SeqCst);
+                        }
+                        json!({"before":format!("cursor-{}",saved.load(Ordering::SeqCst)),
+                            "hasMore":saved.load(Ordering::SeqCst)<total.load(Ordering::SeqCst)})
                     } else if path.contains("/catalog?") {
                         json!({"models":[{"id":"model-a", "name":"Model A", "isDefault":true,
                             "defaultEffort":"high", "efforts":["low","high"]},
@@ -270,11 +284,25 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         json!({"ok": true})
                     } else if path.starts_with(&format!("/api/sessions/{THREAD}?")) {
                         let mut state = view("working");
-                        if hydration.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| left.checked_sub(1)).is_ok() {
+                        if hydration
+                            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+                                left.checked_sub(1)
+                            })
+                            .is_ok()
+                        {
                             state["turns"] = json!([]);
                             state["loadingHistory"] = json!(true);
                         }
                         state["connected"] = json!(connected.load(Ordering::SeqCst));
+                        let total = total.load(Ordering::SeqCst);
+                        if total > 0 {
+                            let loaded = saved.load(Ordering::SeqCst).min(total);
+                            state["turns"][0]["messages"] = json!((total-loaded..total).map(|index|
+                                json!({"id":format!("saved-{index}"),"kind":"userMessage","text":format!("Message {index}")}))
+                                .collect::<Vec<_>>());
+                            state["savedHistoryMore"] = json!(loaded < total);
+                            state["historyComplete"] = json!(loaded == total);
+                        }
                         let selected = model.lock().await;
                         if selected.is_object() {
                             state["model"] = selected["model"].clone();
@@ -301,6 +329,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
         model_confirmed,
         connected,
         hydration_reads,
+        saved_total,
+        saved_limit,
         task,
     }
 }

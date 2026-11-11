@@ -8,7 +8,10 @@ async fn unloaded_saved_history_waits_for_hydration_without_posting_activation()
     fixture.connected.store(false, Ordering::SeqCst);
     fixture.hydration_reads.store(2, Ordering::SeqCst);
     let client = tests::client(&fixture).await;
-    let result = client.request(json!({"operation":"read", "threadId":tests::THREAD})).await.unwrap();
+    let result = client
+        .request(json!({"operation":"read", "threadId":tests::THREAD}))
+        .await
+        .unwrap();
     assert_eq!(result["thread"]["turns"][0]["id"], "turn-1");
     assert_eq!(result["thread"]["status"]["type"], "notLoaded");
     assert_eq!(fixture.posts.load(Ordering::SeqCst), 0);

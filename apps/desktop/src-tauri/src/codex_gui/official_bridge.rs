@@ -94,9 +94,10 @@ impl State {
                 window: history,
                 include_tool_details,
             } => {
+                let body = json!({"operation": "read", "threadId": thread_id, "history": history});
                 window = history;
                 details = include_tool_details;
-                json!({"operation": "read", "threadId": thread_id})
+                body
             }
             GuiRequest::ImagePreview {
                 thread_id,
