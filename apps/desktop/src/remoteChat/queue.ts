@@ -48,6 +48,8 @@ function messageInput(body: Record<string, unknown>, mode: ConnectionMode) {
     throw new Error('消息内容无效，请检查后重试。');
   }
   return { text, images: images as string[], skills, ...(mode === 'direct' ? { transferMode: 'direct' as const } : {}),
+    ...(typeof body.clientId === 'string' && body.clientId.length <= MAX_REQUEST_ID_LENGTH
+      ? { clientId: body.clientId } : {}),
     ...(attachments.length ? { attachments } : {}) };
 }
 
@@ -68,6 +70,7 @@ export class RemoteQueue {
           id: item.id, text: queueTextPreview(item.text || item.attachments?.map((file) => file.name).join('、') || ''),
           imageCount: item.images.length, attachmentCount: item.attachments?.length ?? 0,
           busy: Boolean(item.busy), error: item.error,
+          ...(item.clientId ? { clientId: item.clientId } : {}),
         }))])) };
     return this.snapshot;
   };
@@ -135,22 +138,38 @@ export class RemoteQueue {
     const input = messageInput(body, mode);
     const patch = composerPatch(Object.fromEntries(['model', 'effort', 'access']
       .filter((key) => body[key] !== undefined).map((key) => [key, body[key]])));
-    await controller.loadRemoteThread(threadId);
     await controller.modelCatalog.ready();
     const selected = await controller.modelSettings.ready(threadId);
     if ((patch.model && patch.model !== selected.model) || (patch.effort && patch.effort !== selected.effort)) {
       throw new Error('模型已更新，请确认后重新发送。');
     }
     const settings = { ...controller.getSnapshot().settings, ...patch, ...selected };
-    if (!controller.queue.enqueue(threadId, input, settings)) throw new Error('待发送消息已满，请稍后再添加。');
+    const release = controller.queue.defer(threadId);
+    if (!controller.queue.enqueue(threadId, input, settings)) {
+      release();
+      throw new Error('待发送消息已满，请稍后再添加。');
+    }
     const enqueuedId = controller.getSnapshot().queued[threadId].at(-1)?.id;
     try { await controller.queueJournal.saved(); }
     catch {
       controller.queue.hold(threadId);
+      release();
       throw new Error('保存结果尚未确认，请先检查电脑上的待发送消息。');
     }
-    void controller.queue.flush(threadId);
+    void this.prepareQueued(controller, threadId, { id: enqueuedId!, release });
     return { ...this.read(), enqueuedId };
+  }
+
+  private async prepareQueued(controller: GuiController, threadId: string,
+    preparation: { id: string; release: () => void }) {
+    const releaseConversation = controller.retainConversation(threadId);
+    try { await controller.loadRemoteThread(threadId); }
+    catch (error) { controller.queue.preparationFailed(threadId, preparation.id, error); }
+    finally {
+      preparation.release();
+      void controller.queue.flush(threadId);
+      releaseConversation();
+    }
   }
 }
 

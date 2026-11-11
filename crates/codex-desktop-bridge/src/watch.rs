@@ -127,6 +127,7 @@ impl Client {
             .await
             .insert(id.to_owned(), view.clone());
         self.publish_turns(previous.as_ref(), view);
+        self.publish_usage(previous.as_ref(), view);
         if super::models::selection(view) != previous.as_ref().and_then(super::models::selection) {
             if let Some(snapshot) = super::models::snapshot(view) {
                 self.emit(json!({"method":"bridge/modelSettings", "params":snapshot}));
@@ -174,6 +175,21 @@ impl Client {
         };
         if previous["title"] != view["title"] {
             self.emit(json!({"method": "thread/name/updated", "params": {"threadId": id, "threadName": view["title"]}}));
+        }
+        if projection::rows(&view["turns"]).iter().any(|turn| {
+            turn["status"] != "inProgress"
+                && !projection::provisional(turn)
+                && !projection::rows(&previous["turns"])
+                    .iter()
+                    .any(|old| old["id"] == turn["id"])
+        }) {
+            // Hydrating old completed turns is a history snapshot, not a new
+            // completion now. Lifecycle events would fabricate today's finish
+            // time and leave empty headers when presentation bodies are deferred.
+            self.emit(
+                json!({"method":"thread/started", "params":{"thread":projection::thread(view)}}),
+            );
+            return;
         }
         for turn in projection::rows(&view["turns"]) {
             if projection::provisional(turn) {

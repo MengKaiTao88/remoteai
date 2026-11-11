@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from native_history import install
+from native_usage import install as install_usage
 
 
 def main():
@@ -12,6 +13,7 @@ def main():
     from bridge.features.sessions.store import SessionStore
     from bridge.app.service import Bridge
     from image_archive import install as install_image_archive
+    install_usage()
     install(SessionStore)
     install_image_archive(Bridge)
     sys.argv = [str(bridge / 'run.py'), *sys.argv[2:]]

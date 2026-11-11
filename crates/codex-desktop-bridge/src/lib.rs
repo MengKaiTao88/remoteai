@@ -9,6 +9,7 @@ mod models;
 mod pagination_tests;
 mod projection;
 mod requests;
+mod usage;
 mod watch;
 
 use serde_json::Value;

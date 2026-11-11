@@ -32,13 +32,17 @@ pub(super) fn thread(view: &Value) -> Value {
         .find(|item| item["type"] == "userMessage")
         .and_then(|item| item["content"][0]["text"].as_str())
         .unwrap_or_default();
-    json!({"id": view["id"], "name": view["title"], "preview": preview,
+    let mut projected = json!({"id": view["id"], "name": view["title"], "preview": preview,
         "cwd": view["cwd"].as_str().unwrap_or_default(), "updatedAt": view["recency"].as_f64()
             .or_else(|| view["updated_at"].as_f64()).unwrap_or(0.0),
         "officialSidebar": {"projectId": view["project_id"], "projectName": view["projectName"],
             "pinned": view["is_pinned"] == true || view["is_pinned"] == 1},
         "status": {"type": if view["connected"] == false { "notLoaded" }
-            else { view["status"].as_str().unwrap_or("idle") }}, "turns": turns})
+            else { view["status"].as_str().unwrap_or("idle") }}, "turns": turns});
+    if let Some(usage) = super::usage::snapshot(view) {
+        projected["tokenUsage"] = usage;
+    }
+    projected
 }
 
 pub(super) fn turn(view: &Value) -> Value {

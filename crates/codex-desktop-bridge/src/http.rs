@@ -5,7 +5,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, RwLock};
 
-const MAX_RESPONSE: usize = 16 * 1024 * 1024;
+// Native saved/live snapshots include tool output and image metadata. Ordinary
+// long chats exceed 16 MiB before the desktop applies its display window.
+// Keep a finite bound and enforce it both on headers and streamed chunks.
+const MAX_RESPONSE: usize = 640 * 1024 * 1024;
 const MAX_REQUEST: usize = 500_000;
 
 pub(super) struct Transport {
@@ -239,4 +242,43 @@ fn checked(status: StatusCode, value: Value, write: bool) -> Result<Value> {
         return Err(Error::UnknownWrite);
     }
     Err(Error::Disconnected)
+}
+
+#[cfg(test)]
+mod response_limit_tests {
+    use super::*;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+
+    #[tokio::test]
+    async fn enlarged_snapshot_budget_still_rejects_an_oversized_declared_response() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = [0; 1024];
+            assert!(socket.read(&mut bytes).await.unwrap() > 0);
+            socket
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        MAX_RESPONSE + 1
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+        });
+        let response = reqwest::Client::new()
+            .get(format!("http://{address}"))
+            .send()
+            .await;
+        assert!(matches!(
+            Transport::receive(response, false).await,
+            Err(Error::Invalid)
+        ));
+        server.await.unwrap();
+    }
 }

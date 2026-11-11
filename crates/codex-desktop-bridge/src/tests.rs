@@ -139,6 +139,7 @@ pub(super) struct Fixture {
     pub(super) hydration_reads: Arc<AtomicUsize>,
     pub(super) saved_total: Arc<AtomicUsize>,
     pub(super) saved_limit: Arc<AtomicUsize>,
+    pub(super) output_bytes: Arc<AtomicUsize>,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -166,6 +167,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
     let saved_limit = Arc::new(AtomicUsize::new(40));
     let total = saved_total.clone();
     let saved = saved_limit.clone();
+    let output_bytes = Arc::new(AtomicUsize::new(0));
+    let output_size = output_bytes.clone();
     let sessions = Arc::new(tokio::sync::Mutex::new(vec![json!({"id": THREAD,
         "title": "Fixture", "cwd": "C:\\fixture", "recency": 100})]));
     let session_rows = sessions.clone();
@@ -181,6 +184,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
             let hydration = hydration.clone();
             let total = total.clone();
             let saved = saved.clone();
+            let output_size = output_size.clone();
             tokio::spawn(async move {
                 let mut bytes = Vec::new();
                 let mut chunk = [0; 8192];
@@ -284,6 +288,12 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         json!({"ok": true})
                     } else if path.starts_with(&format!("/api/sessions/{THREAD}?")) {
                         let mut state = view("working");
+                        let size = output_size.load(Ordering::SeqCst);
+                        if size > 0 {
+                            state["turns"][0]["messages"][2]["output"] = json!("x".repeat(size));
+                            state["model"] = json!("model-a");
+                            state["effort"] = json!("high");
+                        }
                         if hydration
                             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
                                 left.checked_sub(1)
@@ -331,6 +341,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
         hydration_reads,
         saved_total,
         saved_limit,
+        output_bytes,
         task,
     }
 }

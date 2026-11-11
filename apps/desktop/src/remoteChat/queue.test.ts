@@ -40,6 +40,34 @@ beforeEach(async () => {
 });
 afterEach(() => { controller.dispose(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
+it('acknowledges a durable phone receipt before slow old-history loading and sends only once afterward', async () => {
+  thread.turns = [];
+  let release!: () => void;
+  const wait = new Promise<void>(resolve => { release = resolve; });
+  const load = controller.loadRemoteThread;
+  vi.spyOn(controller, 'loadRemoteThread').mockImplementation(id => wait.then(() => load(id)));
+  const accepted = await queue.request({ ...input, clientId: 'phone-stable-receipt' });
+  expect(accepted).toMatchObject({ enqueuedId: expect.any(String), threads: { phone: [
+    expect.objectContaining({ clientId: 'phone-stable-receipt', busy: false }),
+  ] } });
+  expect(guiApi.request).not.toHaveBeenCalledWith(expect.objectContaining({ operation: 'sendBatch' }));
+  release();
+  await vi.waitFor(() => expect(queue.read().threads.phone).toBeUndefined());
+  expect(vi.mocked(guiApi.request).mock.calls.filter(([request]) => request.operation === 'sendBatch')).toHaveLength(1);
+});
+
+it('keeps an acknowledged draft when history preparation fails without claiming it was sent', async () => {
+  let fail!: (error: Error) => void;
+  vi.spyOn(controller, 'loadRemoteThread').mockReturnValue(new Promise((_, reject) => { fail = reject; }));
+  const accepted = await queue.request({ ...input, clientId: 'phone-stable-receipt' });
+  expect(accepted.enqueuedId).toBeTruthy();
+  fail(new Error('old history unavailable'));
+  await vi.waitFor(() => expect(queue.read().threads.phone[0]).toMatchObject({
+    clientId: 'phone-stable-receipt', error: '发送失败，请重试。', busy: false,
+  }));
+  expect(guiApi.request).not.toHaveBeenCalledWith(expect.objectContaining({ operation: 'sendBatch' }));
+});
+
 it('does not scan acknowledgements on streaming frames or while no phone is connected', async () => {
   const scan = vi.spyOn(sharedAcknowledgements, 'acknowledgedEvents');
   let connected = false;
