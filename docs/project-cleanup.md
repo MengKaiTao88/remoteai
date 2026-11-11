@@ -10,7 +10,36 @@ npm run clean -- --ai                  # Only AI scratch files
 npm run clean -- --include-submodules --dry-run
 npm run clean -- --include-submodules  # Include initialized submodules
 npm run test:clean                     # Run cleanup safety tests in temporary repositories
+npm run clean:task                     # Remove completed packaging scratch; retain reusable caches
+npm run clean:retired -- --checkout /absolute/retired-checkout --dry-run
 ```
+
+## Default task-completion policy
+
+The selected policy balances speed and disk usage. Keep the primary checkout and its installed dependencies
+and Cargo caches. New tasks in that checkout reuse the same outputs; a new conversation does not need a new
+clone, `npm ci`, or a full cache reset.
+
+`npm run build:app` (including platform variants) automatically removes
+`apps/desktop/src-tauri/target/frontend-dist` only after the Tauri CLI finishes successfully. An exclusive
+packaging lock prevents a second packaging run from using the same staging directory. Failed builds retain
+their frontend inputs. If an interrupted process leaves a lock, verify that its owner has stopped before
+removing the lock; do not delete it to bypass an active build.
+
+`npm run clean:task` provides the same narrow cleanup at task completion. It retains `target/debug`,
+`target/release`, dependencies, executables, installer bundles, runtime resources, test reports, screenshots,
+recovery files and all existing `.artifacts` / `.codex-tmp` contents. It does not mean that every temporary
+file has been reviewed. Preserve needed evidence and review task-owned scratch separately.
+
+For an inactive temporary checkout, first stop its tasks/builds and inspect ownership. Preview with
+`npm run clean:retired -- --checkout "C:\path\to\retired-checkout" --dry-run`, then repeat without
+`--dry-run` to remove only allowlisted Rust `target` directories in that checkout. The path must be an absolute
+Git repository root outside the primary checkout. Source, Git history, stashes, dependencies, installers stored
+outside `target`, recovery materials and other scratch remain intact. Preserve any deliverables that were
+stored inside a retired `target` before removing it. The command never deletes the checkout itself.
+
+The retired command is a task-owner action, not a background scan or a deletion based only on age. Broad
+`npm run clean` / `--build` / `--ai` commands below remain manual cleanup tools and are not post-build hooks.
 
 Stop development servers, builds, tests and AI tasks before running a cleanup that deletes files.
 Preview is safe to use while inspecting the checkout. Deleted scratch files, including screenshots and logs,

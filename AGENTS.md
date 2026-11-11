@@ -91,6 +91,22 @@ Keep all instructions in this `AGENTS.md` file in English.
   any newly created worktrees, dependency reinstallations, nonstandard cache paths, significant retained
   artifacts and pending cleanup. Separate successfully completed work from unrelated or unverified work.
 
+### Selected Retention Policy: Balance Speed and Storage
+
+- The user selected this policy on 2026-11-11: retain one useful set of primary-workspace dependencies and
+  compilation caches; retire verified inactive temporary-checkout caches instead of cleaning every build.
+- `npm run build:app` automatically removes only its temporary packaging frontend after successful completion.
+  Packaging runs must share the existing output lock. Preserve failed-build inputs for diagnosis.
+- At task completion, run `npm run clean:task` after packaging and evidence collection have finished. This
+  narrow cleanup preserves Cargo dependencies, application outputs, installers, test reports and recovery files.
+  Do not substitute the broad default cleanup or `--ai` for this task-completion command.
+- Before creating another temporary checkout, reuse the primary workspace when possible. Record temporary
+  checkout ownership and remove its reproducible Rust caches when its task is finished and no process or
+  conversation still needs them: `npm run clean:retired -- --checkout <absolute retired checkout> --dry-run`,
+  then repeat without `--dry-run` after checking the plan. The command must refuse the primary workspace.
+- Retiring caches does not authorize deleting the checkout, Git metadata, unpushed commits, stashes, source,
+  dependencies, credentials or retained deliverables. Do not delete files merely because they are large.
+
 ## Internationalization Submodule
 
 - `packages/i18n` is the required `https://github.com/piperhex/remoteai-i18n.git` submodule.

@@ -16,6 +16,9 @@ const parentBuildPaths = [
   'scripts/installer-fixture/target', 'scripts/project-editor-harness/target',
 ];
 const commonBuildPaths = ['dist', 'coverage', 'test-results', 'playwright-report', 'blob-report'];
+// Owned by build-desktop-app.mjs; not a runtime, dependency cache, installer or test report.
+export const taskBuildPaths = ['apps/desktop/src-tauri/target/frontend-dist'];
+export const rustCachePaths = parentBuildPaths.filter(path => path.endsWith('/target'));
 const childBuildPaths = {
   'apps/admin': ['dist', 'coverage.out', 'testdata/results', 'testdata/bin'],
   'apps/admin-ui': commonBuildPaths,

@@ -24,6 +24,8 @@
     "build:website": "npm run build -w @codex-switch/website",
     "clean": "node scripts/clean-project.mjs",
     "clean:preview": "npm run clean -- --dry-run",
+    "clean:task": "node scripts/clean-project.mjs --task",
+    "clean:retired": "node scripts/clean-retired-builds.mjs",
     "test:clean": "node --test scripts/clean-project.test.mjs",
     "check:website": "npm run check -w @codex-switch/website",
     "test:website:e2e": "npm run test:e2e -w @codex-switch/website",

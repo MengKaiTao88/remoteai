@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { cleanProject, parseOptions } from './clean-project.mjs';
 import { containedPath, git, planCleanup, removePlannedPath } from './lib/clean-project-safety.mjs';
+import { retiredCheckout } from './clean-retired-builds.mjs';
+import { acquirePackagingLock } from './lib/packaging-lock.mjs';
 
 function write(root, path, contents = 'fixture\n') {
   const file = join(root, path);
@@ -185,4 +187,72 @@ test('CLI help works outside the checkout and npm scripts expose preview and tes
   const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(manifest.scripts.clean, 'node scripts/clean-project.mjs');
   assert.equal(manifest.scripts['clean:preview'], 'npm run clean -- --dry-run');
+  assert.equal(manifest.scripts['clean:task'], 'node scripts/clean-project.mjs --task');
+  assert.equal(manifest.scripts['clean:retired'], 'node scripts/clean-retired-builds.mjs');
+});
+
+test('task cleanup removes packaging scratch while keeping caches, installers, runtime and evidence', t => {
+  const root = fixture(t);
+  const scratch = 'apps/desktop/src-tauri/target/frontend-dist/index.html';
+  const retained = ['apps/desktop/src-tauri/target/debug/deps/lib.rlib',
+    'apps/desktop/src-tauri/target/release/bundle/nsis/app-setup.exe',
+    'apps/desktop/src-tauri/target/release/csw.exe', 'apps/desktop/dist/index.html',
+    'apps/desktop/src-tauri/installer-helper/target/release/helper.exe',
+    'node_modules/package/index.js', '.artifacts/acceptance/screenshot.png',
+    '.codex-tmp/recovery/config.toml', 'apps/desktop/test-results/report.json'];
+  for (const file of [scratch, ...retained]) write(root, file);
+  assert.equal(run(root, ['--task', '--dry-run']).count, 1);
+  assert.ok(existsSync(join(root, scratch)));
+  assert.equal(run(root, ['--task']).count, 1);
+  assert.equal(existsSync(join(root, scratch)), false);
+  for (const file of retained) assert.ok(existsSync(join(root, file)), file);
+  assert.equal(run(root, ['--task']).count, 0);
+  for (const args of [['--task', '--ai'], ['--task', '--include-submodules'], ['--task', '--rust-cache']]) {
+    assert.throws(() => parseOptions(args), /cannot be combined/);
+  }
+});
+
+test('retired cleanup refuses the primary tree and only discards reproducible Rust targets', t => {
+  const primary = fixture(t);
+  const retired = fixture(t);
+  mkdirSync(join(primary, 'nested'), { recursive: true });
+  for (const root of [primary, join(primary, 'nested')]) {
+    assert.throws(() => retiredCheckout(['--checkout', root], primary), /primary workspace/);
+  }
+  assert.throws(() => retiredCheckout(['--checkout', '../relative'], primary), /Usage/);
+  assert.throws(() => retiredCheckout(['--checkout', retired, '--ai'], primary), /Usage/);
+  const discarded = 'apps/desktop/src-tauri/target/debug/deps/cache';
+  const retained = ['src/source.rs', 'dist/app.js', '.env', 'node_modules/package/index.js',
+    '.artifacts/installer.exe', '.codex-tmp/recovery.patch'];
+  for (const file of [discarded, ...retained]) write(retired, file);
+  const preview = retiredCheckout(['--checkout', retired, '--dry-run'], primary);
+  assert.equal(cleanProject(preview.root, preview.options, () => {}), 1);
+  assert.ok(existsSync(join(retired, discarded)));
+  const approved = retiredCheckout(['--checkout', retired], primary);
+  assert.equal(cleanProject(approved.root, approved.options, () => {}), 1);
+  assert.equal(existsSync(join(retired, discarded)), false);
+  for (const file of retained) assert.ok(existsSync(join(retired, file)), file);
+  assert.ok(existsSync(join(retired, '.git')));
+});
+
+test('packaging ownership blocks a second build until its output owner releases the lock', t => {
+  const root = fixture(t);
+  write(root, 'apps/desktop/src-tauri/target/frontend-dist/index.html');
+  const release = acquirePackagingLock(root);
+  t.after(release);
+  assert.throws(() => acquirePackagingLock(root), /Another packaging run/);
+  assert.equal(run(root, ['--task']).count, 1);
+  release();
+  release();
+  acquirePackagingLock(root)();
+});
+
+test('task cleanup preserves another packaging run and previews remain read-only', t => {
+  const root = fixture(t);
+  const scratch = 'apps/desktop/src-tauri/target/frontend-dist/index.html';
+  write(root, scratch);
+  write(root, 'apps/desktop/src-tauri/target/.remoteai-packaging.lock', 'another-owner');
+  assert.equal(run(root, ['--task', '--dry-run']).count, 1);
+  assert.throws(() => run(root, ['--task']), /Packaging still owns/);
+  assert.ok(existsSync(join(root, scratch)));
 });

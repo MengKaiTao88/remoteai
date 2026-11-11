@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { prepareDesktopVideoRuntime } from "./prepare-remote-desktop-runtime.mjs";
 import { prepareDesktopService } from './prepare-desktop-service.mjs';
 import { prepareXServer } from './prepare-x-server.mjs';
+import { cleanProject, parseOptions } from './clean-project.mjs';
+import { acquirePackagingLock } from './lib/packaging-lock.mjs';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -13,6 +15,8 @@ const tauriRoot = join(desktopRoot, "src-tauri");
 const cargoManifest = join(tauriRoot, "Cargo.toml");
 const tauriCli = join(repositoryRoot, "node_modules", "@tauri-apps", "cli", "tauri.js");
 const tauriArgs = process.argv.slice(2);
+const releasePackagingLock = acquirePackagingLock(repositoryRoot);
+process.once('exit', releasePackagingLock);
 await prepareDesktopVideoRuntime();
 await prepareDesktopService();
 await prepareXServer();
@@ -63,6 +67,10 @@ run(process.execPath, [
   "--config",
   JSON.stringify(packagingConfig),
 ], desktopRoot);
+
+// The CLI returns only after packaging has finished; failed builds retain their diagnostic inputs.
+// Keep Cargo dependencies, executables, installers and verification reports for reuse and delivery.
+cleanProject(repositoryRoot, parseOptions(['--task']));
 
 function run(command, args, cwd = repositoryRoot) {
   const result = spawnSync(command, args, {
