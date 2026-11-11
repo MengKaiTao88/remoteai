@@ -261,6 +261,12 @@ fn official_credentials<R: Runtime>(
         official_account_snapshot(account_id_override, || {
             auto_switch_coordinator().account_snapshot(|| Ok(read_state(&paths)))
         })?;
+    // A screenshot in chat does not pin an account unless the user selected an image-input target.
+    let purpose = if account_id_override.is_none() && input_image_inherits_chat_route(purpose, &state) {
+        OfficialCredentialPurpose::Default
+    } else {
+        purpose
+    };
     let active_account_id = state.active_account_id.as_deref();
     let concurrent_account_id = if account_id_override.is_none()
         && state.concurrent_account_routing_enabled

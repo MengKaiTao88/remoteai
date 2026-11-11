@@ -5,8 +5,10 @@ import { guiApi } from '../../../../../shared/conversation/api';
 import { conversation, reduceEvent } from '../../../../../shared/conversation/events';
 import { sliceHistory } from '../../../../../shared/remote-chat/historyPage';
 import type { GuiState, Thread } from '../../../../../shared/conversation/types';
+import { backendSnapshot } from './backendScope';
 
 vi.mock('../../../../../shared/conversation/api', () => ({ guiApi: { request: vi.fn() } }));
+vi.mock('./backendScope', () => ({ backendSnapshot: vi.fn() }));
 const source: Thread = { id: 'chat', cwd: '', preview: '', updatedAt: 1,
   turns: [{ id: 'turn', status: 'completed', items: Array.from({ length: 35 }, (_, index) => ({
     id: `item-${index}`, type: 'agentMessage', text: `Message ${index}`,
@@ -24,6 +26,14 @@ beforeEach(() => {
   });
 });
 const ids = () => state.conversations.chat.turns.flatMap(turn => turn.items.map(item => item.id));
+
+it('reads an unloaded official conversation without activating or resuming its native owner', async () => {
+  vi.mocked(backendSnapshot).mockReturnValue({ backend: 'official', officialAvailable: true });
+  await history.select('chat', () => true);
+  expect(ids()).toHaveLength(10);
+  expect(guiApi.request).toHaveBeenCalledTimes(1);
+  expect(guiApi.request).toHaveBeenCalledWith(expect.objectContaining({ operation: 'read', threadId: 'chat' }));
+});
 
 it('opens the newest page, expands without losing messages, and retains the cursor on reselect', async () => {
   await history.select('chat', () => true);

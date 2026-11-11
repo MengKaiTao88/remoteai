@@ -319,9 +319,9 @@ export class GuiController {
     const generation = ++this.selectionGeneration;
     this.patch({ selected: id, error: "" });
     try {
-      await Promise.all([watchConversation(this, id), this.modelSettings.select(id)]);
-      if (generation !== this.selectionGeneration) return;
-      await this.history.select(id, () => generation === this.selectionGeneration);
+      // History remains readable while the execution owner's model settings are unavailable.
+      await Promise.all([watchConversation(this, id), this.modelSettings.select(id),
+        this.history.select(id, () => generation === this.selectionGeneration)]);
     }
     catch (error) { if (generation === this.selectionGeneration) this.report(error); }
   };

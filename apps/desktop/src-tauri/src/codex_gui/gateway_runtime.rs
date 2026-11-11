@@ -115,7 +115,8 @@ fn start(app: &AppHandle) -> Result<Config> {
     };
     let mut child = std::process::Command::new(root.join("python/python.exe"))
         .arg("-B")
-        .arg(root.join("codex-mobile-bridge/run.py"))
+        .arg(root.join("run_gateway.py"))
+        .arg(root.join("codex-mobile-bridge"))
         .arg("--config")
         .arg(runtime.join("config.json"))
         .arg("--port")

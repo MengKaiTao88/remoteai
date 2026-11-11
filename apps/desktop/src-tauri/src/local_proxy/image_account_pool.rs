@@ -49,6 +49,9 @@ fn image_account_pool_for_request<R: Runtime>(
     }
     let paths = resolve_paths(app)?;
     let state = try_read_state(&paths)?;
+    if input_image_inherits_chat_route(purpose, &state) {
+        return Ok(None);
+    }
     let preferred = preferred_image_account_id(&state, purpose);
     let enabled_account_ids = if image_account_failover_enabled(&state, purpose) {
         image_failover_account_ids(&paths, &state)?
@@ -62,6 +65,13 @@ fn image_account_pool_for_request<R: Runtime>(
     ImageAccountPool::new(account_ids).map(Some).ok_or_else(|| {
         "No compatible official account is available for this image request".to_string()
     })
+}
+
+fn input_image_inherits_chat_route(
+    purpose: OfficialCredentialPurpose,
+    state: &ManagerStateFile,
+) -> bool {
+    purpose == OfficialCredentialPurpose::ImageInput && state.image_input_target.is_none()
 }
 
 fn image_failover_account_ids(

@@ -136,6 +136,7 @@ pub(super) struct Fixture {
     pub(super) posts: Arc<AtomicUsize>,
     pub(super) model_confirmed: Arc<std::sync::atomic::AtomicBool>,
     pub(super) connected: Arc<std::sync::atomic::AtomicBool>,
+    pub(super) hydration_reads: Arc<AtomicUsize>,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -157,6 +158,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
     let confirmation = model_confirmed.clone();
     let connected = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let connection = connected.clone();
+    let hydration_reads = Arc::new(AtomicUsize::new(0));
+    let hydration = hydration_reads.clone();
     let sessions = Arc::new(tokio::sync::Mutex::new(vec![json!({"id": THREAD,
         "title": "Fixture", "cwd": "C:\\fixture", "recency": 100})]));
     let session_rows = sessions.clone();
@@ -169,6 +172,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
             let confirmation = confirmation.clone();
             let connected = connection.clone();
             let sessions = session_rows.clone();
+            let hydration = hydration.clone();
             tokio::spawn(async move {
                 let mut bytes = Vec::new();
                 let mut chunk = [0; 8192];
@@ -266,6 +270,10 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         json!({"ok": true})
                     } else if path.starts_with(&format!("/api/sessions/{THREAD}?")) {
                         let mut state = view("working");
+                        if hydration.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| left.checked_sub(1)).is_ok() {
+                            state["turns"] = json!([]);
+                            state["loadingHistory"] = json!(true);
+                        }
                         state["connected"] = json!(connected.load(Ordering::SeqCst));
                         let selected = model.lock().await;
                         if selected.is_object() {
@@ -292,6 +300,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
         posts,
         model_confirmed,
         connected,
+        hydration_reads,
         task,
     }
 }

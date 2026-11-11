@@ -3,6 +3,20 @@ use serde_json::json;
 use std::sync::atomic::Ordering;
 
 #[tokio::test]
+async fn unloaded_saved_history_waits_for_hydration_without_posting_activation() {
+    let fixture = tests::fixture(false).await;
+    fixture.connected.store(false, Ordering::SeqCst);
+    fixture.hydration_reads.store(2, Ordering::SeqCst);
+    let client = tests::client(&fixture).await;
+    let result = client.request(json!({"operation":"read", "threadId":tests::THREAD})).await.unwrap();
+    assert_eq!(result["thread"]["turns"][0]["id"], "turn-1");
+    assert_eq!(result["thread"]["status"]["type"], "notLoaded");
+    assert_eq!(fixture.posts.load(Ordering::SeqCst), 0);
+    assert!(!fixture.connected.load(Ordering::SeqCst));
+    client.close().await;
+}
+
+#[tokio::test]
 async fn delayed_activation_is_reconciled_by_reading_without_replaying_writes() {
     let fixture = tests::fixture(false).await;
     fixture.connected.store(false, Ordering::SeqCst);

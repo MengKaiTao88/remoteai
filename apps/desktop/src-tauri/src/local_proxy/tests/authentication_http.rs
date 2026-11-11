@@ -146,3 +146,25 @@ fn authentication_retry_catches_expired_credentials_before_sending_a_request() {
         id
     );
 }
+#[test]
+fn inherited_screenshot_requests_keep_the_shared_auto_switch_credentials() {
+    let app = breakdown_responsiveness_test_app();
+    let paths = resolve_paths(app.handle()).unwrap();
+    let account_id = authentication_retry_account(&paths, "image-chat", 50.0);
+    let mut state = read_state(&paths);
+    state.active_account_id = Some(account_id.clone());
+    state.auto_switch_on_quota_exhaustion = true;
+    write_state(&paths, &state).unwrap();
+    let server = AggregateTestServer::status(429);
+    let _upstream = AggregateOfficialUpstream::set(&server.url);
+    let body = br#"{"model":"test-model","input":[{"role":"user","content":[{"type":"input_text","text":"hello"},{"type":"input_image","image_url":"data:image/png;base64,aGVsbG8="}]}]}"#.to_vec();
+    let target = ActiveTarget::Official { model: "test-model".into() };
+    assert!(image_account_pool_for_request(app.handle(), "/v1/responses", &body, &target).unwrap().is_none());
+    let response = forward_official(OfficialForwardRequest { app: app.handle(), method: &Method::Post,
+        url: "/v1/responses", headers: &[], body, model: "test-model", session_id: None, account_id_override: None }).unwrap();
+    assert_eq!(response.status, 429);
+    let account = response.token_usage_account.as_ref().unwrap();
+    assert_eq!(account.account_id, account_id);
+    assert!(credential_can_trigger_auto_switch(account), "screenshots must retain normal quota failover");
+    assert_eq!(server.calls(), 1);
+}

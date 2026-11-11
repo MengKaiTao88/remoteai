@@ -51,7 +51,7 @@ try {
         try { $listener.Start() } finally { $listener.Stop() }
         & $Python (Join-Path $PSScriptRoot 'initialize_gateway.py') $BridgePath $configPath
         if ($LASTEXITCODE -ne 0) { throw 'Gateway configuration could not be prepared.' }
-        $gatewayArguments = @('-B', ('"' + (Join-Path $BridgePath 'run.py') + '"'),
+        $gatewayArguments = @('-B', ('"' + (Join-Path $PSScriptRoot 'run_gateway.py') + '"'), ('"' + $BridgePath + '"'),
             '--config', ('"' + $configPath + '"'), '--port', $Port)
         $gateway = Start-Process -FilePath $Python -ArgumentList $gatewayArguments -WindowStyle Hidden -PassThru `
             -RedirectStandardOutput (Join-Path $runtimeRoot 'gateway.stdout.log') `

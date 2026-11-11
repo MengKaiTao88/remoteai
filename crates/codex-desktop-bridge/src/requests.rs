@@ -87,10 +87,21 @@ impl Client {
     }
 
     pub(super) async fn read(self: &Arc<Self>, id: &str) -> Result<Value> {
-        let view = self
+        let mut view = self
             .http
             .get(&format!("/api/sessions/{id}?host=local"))
             .await?;
+        // The gateway starts saved-history hydration asynchronously. An empty initial
+        // snapshot is not the result of a completed read, and must not become a blank chat.
+        for _ in 0..ATTACH_RECOVERY_ATTEMPTS {
+            if !projection::rows(&view["turns"]).is_empty()
+                || (view["loadingHistory"] != true && view["connecting"] != true)
+            {
+                break;
+            }
+            tokio::time::sleep(ATTACH_RECOVERY_INTERVAL).await;
+            view = self.http.get(&format!("/api/sessions/{id}?host=local")).await?;
+        }
         let view = self.with_metadata(view).await;
         self.accept(&view).await?;
         self.watch(id).await?;

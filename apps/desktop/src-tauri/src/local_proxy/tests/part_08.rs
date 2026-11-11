@@ -149,3 +149,18 @@ fn image_generation_pool_excludes_agent_identity_credentials() {
         OfficialCredentialPurpose::ImageInput,
     ));
 }
+#[test]
+fn screenshots_inherit_normal_chat_routing_until_a_separate_image_account_is_selected() {
+    let mut state = ManagerStateFile {
+        auto_switch_on_quota_exhaustion: true,
+        active_account_id: Some("active".into()),
+        image_generation_account_id: Some("generation-only".into()),
+        ..Default::default()
+    };
+    assert!(input_image_inherits_chat_route(OfficialCredentialPurpose::ImageInput, &state));
+    state.concurrent_account_routing_enabled = true;
+    assert!(input_image_inherits_chat_route(OfficialCredentialPurpose::ImageInput, &state));
+    assert!(!input_image_inherits_chat_route(OfficialCredentialPurpose::ImageGeneration, &state));
+    state.image_input_target = Some(ImageModelTarget::Official { account_id: "image-only".into() });
+    assert!(!input_image_inherits_chat_route(OfficialCredentialPurpose::ImageInput, &state));
+}

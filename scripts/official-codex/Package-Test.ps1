@@ -22,7 +22,7 @@ foreach ($folder in @($buildRoot, (Join-Path $buildRoot 'deps'))) {
 }
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'apps/desktop/src-tauri/resources') `
     -Destination $Destination -Recurse -Force
-foreach ($name in @('Start.cmd', 'Start-OfficialCodex.ps1', 'initialize_gateway.py')) {
+foreach ($name in @('Start.cmd', 'Start-OfficialCodex.ps1', 'initialize_gateway.py', 'run_gateway.py', 'native_history.py')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $Destination -Force
 }
 $archive = Join-Path $Destination 'bridge-source.zip'

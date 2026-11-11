@@ -56,6 +56,25 @@ beforeEach(() => {
 
 afterEach(() => { stops.splice(0).forEach((stop) => stop()); controllers.splice(0).forEach((c) => c.dispose()); });
 
+it('shows saved history while the selected conversation model-settings read is still pending', async () => {
+  const { api } = backend();
+  const controller = await client(api);
+  let finish!: (snapshot: ModelSettingsSnapshot) => void;
+  vi.mocked(api.read).mockImplementation(threadId => threadId === 'old'
+    ? new Promise(resolve => { finish = resolve; })
+    : Promise.resolve({ threadId, selection: null, revision: 0 }));
+  const original = vi.mocked(guiApi.request).getMockImplementation()!;
+  vi.mocked(guiApi.request).mockImplementation(request => request.operation === 'read'
+    ? Promise.resolve({ thread: { id: request.threadId, cwd: '', preview: '', updatedAt: 1,
+      turns: [{ id: 'saved', status: 'completed', items: [{ id: 'reply', type: 'agentMessage', text: 'saved reply' }] }] } })
+    : original(request));
+  const selecting = controller.select('old');
+  await vi.waitFor(() => expect(controller.getSnapshot().conversations.old?.turns[0].items[0].text).toBe('saved reply'));
+  expect(controller.getSnapshot().modelSettingsLoading).toBe(true);
+  finish({ threadId: 'old', selection: { model: 'first', effort: 'high' }, revision: 1 });
+  await selecting;
+});
+
 it("keeps conversation choices separate and sends the setting restored after switching", async () => {
   const controller = await client();
   controller.settings({ model: "second", effort: "low" });
