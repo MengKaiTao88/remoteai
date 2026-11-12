@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 from image_archive import capture_history
+from native_usage import saved_usage, token_usage
 
 DEFAULT_ITEMS = 5_000
 MAX_ITEMS = 50_000
@@ -88,6 +89,11 @@ def install(store_class):
             result['latestModel'] = meta.get('model')
         if not result.get('latestReasoningEffort'):
             result['latestReasoningEffort'] = meta.get('reasoning_effort')
+        if token_usage(result) is None:
+            usage = saved_usage(store, meta)
+            if usage is not None:
+                result['latestTokenUsageInfo'] = usage
+                result['tokenUsageFromHistory'] = True
         capture_history(store.home, thread_id, result)
         return result
 

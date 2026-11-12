@@ -15,6 +15,13 @@ Large saved conversations retain the requested, bounded 640 MiB loopback respons
 settled history publishes a history snapshot rather than a new completion event, preserving real turn
 timing and message bodies while continuing old chats.
 
+Saved native item indexes do not contain token-count events. Their history adapter separately reads
+the latest valid usage event from at most 8 MiB at the end of the authorized rollout, retaining actual
+cumulative, last-request and capacity counters. The reader validates containment, rejects files changed
+during the read, and caches only validated counters by file identity and modification state. Opening an
+indexed conversation therefore restores its recorded usage without submitting a new message. Missing
+or invalid records remain unknown.
+
 Native usage has separate cumulative billing and last-request/context counters. The pinned gateway's
 presentation previously kept only `contextUsage`, dropping `latestTokenUsageInfo.total`. The local
 `native_usage.py` compatibility module preserves validated public counters without modifying the pinned

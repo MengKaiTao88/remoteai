@@ -67,6 +67,19 @@ class NativeHistoryTests(unittest.TestCase):
         self.assertEqual(result['latestModel'], 'live-model')
         self.assertEqual(result['latestReasoningEffort'], 'low')
 
+    def test_indexed_history_includes_usage_without_activating_a_conversation(self):
+        path = self.store.home / 'rollout.jsonl'
+        path.write_text(json.dumps({'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {
+            'total_token_usage': {'total_tokens': 3795355}, 'last_token_usage': {'total_tokens': 129919},
+            'model_context_window': 475000}}}) + '\n', encoding='utf8')
+        self.store.meta['rollout_path'] = str(path)
+        self.store._rollout_in_home = lambda candidate: candidate.is_relative_to(self.store.home)
+        result = self.store.history('allowed')
+        self.assertEqual(result['latestTokenUsageInfo']['total']['totalTokens'], 3795355)
+        self.assertEqual(result['latestTokenUsageInfo']['contextTokens'], 129919)
+        self.assertTrue(result['tokenUsageFromHistory'])
+        self.assertEqual(result['threadRuntimeStatus'], {'type': 'notLoaded'})
+
 
 if __name__ == '__main__':
     unittest.main()

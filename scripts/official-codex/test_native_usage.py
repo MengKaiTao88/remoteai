@@ -1,9 +1,58 @@
 import unittest
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 from types import SimpleNamespace
-from native_usage import install, token_usage
+from native_usage import install, token_usage, saved_usage
 
 
 class NativeUsageTests(unittest.TestCase):
+    def test_indexed_history_restores_recorded_counters_and_refreshes_after_append(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            path = home / 'rollout.jsonl'
+            store = SimpleNamespace(_rollout_in_home=lambda candidate: candidate.is_relative_to(home))
+            meta = {'rollout_path': str(path)}
+            def event(total, last):
+                return json.dumps({'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {
+                    'total_token_usage': {'total_tokens': total}, 'last_token_usage': {'total_tokens': last},
+                    'model_context_window': 475000}}}) + '\n'
+            path.write_text(event(3795355, 129919) + '{partial', encoding='utf8')
+            usage = saved_usage(store, meta)
+            self.assertEqual(usage['total']['totalTokens'], 3795355)
+            self.assertEqual(usage['contextTokens'], 129919)
+            self.assertEqual(usage['modelContextWindow'], 475000)
+            self.assertEqual(saved_usage(store, meta), usage)
+            usage['total']['totalTokens'] = 0
+            self.assertEqual(saved_usage(store, meta)['total']['totalTokens'], 3795355)
+            with path.open('a', encoding='utf8') as stream:
+                stream.write('\n' + event(3800000, 0))
+            self.assertEqual(saved_usage(store, meta)['contextTokens'], 0)
+            self.assertEqual(saved_usage(store, meta)['total']['totalTokens'], 3800000)
+
+    def test_history_does_not_read_outside_authorized_home_or_infer_missing_counters(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'rollout.jsonl'
+            path.write_text(json.dumps({'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {
+                'last_token_usage': {'total_tokens': 10}}}}), encoding='utf8')
+            store = SimpleNamespace(_rollout_in_home=lambda candidate: False)
+            with patch.object(Path, 'open', side_effect=AssertionError('outside file read')):
+                self.assertIsNone(saved_usage(store, {'rollout_path': str(path)}))
+            store._rollout_in_home = lambda candidate: True
+            self.assertIsNone(saved_usage(store, {'rollout_path': str(path)}))
+            self.assertIsNone(saved_usage(store, {'rollout_path': str(path / 'missing')}))
+
+    def test_history_scan_is_bounded_and_skips_a_truncated_first_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'rollout.jsonl'
+            event = json.dumps({'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {
+                'total_token_usage': {'total_tokens': 123}, 'last_token_usage': {'total_tokens': 40}}}})
+            path.write_text(event + '\n' + 'x' * 400 + '\n', encoding='utf8')
+            store = SimpleNamespace(_rollout_in_home=lambda candidate: True)
+            with patch('native_usage.HISTORY_USAGE_BYTES', 256):
+                self.assertIsNone(saved_usage(store, {'rollout_path': str(path)}))
+
     def test_billing_is_distinct_from_context_occupancy(self):
         info = {'total': {'totalTokens': 12_000_000}, 'last': {'totalTokens': 250_000},
                 'contextTokens': 260_000, 'modelContextWindow': 475_000, 'private': 'not-exported'}
