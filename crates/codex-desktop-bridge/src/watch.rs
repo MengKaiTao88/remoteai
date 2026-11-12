@@ -128,7 +128,13 @@ impl Client {
             .insert(id.to_owned(), view.clone());
         self.publish_turns(previous.as_ref(), view);
         self.publish_usage(previous.as_ref(), view);
-        if super::models::selection(view) != previous.as_ref().and_then(super::models::selection) {
+        if super::models::selection(view) != previous.as_ref().and_then(super::models::selection)
+            || super::models::access(view) != previous.as_ref().and_then(super::models::access)
+            || (view["permissionUpdate"] == "nextTurn")
+                != previous
+                    .as_ref()
+                    .is_some_and(|view| view["permissionUpdate"] == "nextTurn")
+        {
             if let Some(snapshot) = super::models::snapshot(view) {
                 self.emit(json!({"method":"bridge/modelSettings", "params":snapshot}));
             }

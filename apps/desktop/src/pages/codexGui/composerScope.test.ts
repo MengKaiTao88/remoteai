@@ -10,10 +10,14 @@ import { ChatController } from '../../../../../shared/remote-chat/client/control
 import { COMPOSER_EVENT, composerThreadId } from '../../../../../shared/remote-chat/composer';
 import { emptyQueue } from '../../../../../shared/remote-chat/queue';
 import { historyDelta } from '../../../../../shared/remote-chat/historySync';
+import { initializeBackendScope } from './backendScope';
+import { invoke } from '../../../../../shared/platform/localBackend';
 import type { ConnectionEvents } from '../../../../../shared/remote-chat/client/connection';
 
 vi.mock('../../../../../shared/conversation/api', () => ({ guiApi: { request: vi.fn(), connect: vi.fn(), subscribe: vi.fn() } }));
 vi.mock('./officialConversation', () => ({ activateOfficialConversation: vi.fn() }));
+vi.mock('../../../../../shared/platform/localBackend', async importOriginal => ({ ...await importOriginal<typeof import('../../../../../shared/platform/localBackend')>(),
+  hasLocalBackend: true, invoke: vi.fn() }));
 const models: Model[] = [{ id: 'model', model: 'model', displayName: 'Model', isDefault: true,
   defaultReasoningEffort: 'low', supportedReasoningEfforts: ['low', 'high', 'xhigh'].map(reasoningEffort =>
     ({ reasoningEffort, description: '' })) }];
@@ -25,6 +29,8 @@ let cleanup: (() => void)[];
 
 beforeEach(async () => {
   localStorage.clear(); vi.resetAllMocks(); cleanup = []; saved = new Map();
+  vi.mocked(invoke).mockResolvedValue({ backend: 'gui', officialAvailable: true });
+  await initializeBackendScope();
   const listeners = new Set<(snapshot: ModelSettingsSnapshot) => void>();
   api = {
     read: vi.fn(async threadId => saved.get(threadId) ?? { threadId, selection: null, revision: 0 }),
@@ -42,6 +48,44 @@ beforeEach(async () => {
   await pc.modelSettings.ready(null);
 });
 afterEach(() => { cleanup.forEach(stop => stop()); pc.dispose(); });
+
+it('does not acknowledge a local permission preference for an official conversation with missing permission metadata', async () => {
+  vi.mocked(invoke).mockResolvedValue({ backend: 'official', officialAvailable: true });
+  await initializeBackendScope();
+  saved.set('phone', { threadId: 'phone', selection: { model: 'model', effort: 'high' }, revision: 1 });
+  api.writeAccess = vi.fn().mockRejectedValue(new Error('owner did not confirm'));
+  await expect(bridge.update({ access: 'workspace-write' }, 'phone')).rejects.toThrow('owner did not confirm');
+  expect(api.writeAccess).toHaveBeenCalledWith('phone', 'workspace-write');
+  expect(saved.get('phone')?.access).toBeUndefined();
+});
+
+it('retains official permission authority while a model selection is being saved', async () => {
+  saved.set('phone', { threadId: 'phone', selection: { model: 'model', effort: 'high' },
+    access: 'danger-full-access', revision: 1 });
+  await pc.modelSettings.ready('phone');
+  let finish!: (snapshot: ModelSettingsSnapshot) => void;
+  vi.mocked(api.write).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  pc.modelSettings.change({ effort: 'low' }, 'phone');
+  expect(pc.modelSettings.access('phone')).toBe('danger-full-access');
+  expect(pc.modelSettings.managesAccess('phone')).toBe(true);
+  finish({ threadId: 'phone', selection: { model: 'model', effort: 'low' }, access: 'danger-full-access', revision: 2 });
+  await pc.modelSettings.ready('phone');
+});
+
+it('publishes official access to remote clients and applies edits to their original conversation', async () => {
+  saved.set('pc', { threadId: 'pc', selection: { model: 'model', effort: 'low' }, access: 'workspace-write', revision: 1 });
+  saved.set('phone', { threadId: 'phone', selection: { model: 'model', effort: 'high' }, access: 'danger-full-access', revision: 1 });
+  api.writeAccess = vi.fn(async (threadId, access) => {
+    const snapshot = { ...saved.get(threadId)!, access, revision: 2 };
+    saved.set(threadId, snapshot); return snapshot;
+  });
+  await pc.select('pc'); await pc.modelSettings.ready('pc');
+  expect((await bridge.read('phone')).settings.access).toBe('danger-full-access');
+  const result = await bridge.update({ access: 'read-only' }, 'phone');
+  expect(result.settings.access).toBe('read-only');
+  expect(api.writeAccess).toHaveBeenCalledWith('phone', 'read-only');
+  expect(pc.getSnapshot()).toMatchObject({ selected: 'pc', settings: { access: 'workspace-write' } });
+});
 
 it('reads phone model settings without activating a native conversation window', async () => {
   const ready = vi.spyOn(pc.modelSettings, 'ready');
@@ -121,6 +165,37 @@ async function connectPhone(request: <T>(method: string, body?: unknown) => Prom
   phone.start(); await vi.waitFor(() => expect(phone.snapshot().ready).toBe(true));
   return phone;
 }
+
+it('confirms repeated permission edits through the full remote client instead of retaining a busy snapshot', async () => {
+  const thread = { id: 'official-phone', cwd: '', preview: '', updatedAt: 1, turns: [] };
+  saved.set(thread.id, { threadId: thread.id, selection: { model: 'model', effort: 'high' },
+    access: 'danger-full-access', revision: 1 });
+  api.writeAccess = vi.fn(async (threadId, access) => {
+    const snapshot = { ...saved.get(threadId)!, access, revision: saved.get(threadId)!.revision + 1 };
+    saved.set(threadId, snapshot); return snapshot;
+  });
+  const request = vi.fn(async (method: string, body?: Record<string, unknown>) => {
+    if (method === 'connect') return [];
+    if (body?.operation === 'models') {
+      const composer = await bridge.read(composerThreadId(body.threadId));
+      return { data: models, nextCursor: null, composer };
+    }
+    if (body?.operation === 'composerSet') return bridge.update(body.settings, composerThreadId(body.threadId));
+    if (body?.operation === 'syncHistory') return historyDelta(thread);
+    if (body?.operation === 'queueRead') return emptyQueue();
+    return { data: [], nextCursor: null };
+  });
+  const phone = await connectPhone(request as <T>(method: string, body?: unknown) => Promise<T>);
+  await phone.select(thread);
+  await vi.waitFor(() => expect(phone.snapshot().settingsBusy).toBe(false));
+  for (const access of ['workspace-write', 'danger-full-access', 'read-only', 'danger-full-access'] as const) {
+    await phone.setSettings({ access });
+    await vi.waitFor(() => expect(phone.snapshot().settingsBusy, phone.snapshot().settingsError).toBe(false));
+    expect(saved.get(thread.id)?.access).toBe(access);
+    expect(phone.snapshot().settings.access).toBe(access);
+  }
+  expect(api.writeAccess).toHaveBeenCalledTimes(4);
+});
 
 it('persists the phone-created selection before sending and keeps it after PC navigation', async () => {
   const created = { id: 'phone-created', cwd: '', preview: '', updatedAt: 1, turns: [] };

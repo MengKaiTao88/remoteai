@@ -5,6 +5,7 @@ from pathlib import Path
 
 from native_history import install
 from native_usage import install as install_usage
+from native_permissions import install as install_permissions
 
 
 def main():
@@ -14,6 +15,7 @@ def main():
     from bridge.app.service import Bridge
     from image_archive import install as install_image_archive
     install_usage()
+    install_permissions()
     install(SessionStore)
     install_image_archive(Bridge)
     sys.argv = [str(bridge / 'run.py'), *sys.argv[2:]]

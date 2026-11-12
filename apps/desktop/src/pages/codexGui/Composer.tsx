@@ -155,7 +155,8 @@ export const Composer = forwardRef<ComposerHandle, {
         <MessageDeliveryMode disabled={disabled || reading} />
         <div className={styles.composerSecondary}>
           <AccessPicker value={state.settings.access}
-            disabled={false} onChange={(access: AccessMode) => controller.settings({ access })} />
+            pending={controller.modelSettings.accessUpdate(state.selected) === 'nextTurn'}
+            disabled={Boolean(state.modelSettingsLoading)} onChange={(access: AccessMode) => controller.settings({ access })} />
         </div>
         <div className={styles.modelControls}>
           <div className={styles.composerSecondary}>

@@ -135,6 +135,7 @@ pub(super) struct Fixture {
     pub(super) sends: Arc<AtomicUsize>,
     pub(super) posts: Arc<AtomicUsize>,
     pub(super) model_confirmed: Arc<std::sync::atomic::AtomicBool>,
+    pub(super) permission_confirmed: Arc<std::sync::atomic::AtomicBool>,
     pub(super) connected: Arc<std::sync::atomic::AtomicBool>,
     pub(super) hydration_reads: Arc<AtomicUsize>,
     pub(super) saved_total: Arc<AtomicUsize>,
@@ -159,6 +160,9 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
     let model = Arc::new(tokio::sync::Mutex::new(Value::Null));
     let model_confirmed = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let confirmation = model_confirmed.clone();
+    let permission_confirmed = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let permission_confirmation = permission_confirmed.clone();
+    let permission = Arc::new(tokio::sync::Mutex::new("full-access".to_owned()));
     let connected = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let connection = connected.clone();
     let hydration_reads = Arc::new(AtomicUsize::new(0));
@@ -179,6 +183,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
             let posts = post_count.clone();
             let model = model.clone();
             let confirmation = confirmation.clone();
+            let permission_confirmation = permission_confirmation.clone();
+            let permission = permission.clone();
             let connected = connection.clone();
             let sessions = session_rows.clone();
             let hydration = hydration.clone();
@@ -262,6 +268,16 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         json!({"models":[{"id":"model-a", "name":"Model A", "isDefault":true,
                             "defaultEffort":"high", "efforts":["low","high"]},
                             {"id":"model-b", "name":"Model B", "defaultEffort":"low", "efforts":["low"]}]})
+                    } else if path.contains("/permissions?") {
+                        let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
+                        let preset = body["preset"].as_str().unwrap();
+                        assert!(["ask", "auto-review", "full-access"].contains(&preset));
+                        assert_eq!(body["confirmed"], preset == "full-access");
+                        let confirmed = permission_confirmation.load(Ordering::SeqCst);
+                        if confirmed {
+                            *permission.lock().await = preset.to_owned();
+                        }
+                        json!({"applied":true,"confirmed":confirmed,"permissionMode":preset})
                     } else if path.contains("/settings?") {
                         let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
                         *model.lock().await = body.clone();
@@ -288,6 +304,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         json!({"ok": true})
                     } else if path.starts_with(&format!("/api/sessions/{THREAD}?")) {
                         let mut state = view("working");
+                        state["model"] = json!("model-a");
+                        state["effort"] = json!("high");
                         let size = output_size.load(Ordering::SeqCst);
                         if size > 0 {
                             state["turns"][0]["messages"][2]["output"] = json!("x".repeat(size));
@@ -304,6 +322,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                             state["loadingHistory"] = json!(true);
                         }
                         state["connected"] = json!(connected.load(Ordering::SeqCst));
+                        state["permissionMode"] = json!(permission.lock().await.clone());
                         let total = total.load(Ordering::SeqCst);
                         if total > 0 {
                             let loaded = saved.load(Ordering::SeqCst).min(total);
@@ -337,6 +356,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
         sends,
         posts,
         model_confirmed,
+        permission_confirmed,
         connected,
         hydration_reads,
         saved_total,

@@ -1,5 +1,25 @@
 use super::*;
 
+#[test]
+fn official_permission_snapshots_survive_the_desktop_serialization_boundary() {
+    let snapshot: ModelSettingsSnapshot = serde_json::from_value(serde_json::json!({
+        "threadId":"official", "selection":{"model":"gpt-test","effort":"high"},
+        "revision":1, "access":"danger-full-access", "accessUpdate":"nextTurn"
+    }))
+    .unwrap();
+    let value = serde_json::to_value(snapshot).unwrap();
+    assert_eq!(value["access"], "danger-full-access");
+    assert_eq!(value["accessUpdate"], "nextTurn");
+    let snapshot: ModelSettingsSnapshot = serde_json::from_value(serde_json::json!({
+        "threadId":"legacy", "selection":null, "revision":0
+    }))
+    .unwrap();
+    assert!(serde_json::to_value(snapshot)
+        .unwrap()
+        .get("access")
+        .is_none());
+}
+
 fn root() -> PathBuf {
     let root = std::env::temp_dir().join(format!("gui-model-settings-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&root).unwrap();

@@ -24,10 +24,75 @@ pub(super) fn snapshot(view: &Value) -> Option<Value> {
         .as_millis() as u64;
     MODEL_REVISION.fetch_max(now, Ordering::SeqCst);
     let revision = MODEL_REVISION.fetch_add(1, Ordering::SeqCst) + 1;
-    Some(json!({"threadId":view["id"], "selection":selected, "revision":revision}))
+    let mut snapshot = json!({"threadId":view["id"], "selection":selected, "revision":revision});
+    if let Some(access) = access(view) {
+        snapshot["access"] = json!(access);
+    }
+    if view["permissionUpdate"] == "nextTurn" {
+        snapshot["accessUpdate"] = json!("nextTurn");
+    }
+    Some(snapshot)
+}
+
+pub(super) fn access(view: &Value) -> Option<&'static str> {
+    match view["permissionMode"].as_str()? {
+        "full-access" => Some("danger-full-access"),
+        "auto-review" => Some("workspace-write"),
+        "ask" => Some("read-only"),
+        _ => None,
+    }
 }
 
 impl Client {
+    pub async fn set_access_settings(
+        self: &std::sync::Arc<Self>,
+        id: &str,
+        requested: &str,
+    ) -> Result<Value> {
+        uuid::Uuid::parse_str(id).map_err(|_| Error::Invalid)?;
+        let preset = match requested {
+            "danger-full-access" => "full-access",
+            "workspace-write" => "auto-review",
+            "read-only" => "ask",
+            _ => return Err(Error::Invalid),
+        };
+        let _write = self.writes.lock().await;
+        let before = self
+            .http
+            .get(&format!("/api/sessions/{id}?host=local"))
+            .await?;
+        if before["connected"] != true {
+            return Err(Error::Disconnected);
+        }
+        if access(&before) != Some(requested) {
+            let result = self
+                .http
+                .post(
+                    &format!("/api/sessions/{id}/permissions?host=local"),
+                    &json!({"preset":preset, "confirmed":preset == "full-access"}),
+                )
+                .await?;
+            if result["applied"] != true
+                || result["confirmed"] != true
+                || result["permissionMode"] != preset
+            {
+                return Err(Error::Stale);
+            }
+        }
+        self.read(id).await?;
+        let view = self
+            .snapshots
+            .lock()
+            .await
+            .get(id)
+            .cloned()
+            .ok_or(Error::Disconnected)?;
+        if access(&view) != Some(requested) {
+            return Err(Error::Stale);
+        }
+        snapshot(&view).ok_or(Error::Invalid)
+    }
+
     async fn catalog(&self, id: &str, refresh: bool) -> Result<Value> {
         uuid::Uuid::parse_str(id).map_err(|_| Error::Invalid)?;
         self.http

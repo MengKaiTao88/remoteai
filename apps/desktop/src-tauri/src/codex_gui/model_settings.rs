@@ -49,6 +49,11 @@ pub(crate) struct ModelSettingsSnapshot {
     revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     live_update: Option<LiveModelUpdate>,
+    /// Authoritative official-session access; legacy model synchronization never sets permissions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    access: Option<super::protocol::AccessMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    access_update: Option<LiveModelUpdate>,
 }
 
 /// Serializes complete file operations and their event publication on background workers.
@@ -101,6 +106,8 @@ fn read(root: &Path, thread_id: Option<String>) -> Result<ModelSettingsSnapshot>
             selection: None,
             revision: 0,
             live_update: None,
+            access: None,
+            access_update: None,
         }),
         Err(_) => Err(ModelSettingsError::Storage),
     }
@@ -125,6 +132,8 @@ fn save(
             .checked_add(1)
             .ok_or(ModelSettingsError::Storage)?,
         live_update: None,
+        access: None,
+        access_update: None,
     };
     fs::create_dir_all(root.join(DIRECTORY)).map_err(|_| ModelSettingsError::Storage)?;
     let value = serde_json::to_value(&snapshot).map_err(|_| ModelSettingsError::Storage)?;
@@ -211,7 +220,8 @@ pub(super) async fn persist_created(
 pub(crate) async fn codex_gui_set_model_settings(
     app: AppHandle,
     thread_id: Option<String>,
-    selection: ModelSelection,
+    selection: Option<ModelSelection>,
+    access_mode: Option<super::protocol::AccessMode>,
     scope: Option<super::backend::Scope>,
 ) -> std::result::Result<ModelSettingsSnapshot, String> {
     let _scope = super::backend::lease(
@@ -221,6 +231,29 @@ pub(crate) async fn codex_gui_set_model_settings(
     .await?;
     let state = app.state::<ModelSettingsState>();
     let _write = state.writes.lock().await;
+    if let Some(access_mode) = access_mode {
+        if !super::uses_official_desktop() || selection.is_some() {
+            return Err(ModelSettingsError::Invalid.to_string());
+        }
+        let access = serde_json::to_value(access_mode)
+            .map_err(|_| ModelSettingsError::Invalid.to_string())?;
+        let value = app
+            .state::<super::GuiState>()
+            .official_bridge
+            .set_access_settings(
+                thread_id.as_deref(),
+                access
+                    .as_str()
+                    .ok_or_else(|| ModelSettingsError::Invalid.to_string())?,
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        let snapshot: ModelSettingsSnapshot =
+            serde_json::from_value(value).map_err(|_| ModelSettingsError::Invalid.to_string())?;
+        super::web::publish(&app, CHANGED_EVENT, &snapshot);
+        return Ok(snapshot);
+    }
+    let selection = selection.ok_or_else(|| ModelSettingsError::Invalid.to_string())?;
     if super::uses_official_desktop() {
         let selection =
             serde_json::to_value(selection).map_err(|_| ModelSettingsError::Invalid.to_string())?;

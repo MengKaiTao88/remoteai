@@ -53,10 +53,12 @@ export class ComposerBridge {
   private publish(models: Model[], selection: ComposerSettings, syncing = false) {
     const settings = { ...resolveModelSelection(models, selection), access: selection.access,
       ...(this.value.settings.speed ? { speed: this.value.settings.speed } : {}) };
+    const accessUpdate = this.binding?.modelSettings.accessUpdate(this.binding.getSnapshot().selected);
     if (models === this.value.models && settings.model === this.value.settings.model
       && settings.effort === this.value.settings.effort && settings.access === this.value.settings.access
+      && accessUpdate === this.value.accessUpdate
       && syncing === Boolean(this.value.syncing)) return;
-    this.value = { models, settings, syncing, revision: ++this.revision };
+    this.value = { models, settings, syncing, accessUpdate, revision: ++this.revision };
     for (const listener of this.listeners) listener(this.value);
     this.publishScopes();
   }
@@ -70,13 +72,15 @@ export class ComposerBridge {
 
   private publishScope(threadId: string | null): ComposerSnapshot {
     const selection = this.binding!.modelSettings.selection(threadId);
-    const settings = { ...this.value.settings, ...selection };
+    const access = this.binding!.modelSettings.access(threadId);
+    const accessUpdate = this.binding!.modelSettings.accessUpdate(threadId);
+    const settings = { ...this.value.settings, ...selection, ...(access ? { access } : {}) };
     const syncing = Boolean(this.value.syncing || this.binding!.modelSettings.loading(threadId));
     const previous = this.scoped.get(threadId);
-    if (previous && previous.models === this.value.models && previous.syncing === syncing
+    if (previous && previous.models === this.value.models && previous.syncing === syncing && previous.accessUpdate === accessUpdate
       && Object.keys(settings).every((key) => settings[key as keyof ComposerSettings]
         === previous.settings[key as keyof ComposerSettings])) return previous;
-    const snapshot = { models: this.value.models, settings, syncing, threadId, revision: ++this.revision };
+    const snapshot = { models: this.value.models, settings, syncing, accessUpdate, threadId, revision: ++this.revision };
     this.scoped.set(threadId, snapshot);
     if (this.scoped.size > MAX_OBSERVED_CONVERSATIONS) this.scoped.delete(this.scoped.keys().next().value!);
     for (const listener of this.listeners) listener(snapshot);
@@ -152,14 +156,25 @@ export class ComposerBridge {
       if (currentCatalog && !currentCatalog()) throw new Error(uiText("client.composer.theModelHasChangedReviewItAndChooseAgain"));
       if (threadId !== undefined) {
         if (!this.binding) throw new Error(uiText("client.composer.theComputerIsNotReadyYetPleaseTryAgainShortly"));
-        if (patch.access !== undefined) this.binding.settings({ access: patch.access });
+        if (patch.access !== undefined) {
+          if (this.binding.modelSettings.managesAccess(threadId)) {
+            await this.binding.modelSettings.changeAccess(patch.access, threadId);
+          } else this.binding.settings({ access: patch.access });
+        }
         if (patch.model !== undefined || patch.effort !== undefined) {
           this.binding.modelSettings.change({ model: normalized.model, effort: normalized.effort }, threadId);
           await this.binding.modelSettings.ready(threadId);
         }
-      } else if (this.binding) this.binding.settings(normalized);
+      } else if (this.binding) {
+        const scope = this.binding.getSnapshot().selected;
+        if (patch.access !== undefined && this.binding.modelSettings.managesAccess(scope)) {
+          await this.binding.modelSettings.changeAccess(patch.access, scope);
+          this.binding.settings({ model: normalized.model, effort: normalized.effort });
+        } else this.binding.settings(normalized);
+        await this.binding.modelSettings.ready(scope);
+      }
       else this.pendingSettings = true;
-      if (threadId === undefined) this.publish(current.models, normalized);
+      if (threadId === undefined) this.publish(current.models, this.binding?.getSnapshot().settings ?? normalized);
     }
     return threadId === undefined ? this.value : this.publishScope(threadId);
   }

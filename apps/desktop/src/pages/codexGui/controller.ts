@@ -270,6 +270,11 @@ export class GuiController {
   refresh = (more = false, force = !more) => this.lists.refresh(more, force);
   filter = (search: string, archived: boolean) => this.lists.filter(search, archived);
   settings = (settings: Partial<Settings>) => {
+    if (settings.access !== undefined && this.modelSettings.managesAccess(this.state.selected)) {
+      const { access, ...rest } = settings;
+      settings = rest;
+      void this.modelSettings.changeAccess(access).catch(this.report);
+    }
     const modelChanged = settings.model !== undefined || settings.effort !== undefined;
     // Publish combined permission/model changes only after the model choice has been resolved.
     this.patch({ settings: { ...this.state.settings, ...settings } }, !modelChanged);

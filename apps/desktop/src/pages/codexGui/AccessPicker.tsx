@@ -1,7 +1,7 @@
 import { uiText } from "../../../../../shared/localization/uiText";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Popover } from "antd";
-import { Check, Hand, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Popover, Tooltip } from "antd";
+import { Check, Clock3, Hand, ShieldAlert, ShieldCheck } from "lucide-react";
 import type { AccessMode } from "../../../../../shared/conversation/types";
 import styles from "./AccessPicker.module.less";
 
@@ -25,8 +25,9 @@ function moveOptionFocus(event: KeyboardEvent<HTMLDivElement>) {
   options[next]?.focus();
 }
 
-export function AccessPicker({ value, disabled, onChange }: {
+export function AccessPicker({ value, disabled, onChange, pending }: {
   value: AccessMode; disabled: boolean; onChange: (access: AccessMode) => void;
+  pending?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -58,6 +59,9 @@ export function AccessPicker({ value, disabled, onChange }: {
       className={`${styles.trigger} ${fullAccess ? styles.fullAccess : ""}`}
       aria-haspopup="menu" aria-expanded={open && !disabled} aria-label={uiText("client.chat.access", { value1: selected.label })}>
       <Icon size={16} aria-hidden="true" /><span>{fullAccess ? uiText("client.shared.fullAccess") : selected.label}</span>
+      {pending && <Tooltip title={uiText('client.conversation.takesEffectWithTheNextConversationTurn')}
+        styles={{ root: { maxWidth: 400 } }}><span role="img" aria-label={uiText('client.conversation.takesEffectWithTheNextConversationTurn')}>
+          <Clock3 size={14} aria-hidden="true" /></span></Tooltip>}
     </button>
   </Popover>;
 }

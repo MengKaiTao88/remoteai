@@ -3,7 +3,7 @@ import type { ModelSettingsSnapshot } from "../src/pages/codexGui/threadModelSet
 import type { ModelSelection } from "../../../shared/conversation/modelSelection";
 import type { QueueSnapshot } from "../src/pages/codexGui/queueJournal";
 import type { RequestSpeed } from '../../../shared/remote-chat/composer';
-import type { ThreadTokenUsage } from '../../../shared/conversation/types';
+import type { AccessMode, ThreadTokenUsage } from '../../../shared/conversation/types';
 
 export function modelSettingsBackend(liveUpdate?: ModelSettingsSnapshot["liveUpdate"]) {
   const saved = new Map<string | null, ModelSettingsSnapshot>();
@@ -32,7 +32,7 @@ export function modelSettingsBackend(liveUpdate?: ModelSettingsSnapshot["liveUpd
       const { command, args } = route.request().postDataJSON() as {
         command: string; args: { threadId?: string; selection: ModelSelection;
           cursor?: { sequence: number }; request: Record<string, unknown>; snapshot: QueueSnapshot; speed: RequestSpeed;
-          model: string; capacity: number | null };
+          model: string; capacity: number | null; accessMode?: AccessMode };
       };
       let result: unknown = {};
       const threadId = args.threadId ?? null;
@@ -62,7 +62,11 @@ export function modelSettingsBackend(liveUpdate?: ModelSettingsSnapshot["liveUpd
         result = saved.get(threadId) ?? { threadId, selection: null, revision: 0 };
       }
       if (command === "codex_gui_set_model_settings") {
-        const snapshot = { threadId, selection: args.selection, revision: (saved.get(threadId)?.revision ?? 0) + 1, liveUpdate };
+        const snapshot = { ...saved.get(threadId), threadId,
+          selection: args.accessMode ? saved.get(threadId)?.selection ?? null : args.selection,
+          ...(args.accessMode ? { access: args.accessMode } : {}),
+          accessUpdate: args.accessMode && args.accessMode !== 'danger-full-access' ? 'nextTurn' as const : undefined,
+          revision: (saved.get(threadId)?.revision ?? 0) + 1, liveUpdate };
         saved.set(threadId, snapshot);
         events.push({ name: "codex-gui-model-settings-changed", payload: snapshot });
         result = snapshot;
@@ -101,6 +105,13 @@ export function modelSettingsBackend(liveUpdate?: ModelSettingsSnapshot["liveUpd
     });
   }
   return { attach, sends, saved, contextDefaults, contextOverrides, queue: () => queue,
+    access: (threadId: string, access: AccessMode) => {
+      const snapshot: ModelSettingsSnapshot = { threadId, access,
+        selection: saved.get(threadId)?.selection ?? { model: 'first', effort: 'medium' },
+        revision: (saved.get(threadId)?.revision ?? 0) + 1 };
+      saved.set(threadId, snapshot);
+      events.push({ name: 'codex-gui-model-settings-changed', payload: snapshot });
+    },
     availableModels: (ids?: string[]) => { availableModels = ids; },
     contextUsage: (threadId: string, tokenUsage: ThreadTokenUsage) => events.push({ name: 'codex-gui-event',
       payload: { method: 'thread/tokenUsage/updated', params: { threadId, tokenUsage } } }),

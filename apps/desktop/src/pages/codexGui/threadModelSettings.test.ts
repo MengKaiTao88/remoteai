@@ -14,6 +14,51 @@ const models: Model[] = ["first", "second"].map((model, index) => ({
 const stops: (() => void)[] = [];
 const controllers: GuiController[] = [];
 
+it('uses actual official permissions and waits for owner confirmation before changing the label', async () => {
+  const { api, saved, emit } = backend();
+  const official: ModelSettingsSnapshot = { threadId: 'official', selection: { model: 'first', effort: 'high' },
+    access: 'danger-full-access', revision: 1 };
+  saved.set('official', official);
+  let finish!: (snapshot: ModelSettingsSnapshot) => void;
+  api.writeAccess = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+  const controller = await client(api);
+  await controller.select('official');
+  await controller.modelSettings.ready('official');
+  expect(controller.getSnapshot().settings.access).toBe('danger-full-access');
+  controller.settings({ access: 'workspace-write' });
+  expect(controller.getSnapshot().settings.access).toBe('danger-full-access');
+  expect(api.writeAccess).toHaveBeenCalledWith('official', 'workspace-write');
+  const confirmed: ModelSettingsSnapshot = { ...official, access: 'workspace-write', revision: 2 };
+  saved.set('official', confirmed); finish(confirmed);
+  await vi.waitFor(() => expect(controller.getSnapshot().settings.access).toBe('workspace-write'));
+  emit({ ...confirmed, access: 'danger-full-access', revision: 3 });
+  expect(controller.getSnapshot().settings.access).toBe('danger-full-access');
+  emit({ ...confirmed, revision: 2 });
+  expect(controller.getSnapshot().settings.access).toBe('danger-full-access');
+  expect(api.write).not.toHaveBeenCalled();
+});
+
+it('keeps authoritative permissions after a rejected update and rejects stale responses after navigation', async () => {
+  const { api, saved } = backend();
+  saved.set('official', { threadId: 'official', selection: { model: 'first', effort: 'high' },
+    access: 'danger-full-access', revision: 1 });
+  api.writeAccess = vi.fn().mockRejectedValue(new Error('permission rejected'));
+  const controller = await client(api);
+  await controller.select('official'); await controller.modelSettings.ready('official');
+  controller.settings({ access: 'read-only' });
+  await vi.waitFor(() => expect(controller.getSnapshot().error).toBe('permission rejected'));
+  expect(controller.getSnapshot().settings.access).toBe('danger-full-access');
+  let finish!: (snapshot: ModelSettingsSnapshot) => void;
+  vi.mocked(api.writeAccess).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  controller.settings({ access: 'workspace-write' });
+  await controller.select('other');
+  controller.settings({ access: 'read-only' });
+  finish({ threadId: 'official', selection: { model: 'first', effort: 'high' }, access: 'workspace-write', revision: 2 });
+  await vi.waitFor(() => expect(controller.modelSettings.access('official')).toBe('workspace-write'));
+  expect(controller.getSnapshot().selected).toBe('other');
+  expect(controller.getSnapshot().settings.access).toBe('read-only');
+});
+
 function backend() {
   const saved = new Map<string | null, ModelSettingsSnapshot>();
   const listeners = new Set<(snapshot: ModelSettingsSnapshot) => void>();

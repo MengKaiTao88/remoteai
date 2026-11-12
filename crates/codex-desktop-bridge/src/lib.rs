@@ -152,6 +152,8 @@ mod activation_tests;
 #[cfg(test)]
 mod model_tests;
 #[cfg(test)]
+mod permission_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod timing_tests;

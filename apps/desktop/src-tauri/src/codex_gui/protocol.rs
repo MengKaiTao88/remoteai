@@ -163,7 +163,7 @@ pub(crate) enum GuiRequest {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum AccessMode {
     ReadOnly,

@@ -1,17 +1,21 @@
 import { resolveModelSelection, type ModelSelection } from "../../../../../shared/conversation/modelSelection";
-import type { GuiState } from "../../../../../shared/conversation/types";
+import type { AccessMode, GuiState } from "../../../../../shared/conversation/types";
 import { appendModelChange, type PendingModelChange } from "./liveModelNotice";
+import { backendSnapshot } from './backendScope';
 
 export interface ModelSettingsSnapshot {
   threadId: string | null;
   selection: ModelSelection | null;
   revision: number;
   liveUpdate?: "applied" | "nextTurn" | "failed";
+  access?: AccessMode;
+  accessUpdate?: 'nextTurn';
 }
 export interface ModelSettingsApi {
   read: (threadId: string | null) => Promise<ModelSettingsSnapshot>;
   write: (threadId: string | null, selection: ModelSelection) => Promise<ModelSettingsSnapshot>;
   subscribe: (receive: (snapshot: ModelSettingsSnapshot) => void) => Promise<() => void>;
+  writeAccess?: (threadId: string, access: AccessMode) => Promise<ModelSettingsSnapshot>;
 }
 interface Host {
   getSnapshot: () => GuiState;
@@ -33,6 +37,7 @@ export class ThreadModelSettings {
   private edits = new Map<string | null, number>();
   private reading = new Map<string | null, Promise<void>>();
   private writing = new Map<string | null, Promise<void>>();
+  private accessWrites = new Map<string, Promise<void>>();
   private dirty = new Map<string | null, ModelSelection>();
   private deferred = new Map<string | null, ModelSettingsSnapshot>();
   private failed = new Set<string | null>();
@@ -47,7 +52,8 @@ export class ThreadModelSettings {
 
   loading(threadId: string | null): boolean {
     return Boolean(this.api && !this.stopSubscription) || this.reading.has(threadId)
-      || this.writing.has(threadId) || this.dirty.has(threadId) || this.failed.has(threadId);
+      || this.writing.has(threadId) || Boolean(threadId && this.accessWrites.has(threadId))
+      || this.dirty.has(threadId) || this.failed.has(threadId);
   }
 
   /** Remote callers wait for the same persisted selection without switching the PC's conversation. */
@@ -59,6 +65,7 @@ export class ThreadModelSettings {
     }
     await this.load(threadId);
     while (this.writing.has(threadId)) await this.writing.get(threadId);
+    if (threadId) await this.accessWrites.get(threadId);
     if (generation !== this.generation || this.loading(threadId)) throw new Error(SYNC_ERROR);
     return this.selection(threadId);
   }
@@ -71,8 +78,33 @@ export class ThreadModelSettings {
     return resolved;
   }
 
+  access(threadId: string | null): AccessMode | undefined { return this.entries.get(threadId)?.access; }
+  accessUpdate(threadId: string | null): 'nextTurn' | undefined { return this.entries.get(threadId)?.accessUpdate; }
+  managesAccess(threadId: string | null): boolean {
+    return threadId !== null && (this.access(threadId) !== undefined || backendSnapshot().backend === 'official');
+  }
+
+  async changeAccess(access: AccessMode, threadId = this.host.getSnapshot().selected): Promise<void> {
+    const api = this.api;
+    if (!threadId || !api?.writeAccess || !this.managesAccess(threadId)) throw new Error(SYNC_ERROR);
+    if (this.accessWrites.has(threadId)) throw new Error(SYNC_ERROR);
+    const generation = this.generation;
+    const writing = api.writeAccess(threadId, access).then(snapshot => {
+      if (generation !== this.generation) return;
+      if (snapshot.threadId !== threadId || snapshot.access !== access) throw new Error(SYNC_ERROR);
+      this.receive(snapshot);
+    }).finally(() => {
+      if (this.accessWrites.get(threadId) === writing) this.accessWrites.delete(threadId);
+      if (generation === this.generation) this.show(threadId, true);
+    });
+    this.accessWrites.set(threadId, writing);
+    this.show(threadId);
+    await writing;
+  }
+
   private show(threadId = this.host.getSnapshot().selected, updateQueue = false) {
-    const selection = this.selection(threadId);
+    const access = this.access(threadId);
+    const selection = { ...this.selection(threadId), ...(access ? { access } : {}) };
     const state = this.host.getSnapshot();
     if (state.selected === threadId) this.host.patch({ settings: { ...state.settings, ...selection },
       modelSettingsLoading: this.loading(threadId) });
@@ -104,7 +136,7 @@ export class ThreadModelSettings {
         fromModel: pending?.fromModel ?? label(previous.model), toModel: label(normalized.model),
         modelChanged: Boolean(pending?.modelChanged) || normalized.model !== previous.model });
     }
-    this.entries.set(threadId, { threadId, selection: normalized,
+    this.entries.set(threadId, { ...this.entries.get(threadId), threadId, selection: normalized,
       revision: this.entries.get(threadId)?.revision ?? 0 });
     this.edits.set(threadId, (this.edits.get(threadId) ?? 0) + 1);
     this.failed.delete(threadId);

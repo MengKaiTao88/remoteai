@@ -191,6 +191,18 @@ impl State {
             .map_err(GuiError::OfficialBridge)
     }
 
+    pub(super) async fn set_access_settings(
+        &self,
+        thread_id: Option<&str>,
+        access: &str,
+    ) -> Result<Value> {
+        let id = thread_id.ok_or(GuiError::InvalidRequest)?;
+        self.client()?
+            .set_access_settings(id, access)
+            .await
+            .map_err(GuiError::OfficialBridge)
+    }
+
     pub(super) async fn close(&self) {
         if let Some(client) = self.0.get() {
             client.close().await;
