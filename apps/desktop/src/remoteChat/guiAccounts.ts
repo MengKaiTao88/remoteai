@@ -6,6 +6,8 @@ import { guiAccountBalances } from './guiAccountBalances';
 import { providerWebsiteOrigin } from '../../../../shared/provider-market/providerWebsite';
 import { switchGuiAccount } from '../pages/codexGui/session';
 import { uiText } from "../../../../shared/localization/uiText";
+import { accountSource, accountSourceLabel } from '../../../../shared/accounts/source';
+import type { GuiEngine } from '../../../../shared/cli-gui/types';
 
 function remainingPercent(value: number | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
@@ -19,35 +21,45 @@ function accountPlan(account: Account) {
 
 function accountDetail(account: Account) {
   const plan = accountPlan(account);
+  if (accountSource(account) === 'claudeCode') return `${accountSourceLabel(account)} · ${plan}`;
   const primary = remainingPercent(account.usage?.primary?.remainingPercent);
   const secondary = remainingPercent(account.usage?.secondary?.remainingPercent);
   return uiText("client.remoteHostData.remainingPrimarySecondary", { plan, primary, secondary });
 }
 
 export async function readGuiAccounts(): Promise<GuiAccountsSnapshot> {
-  const [selection, accounts, providers, aggregates] = await Promise.all([
+  const [selection, accounts, providers, aggregates, cliSelection] = await Promise.all([
     invoke<GuiAccountSelection>('codex_gui_account_selection'),
     invoke<Account[]>('list_accounts'),
     invoke<Provider[]>('list_providers'),
     invoke<AggregateApi[]>('list_aggregate_apis'),
+    invoke<GuiAccountSelection>('codex_gui_account_selection', { engine: 'gemini' }),
   ]);
+  const cliSelected = (kind: 'account' | 'provider' | 'aggregate', id: string) =>
+    cliSelection.kind === kind && cliSelection.id === id;
+  const separateRoute = JSON.stringify(cliSelection) !== JSON.stringify(selection);
   // Only send picker display fields; account credentials and private details stay on the computer.
   return {
     selection, running: true,
     choices: [
       ...accounts.map((account) => ({
         kind: 'account' as const, id: account.id, name: account.email,
-        detail: accountDetail(account), searchDetail: account.note, available: account.localProxyCompatible,
+        ...(separateRoute ? { cliSelected: cliSelected('account', account.id) } : {}),
+        detail: accountDetail(account), searchDetail: account.note,
+        available: accountSource(account) === 'claudeCode' || account.localProxyCompatible,
+        ...(accountSource(account) === 'claudeCode' ? { accountSource: 'claudeCode', active: account.active } : {}),
         plan: accountPlan(account), primaryRemainingPercent: account.usage?.primary?.remainingPercent ?? null,
         secondaryRemainingPercent: account.usage?.secondary?.remainingPercent ?? null,
       })),
       ...providers.map((provider) => ({
         kind: 'provider' as const, id: provider.id, name: provider.name,
+        ...(separateRoute ? { cliSelected: cliSelected('provider', provider.id) } : {}),
         detail: guiAccountBalances.detail(provider), searchDetail: provider.model, available: true,
         websiteUrl: providerWebsiteOrigin(provider),
       })),
       ...(aggregates ?? []).map((aggregate) => ({
         kind: 'aggregate' as const, id: aggregate.id, name: aggregate.name,
+        ...(separateRoute ? { cliSelected: cliSelected('aggregate', aggregate.id) } : {}),
         detail: aggregate.model, available: aggregate.enabled,
       })),
     ],
@@ -57,8 +69,11 @@ export async function readGuiAccounts(): Promise<GuiAccountsSnapshot> {
 export async function selectGuiAccount(value: unknown): Promise<GuiAccountSelection> {
   const selection = object(value);
   if (!['account', 'provider', 'aggregate'].includes(String(selection.kind))
-    || typeof selection.id !== 'string' || !selection.id.trim() || selection.id.length > 160) {
+    || typeof selection.id !== 'string' || !selection.id.trim() || selection.id.length > 160
+    || (selection.engine !== undefined && selection.engine !== 'codex'
+      && selection.engine !== 'claude' && selection.engine !== 'gemini')) {
     return Promise.reject(new Error('请选择可用账户。'));
   }
-  return switchGuiAccount({ kind: selection.kind as 'account' | 'provider' | 'aggregate', id: selection.id });
+  return switchGuiAccount({ kind: selection.kind as 'account' | 'provider' | 'aggregate', id: selection.id },
+    selection.engine as GuiEngine | undefined);
 }

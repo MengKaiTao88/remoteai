@@ -8,7 +8,7 @@ use std::{
 };
 use tauri::{AppHandle, Listener, Manager};
 
-const MAX_TABS: usize = 32;
+pub(super) const MAX_TABS: usize = 32;
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct Tab {
@@ -16,6 +16,7 @@ pub(super) struct Tab {
     pub thread_id: String,
     pub url: String,
     pub title: String,
+    pub loading: bool,
     #[serde(skip)]
     pub request_id: String,
     #[serde(skip)]
@@ -35,14 +36,26 @@ pub(crate) struct State {
 }
 
 impl State {
-    pub(super) fn get(&self, thread: &str, id: &str) -> Result<Tab> {
-        self.tabs
+    pub(super) fn loading(&self, id: &str, loading: bool) -> Result<()> {
+        if let Some(tab) = self
+            .tabs
             .lock()
             .map_err(|_| Error::Unavailable)?
-            .get(id)
-            .filter(|tab| tab.thread_id == thread)
-            .cloned()
-            .ok_or(Error::Missing)
+            .get_mut(id)
+        {
+            tab.loading = loading;
+        }
+        Ok(())
+    }
+    pub(super) fn get(&self, thread: &str, id: &str) -> Result<Tab> {
+        self.find(thread, id)?.ok_or(Error::Missing)
+    }
+    pub(super) fn find(&self, thread: &str, id: &str) -> Result<Option<Tab>> {
+        let tabs = self.tabs.lock().map_err(|_| Error::Unavailable)?;
+        match tabs.get(id) {
+            Some(tab) if tab.thread_id != thread => Err(Error::Missing),
+            tab => Ok(tab.cloned()),
+        }
     }
     pub(super) fn list(&self, thread: &str) -> Result<Value> {
         let mut tabs: Vec<Tab> = self
@@ -102,25 +115,27 @@ pub(super) async fn open(
         thread_id: thread.into(),
         url: address.into(),
         title: url.host_str().unwrap_or_default().into(),
+        loading: true,
         request_id: request.into(),
         initial_url: address.into(),
         created_at: Instant::now(),
         operation: Arc::new(tokio::sync::Mutex::new(())),
     };
+    state
+        .tabs
+        .lock()
+        .map_err(|_| Error::Unavailable)?
+        .insert(tab.id.clone(), tab.clone());
     let (handle, id) = (app.clone(), tab.id.clone());
     let created = tauri::async_runtime::spawn_blocking(move || create(&handle, &id, url))
         .await
         .map_err(|_| Error::Unavailable)
         .and_then(|result| result);
     if let Err(error) = created {
-        app.unlisten(tab.listener);
+        state.remove(app, &tab.id)?;
         return Err(error);
     }
-    state
-        .tabs
-        .lock()
-        .map_err(|_| Error::Unavailable)?
-        .insert(tab.id.clone(), tab.clone());
+    let tab = state.get(thread, &tab.id)?;
     super::opened(app, thread, &tab);
     Ok(json!({"tab":tab}))
 }
@@ -159,3 +174,7 @@ fn create(app: &AppHandle, id: &str, url: url::Url) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "registry_tests.rs"]
+mod tests;

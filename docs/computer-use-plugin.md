@@ -1,7 +1,7 @@
 # CUA Computer Use for Codex GUI
 
 Remote AI's community marketplace includes **Computer Use 电脑助手**. It installs CUA Driver
-0.37.0-remoteai.2 (based on upstream 0.37.0) for the selected Codex Home and exposes its native tools through STDIO MCP.
+0.37.0-remoteai.4 (based on upstream 0.37.0) for the selected Codex Home and exposes its native tools through STDIO MCP.
 The installer supports Windows x64/ARM64 and macOS 13+ on Intel and Apple Silicon. macOS uses the
 pinned universal binary archive. Older macOS versions and other operating systems show an unsupported state.
 
@@ -30,6 +30,44 @@ installation, or replace a foreign configuration. Checks serialize with installa
 An enabled card means the files and configuration are present, not that a particular conversation has
 completed an MCP handshake. Driver startup failures remain visible as tool/connection errors in Codex.
 Windows secure desktop, UAC prompts and elevated applications remain subject to Windows and CUA's limits.
+
+### Windows administrator windows
+
+The shield in the computer assistant card opens a compact permission dialog without increasing the card height.
+**Allow administrator windows** is off by default. Checking it only saves the preference for that Codex Home;
+it does not request elevation. After opting in, the first local Codex GUI entry in each Remote AI process requests
+Windows UAC confirmation. Returning to the page or reconnecting in that run never repeats the prompt, including
+after cancellation. The dialog offers an explicit retry when an attempt failed. Browser and remote connections,
+background startup, status polling and MCP tool calls never request elevation.
+
+Consent starts an independent administrator broker in the same Windows account and interactive session.
+Remote AI and its conversation service keep their original privileges. Every MCP connection gets its own
+`cua-driver mcp --direct` runtime; the help assistant follows the same launcher. Grants are tied to the Home's
+installation generation and the original desktop process identity. Unchecking the preference, disabling or
+uninstalling the assistant, replacing its installation, or exiting the desktop ends the broker and its connections.
+An unexpected broker exit updates the managed MCP configuration so the next message can reconnect normally.
+
+Named pipes reject network clients, restrict access to the same Windows user, and validate peer process identities.
+The elevated broker hashes every pinned Windows package file and holds read-only file/directory locks until it exits.
+It never accepts an arbitrary executable or command to launch. UAC secure-desktop prompts still require the user;
+`launch_app` continues to start ordinary applications with a standard-user token.
+
+When updating the pinned CUA release, download both verified Windows archives as `windows-x86_64.zip` and
+`windows-arm64.zip`, then run `apps/desktop/scripts/record-cua-windows-files.ps1 -ArchiveDirectory <directory>`.
+It checks the archives against `assets.rs` before recording individual hashes. Commit the generated inventory;
+the version and completeness regression tests prevent an upgrade from silently retaining an obsolete inventory.
+
+The interactive regression uses a temporary Home and a disposable administrator window:
+
+```powershell
+cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --bin csw
+$env:CSW_CUA_DRIVER_DIRECTORY = '<verified extracted Windows CUA directory>'
+$env:CSW_CUA_ADMIN_TEST = '1'
+node apps/desktop/scripts/test-computer-use-administrator.mjs
+```
+
+The debug-only fixture checks opt-in, repeat GUI entry, real elevated input, ordinary Home isolation, revocation
+and owner-exit cleanup. It asks for normal UAC consent; it does not alter UAC policy or production Homes.
 
 ### macOS permissions
 
@@ -67,8 +105,8 @@ use screenshots to verify desktop actions.
 - The release version and each package's official SHA-256 are pinned in code. Downloads are bounded,
   verified before extraction, and extracted through an exact filename allowlist into a staging directory.
   The installer uses the application's proxy configuration. It does not execute the upstream installer.
-- Binaries live under `%LOCALAPPDATA%/dev.codex.switch/computer-use/0.37.0-remoteai.2-windows-<architecture>`.
-  On macOS they live under `~/Library/Application Support/dev.codex.switch/computer-use/0.37.0-remoteai.2-darwin-universal`.
+- Binaries live under `%LOCALAPPDATA%/dev.codex.switch/computer-use/0.37.0-remoteai.4-windows-<architecture>`.
+  On macOS they live under `~/Library/Application Support/dev.codex.switch/computer-use/0.37.0-remoteai.4-darwin-universal`.
   The flat macOS tarball is extracted through a filename allowlist; executable bits are restored,
   while links, duplicates, missing members and oversized files are rejected.
   They are shared only as cached files. Uninstalling one Home retains this cache for other Homes and
@@ -106,12 +144,12 @@ it does not automatically register this source bundle in OpenAI's official plugi
 
 ```powershell
 npm run build:desktop
-npm exec -w @codex-switch/desktop -- vitest run --pool=threads src/pages/skillsMarket/ComputerUseCard/useComputerUse.test.tsx src/pages/codexGui/ConversationDetails.test.tsx
+npm exec -w @codex-switch/desktop -- vitest run --config scripts/vitest.config.ts --pool=threads src/pages/skillsMarket/ComputerUseCard/useComputerUse.test.tsx src/pages/codexGui/ConversationDetails.test.tsx
 cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --test codex_switch_lib_tests
 cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --bin csw
-$env:CSW_CUA_DRIVER_DIRECTORY = '<verified extracted CUA 0.37.0-remoteai.2 directory>'
+$env:CSW_CUA_DRIVER_DIRECTORY = '<verified extracted CUA 0.37.0-remoteai.4 directory>'
 $env:CSW_CUA_CODEX_BINARY = '<GUI-managed codex.exe path>'
 node --test scripts/computer-use-protocol.test.mjs
 ```
@@ -128,7 +166,7 @@ retry, later version changes, and disable/removal/reinstall while a download is 
 On macOS, build the debug `csw` binary, then run the same protocol script with these variables set:
 
 ```sh
-export CSW_CUA_DRIVER_DIRECTORY='<verified extracted CUA 0.37.0-remoteai.2 universal binary directory>'
+export CSW_CUA_DRIVER_DIRECTORY='<verified extracted CUA 0.37.0-remoteai.4 universal binary directory>'
 export CSW_CUA_CODEX_BINARY='<GUI-managed codex path>'
 node --test scripts/computer-use-protocol.test.mjs
 ```
@@ -142,7 +180,7 @@ it does not grant TCC permissions or claim an interactive desktop test.
 ## Upstream
 
 - [CUA source and MIT license](https://github.com/trycua/cua)
-- [Pinned Remote AI driver release](https://github.com/piperhex/remoteai/releases/tag/cua-v0.37.0-remoteai.2)
+- [Pinned Remote AI driver release](https://github.com/piperhex/remoteai/releases/tag/cua-v0.37.0-remoteai.4)
 - [Independent CUA package and release workflow](../packages/cua/README.md)
 - [Driver integration boundaries](https://github.com/trycua/cua/blob/cua-driver-rs-v0.37.0/libs/cua-driver/README.md)
 - [Windows MCP tools](https://cua.ai/docs/reference/cua-driver/mcp-tools-windows)

@@ -35,9 +35,38 @@ pub(crate) struct HistoryWindow {
     #[serde(default)]
     older: bool,
     page_size: Option<usize>,
+    #[serde(default)]
+    defer_processes: bool,
 }
 
 impl HistoryWindow {
+    pub(super) fn defers_processes(&self) -> bool {
+        self.defer_processes
+    }
+
+    pub(super) fn has_enough_history(&self, turns: &[Value]) -> bool {
+        let mut before = 0;
+        let size = self.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
+        for turn in turns {
+            let starts = page_starts(turn, self);
+            let group = self
+                .start
+                .as_ref()
+                .filter(|cursor| turn["id"].as_str() == Some(cursor.turn_id.as_str()))
+                .and_then(|cursor| {
+                    items(turn)
+                        .iter()
+                        .position(|item| item["id"].as_str() == Some(cursor.item_id.as_str()))
+                })
+                .and_then(|index| starts.iter().rposition(|start| *start <= index));
+            if let Some(group) = group {
+                return !self.older || before + group >= size;
+            }
+            before += starts.len();
+        }
+        self.start.is_none() && before >= size
+    }
+
     pub(super) fn validate(&self) -> Result<()> {
         if self.page_size == Some(0) {
             return Err(GuiError::InvalidRequest);
@@ -64,15 +93,17 @@ fn boundary(turns: &[Value], window: &HistoryWindow) -> (usize, usize) {
     let mut count = 0;
     let mut anchor = None;
     for turn in turns {
+        let starts = page_starts(turn, window);
         if let Some(cursor) = &window.start {
             if turn["id"].as_str() == Some(&cursor.turn_id) {
                 anchor = items(turn)
                     .iter()
                     .position(|item| item["id"].as_str() == Some(&cursor.item_id))
+                    .and_then(|index| starts.iter().rposition(|start| *start <= index))
                     .map(|index| count + index);
             }
         }
-        count += items(turn).len();
+        count += starts.len();
     }
     let size = window.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
     let start = anchor.map_or_else(
@@ -82,19 +113,37 @@ fn boundary(turns: &[Value], window: &HistoryWindow) -> (usize, usize) {
     (start, count)
 }
 
+fn page_starts(turn: &Value, window: &HistoryWindow) -> Vec<usize> {
+    if window.defer_processes {
+        super::process_details::groups(items(turn))
+            .iter()
+            .map(|range| range.start)
+            .collect()
+    } else {
+        (0..items(turn).len()).collect()
+    }
+}
+
 /// Match the remote history cursor contract; retain all items from the boundary to the live tail.
 /// Move values instead of cloning potentially large tool results or inline images.
 pub(super) fn apply(data: &mut Value, window: &HistoryWindow) -> Result<()> {
     window.validate()?;
     let upstream_more = data["historyMore"] == true;
+    if window.defer_processes {
+        super::process_details::summarize_thread(&mut data["thread"]);
+    }
     let turns = data["thread"]["turns"]
         .as_array_mut()
         .ok_or(GuiError::InvalidRequest)?;
     let (start, count) = boundary(turns, window);
     let mut offset = 0;
     turns.retain_mut(|turn| {
-        let length = items(turn).len();
-        let from = start.saturating_sub(offset).min(length);
+        let starts = page_starts(turn, window);
+        let length = starts.len();
+        let from = starts
+            .get(start.saturating_sub(offset))
+            .copied()
+            .unwrap_or(items(turn).len());
         offset += length;
         let keep = offset > start || (offset == count && length == 0);
         if keep && from > 0 {

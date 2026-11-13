@@ -28,6 +28,18 @@ pub(crate) enum GuiAccountSelection {
     Aggregate(String),
 }
 
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum RoutingEngine {
+    Codex,
+    Claude,
+    Gemini,
+}
+
+fn standalone(engine: Option<RoutingEngine>) -> bool {
+    matches!(engine, Some(RoutingEngine::Claude | RoutingEngine::Gemini))
+}
+
 /// The revision also changes for a manual re-selection of the same account (A → B → A).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct SelectionSnapshot {
@@ -224,22 +236,36 @@ fn validate<R: Runtime>(
 #[tauri::command]
 pub(crate) async fn codex_gui_account_selection(
     app: AppHandle,
+    engine: Option<RoutingEngine>,
 ) -> Result<GuiAccountSelection, String> {
-    tauri::async_runtime::spawn_blocking(move || read(&app))
-        .await
-        .map_err(|_| SelectionError::Storage.to_string())?
-        .map_err(|error| error.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        if standalone(engine) {
+            snapshot(&app).map(|value| value.selection)
+        } else {
+            read(&app)
+        }
+    })
+    .await
+    .map_err(|_| SelectionError::Storage.to_string())?
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 pub(crate) async fn codex_gui_switch_account(
     app: AppHandle,
     selection: GuiAccountSelection,
+    engine: Option<RoutingEngine>,
 ) -> Result<GuiAccountSelection, String> {
-    tauri::async_runtime::spawn_blocking(move || switch_account(&app, selection))
-        .await
-        .map_err(|_| SelectionError::Storage.to_string())?
-        .map_err(|error| error.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        if standalone(engine) {
+            switch_standalone(&app, selection)
+        } else {
+            switch_account(&app, selection)
+        }
+    })
+    .await
+    .map_err(|_| SelectionError::Storage.to_string())?
+    .map_err(|error| error.to_string())
 }
 
 /// Switch only GUI routing. Call from a blocking worker or the remote control thread.
@@ -251,6 +277,13 @@ pub(crate) fn switch_account<R: Runtime>(
         validate(app, &selection)?;
         return official::switch(app, selection);
     }
+    switch_standalone(app, selection)
+}
+
+fn switch_standalone<R: Runtime>(
+    app: &AppHandle<R>,
+    selection: GuiAccountSelection,
+) -> Result<GuiAccountSelection, SelectionError> {
     validate(app, &selection)?;
     let _guard = SELECTION_LOCK.lock().map_err(|_| SelectionError::Storage)?;
     let root = app
@@ -271,6 +304,15 @@ fn expire_model_cache<R: Runtime>(app: &AppHandle<R>) -> Result<(), SelectionErr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn alternate_engines_keep_their_proxy_route_when_official_codex_is_selected() {
+        assert!(!standalone(None));
+        assert!(!standalone(Some(RoutingEngine::Codex)));
+        assert!(standalone(Some(RoutingEngine::Claude)));
+        assert!(standalone(Some(RoutingEngine::Gemini)));
+        assert!(serde_json::from_str::<RoutingEngine>("\"unknown\"").is_err());
+    }
 
     #[test]
     fn summary_uses_gui_selection_without_shared_groups_or_concurrent_accounts() {

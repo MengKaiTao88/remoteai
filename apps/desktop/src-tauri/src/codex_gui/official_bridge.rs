@@ -72,6 +72,28 @@ impl State {
     }
 
     pub(super) async fn request(&self, request: GuiRequest) -> Result<GuiResponse> {
+        if let GuiRequest::ProcessDetails(target) = request {
+            for id in [
+                &target.thread_id,
+                &target.turn_id,
+                &target.item_id,
+                &target.end_item_id,
+            ] {
+                super::protocol::id(id)?;
+            }
+            // The official gateway owns authorization and bounded saved-history reads.
+            // Its IPC protocol differs from the standalone engine's turn-list RPC.
+            let mut data = self
+                .client()?
+                .request(json!({"operation":"read",
+                "threadId":target.thread_id}))
+                .await
+                .map_err(GuiError::OfficialBridge)?;
+            return Ok(GuiResponse {
+                data: json!({"items":
+                super::process_details::prepare_items(&mut data, &target)?}),
+            });
+        }
         let mut window = None;
         let mut summary = false;
         let mut details = true;

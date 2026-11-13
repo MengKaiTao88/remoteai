@@ -176,6 +176,12 @@ Its downloaded UI is controlled by that site's operator; local appearance change
 public site's static files. The customized Web build is available separately for a user-controlled host.
 This integration does not patch the official Codex desktop client's own UI or message queue.
 
+Official-mode artifact downloads resolve project locations from the official owner's thread metadata,
+then use Remote AI's existing host file streams. Download open/browse, chunk reads, manifests and close
+requests stay on that transport rather than entering the bridge's closed chat-operation set. Transfer
+IDs continue to isolate handles, with existing local-path checks, size limits, expiry and archive polling.
+This host-side integration works with the existing public Web client without redeploying that site.
+
 For a fresh local Web dependency installation, prepare the customized language archive before building.
 Run `npm run pack:release` in `packages/i18n`, then run the following in `apps/web`:
 

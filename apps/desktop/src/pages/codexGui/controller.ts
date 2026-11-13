@@ -18,7 +18,7 @@ import { GuiReadState } from "./threadReadState";
 import type { AttachmentReference } from "../../../../../shared/conversation/attachmentTypes";
 import { deleteGuiThread } from "./deleteThread";
 import { reduceEvent } from "../../../../../shared/conversation/events";
-import { conversationSnapshot as conversation } from './conversationSnapshot';
+import { resumedConversationSnapshot as conversation } from './conversationSnapshot';
 import { withSentMessage } from '../../../../../shared/conversation/sentMessages';
 import { acceptGuiTurn } from './acceptedTurn';
 import { MessageQueue } from "./messageQueue";
@@ -558,6 +558,7 @@ export class GuiController {
 
   activate = () => { this.disposed = false; this.modelCatalog.activate(); };
   suspend = () => {
+    ++this.selectionGeneration;
     void watchConversation(this, null).catch(this.report);
     this.threadList.invalidate();
     this.modelCatalog.suspend();
@@ -566,6 +567,7 @@ export class GuiController {
     this.patch({ ...reduceEvent(this.state, { method: "connection/closed", params: {} }), error: "" });
   };
   dispose = () => {
+    ++this.selectionGeneration;
     void watchConversation(this, null).catch(error => console.error('Could not release conversation subscription', error));
     this.flushStream();
     this.threadList.invalidate();

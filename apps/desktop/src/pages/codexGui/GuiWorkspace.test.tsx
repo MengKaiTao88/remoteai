@@ -3,6 +3,7 @@ import { act, useEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GuiWorkspace } from './GuiWorkspace';
+import { useCliGui } from '../../../../../shared/cli-gui/context';
 import type { GuiCloudIdentity, GuiComputer } from '../../../../../shared/conversation/remote/types';
 import type { ThreadNavigation } from './useNotificationNavigation';
 
@@ -10,7 +11,7 @@ const fixture = vi.hoisted(() => ({ current: null as GuiComputer | null, mounts:
   identity: null as GuiCloudIdentity | null, active: true,
   notificationTarget: undefined as ThreadNavigation | undefined, choose: vi.fn(),
   remoteMounts: vi.fn(), remoteStops: vi.fn(), replies: new Map<string, (reply: string) => void>(),
-  notify: (_message: string) => {} }));
+  notify: (_message: string) => {}, engines: [] as (string | undefined)[] }));
 vi.mock('../../api/backend', () => ({ isDesktopApp: true }));
 vi.mock('../../../../../shared/platform/localBackend', async () => await import('../../api/backend'));
 vi.mock('./remote/useGuiComputers', () => ({ useGuiComputers: () => ({
@@ -18,8 +19,14 @@ vi.mock('./remote/useGuiComputers', () => ({ useGuiComputers: () => ({
   choose: fixture.choose,
 }) }));
 vi.mock('./useGuiLayout', () => ({ useGuiLayout: () => ({ focused: false, onToggleFocus() {} }) }));
-vi.mock('./useGuiAccountSelection', () => ({ useGuiAccountSelection: () => ({ accounts: [], providers: [] }) }));
+vi.mock('./useGuiAccountSelection', () => ({ useGuiAccountSelection: () => {
+  fixture.engines.push(useCliGui()?.state.engine);
+  return { accounts: [], providers: [] };
+} }));
 vi.mock('./ProxyAccountPicker', () => ({ ProxyAccountPicker: () => null }));
+vi.mock('../../../../../shared/cli-gui/localTransport', () => ({ localCliTransport: {
+  request: vi.fn().mockResolvedValue({}), subscribe: vi.fn().mockResolvedValue(() => {}),
+} }));
 vi.mock('./remote/RemoteGuiWorkspace', () => ({ default: function RemoteConversation({ device, active }: {
   device: GuiComputer; active: boolean;
 }) {
@@ -34,6 +41,7 @@ vi.mock('./remote/RemoteGuiWorkspace', () => ({ default: function RemoteConversa
   </div>;
 } }));
 vi.mock('../CodexGuiPage', () => ({ CodexGuiPage: function LocalConversation({ active }: { active: boolean }) {
+  const cli = useCliGui();
   const [draft, setDraft] = useState('unfinished local draft');
   const [reply, setReply] = useState('streaming');
   useEffect(() => {
@@ -41,7 +49,8 @@ vi.mock('../CodexGuiPage', () => ({ CodexGuiPage: function LocalConversation({ a
     return () => { fixture.stops++; fixture.notify = () => {}; };
   }, []);
   return <div data-local-active={active}><input value={draft} onChange={event => setDraft(event.target.value)} />
-    <output>{reply}</output></div>;
+    <output>{reply}</output><button data-change-engine onClick={() => cli?.controller.patch({ engine: 'gemini' })} />
+  </div>;
 } }));
 
 let root: Root;
@@ -56,12 +65,22 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   fixture.current = null; fixture.mounts = 0; fixture.stops = 0; fixture.active = true;
   fixture.notificationTarget = undefined;
+  fixture.engines = [];
   fixture.choose.mockReset().mockImplementation((device: GuiComputer | null) => { fixture.current = device; });
   fixture.identity = { baseUrl: 'https://fixture.test', userId: 'owner' };
   fixture.remoteMounts.mockClear(); fixture.remoteStops.mockClear(); fixture.replies.clear();
   host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
+
+it('shares the selected engine with account routing without remounting the local draft', async () => {
+  await render();
+  expect(fixture.engines.at(-1)).toBe('codex');
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-change-engine]')!.click());
+  expect(fixture.engines.at(-1)).toBe('gemini');
+  expect(fixture.mounts).toBe(1);
+  expect(host.querySelector<HTMLInputElement>('[data-local-active] input')?.value).toBe('unfinished local draft');
+});
 
 it('returns to the local host for a notification without preventing later remote host selection', async () => {
   fixture.current = office; await render();

@@ -1,3 +1,6 @@
+import { ApplicationTypography } from '../../../shared/appearance/ApplicationTypography';
+import { repositoryFixture } from './git-repositories-fixture';
+import { largeGitFixture } from './git-large-fixture';
 import { useContext, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ConfigProvider, theme } from 'antd';
@@ -29,8 +32,12 @@ import 'antd/dist/reset.css';
 const params = new URLSearchParams(location.search);
 const mode = params.get('mode') ?? 'local';
 const dark = params.has('dark');
+const changes = { turns: [{ id: 'edit', status: 'completed', items: [],
+  diff: 'diff --git a/example.ts b/example.ts\n--- a/example.ts\n+++ b/example.ts\n@@ -1 +1 @@\n-old\n+updated\n' }] };
 const client = createGuiToolsClient(<T,>(request: object) => browserRequest<T>(request as ProjectBrowserRequest));
-client.git = createAsyncGitFixture();
+client.git = params.has('submodules') ? repositoryFixture(browserRoot) : createAsyncGitFixture();
+if (params.has('largeGit')) client.git = largeGitFixture();
+if (params.has('font')) localStorage.setItem('codex-switch:global-font-size', params.get('font')!);
 let gitReads = 0;
 const readChanges = client.git.changes;
 client.git.changes = async cwd => { document.body.dataset.gitReads = String(++gitReads); return readChanges(cwd); };
@@ -64,7 +71,7 @@ function Tools({ cwd, onProjectChange }: { cwd: string; onProjectChange: (cwd: s
   const workspace = useContext(WorkspaceDrawerContext)!;
   const [review, setReview] = useState(false);
   return <div style={{ padding: 20, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-    <span>对话</span><ConversationChangesButton />
+    <span>对话</span><ConversationChangesButton value={params.has('changes') ? changes : undefined} />
     <select aria-label="Project" value={cwd} onChange={event => onProjectChange(event.target.value)}>
       <option value={browserRoot}>Project A</option><option value={`${browserRoot}/other`}>Project B</option>
     </select>
@@ -91,6 +98,9 @@ function App() {
     : <ChatFileContext.Provider value={remoteFiles}>
       <ChatDetailsWorkspace selected={cwd} active enabled>{tools}</ChatDetailsWorkspace>
     </ChatFileContext.Provider>;
+  if (params.has('submodules') || params.has('largeGit')) return <ConfigProvider theme={{ algorithm: [
+    dark ? theme.darkAlgorithm : theme.defaultAlgorithm, ...(mode === 'web' ? [] : [theme.compactAlgorithm]),
+  ] }}><ApplicationTypography><div style={{ height: '100dvh' }}>{content}</div></ApplicationTypography></ConfigProvider>;
   return <ConfigProvider theme={{ algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm }}>
     <div style={{ height: '100dvh' }}>{content}</div>
   </ConfigProvider>;

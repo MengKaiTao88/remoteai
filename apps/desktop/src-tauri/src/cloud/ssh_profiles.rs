@@ -1,9 +1,19 @@
 use super::*;
+mod agent;
+pub(super) mod cache;
 mod credentials;
+mod execution;
+mod terminal;
+pub(crate) use agent::agent_ssh_profiles;
 use credentials::{SshCredentialReply, SshCredentials};
+pub(crate) use execution::agent_ssh_execute;
+pub(crate) use terminal::{agent_ssh_terminal, close_agent_ssh_terminals, TerminalRequest};
 
+/// Stable saved-connection errors shared by the UI and the authenticated agent boundary.
 #[derive(Debug, thiserror::Error)]
-enum ProfileError {
+pub(crate) enum ProfileError {
+    #[error("client.ssh.trustHost")]
+    Untrusted,
     #[error("client.ssh.signIn")]
     Authentication,
     #[error("client.ssh.invalid")]
@@ -20,7 +30,7 @@ enum ProfileError {
     UpdateRequired,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct SshProfile {
     id: String,
@@ -37,7 +47,7 @@ pub(crate) struct SshProfile {
     x11: Option<csw_ssh_client::X11>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum Authentication {
     Password,
@@ -168,6 +178,7 @@ fn exchange<R: Runtime>(
         return Err(ProfileError::Authentication);
     }
     let client = api_client().map_err(|_| ProfileError::Unavailable)?;
+    let generation = cache::next_generation(&credentials);
     let response = cloud_request(
         app,
         &client,
@@ -184,7 +195,14 @@ fn exchange<R: Runtime>(
     ) {
         return Err(ProfileError::Authentication);
     }
-    read_response(response, fetch_credentials)
+    let reply = read_response(response, fetch_credentials)?;
+    ensure_cloud_session(app, &credentials).map_err(|_| ProfileError::Authentication)?;
+    if let SshProfileReply::Profiles(profiles) = &reply {
+        cache::update(app, &identity, &credentials, |cache| {
+            cache.observe(profiles, generation)
+        });
+    }
+    Ok(reply)
 }
 
 fn read_response(

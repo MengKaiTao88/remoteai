@@ -18,7 +18,7 @@ interface HistoryHost {
 export class ConversationHistory {
   private reads = new Map<string, Promise<void>>();
   private events = new Map<string, GuiEvent[]>();
-  private older = new Map<string, Promise<Turn[] | undefined>>();
+  private older = new Map<string, { current: () => boolean; reading: Promise<Turn[] | undefined> }>();
   constructor(private host: HistoryHost) {}
 
   receive(event: GuiEvent) {
@@ -31,7 +31,7 @@ export class ConversationHistory {
     const before = this.host.getSnapshot().conversations[id];
     const start = before?.historyPage?.start;
     const { thread, page } = await guiApi.request<HistoryResponse>({ operation: 'read', threadId: id,
-      window: { start } });
+      window: { start, deferProcesses: true } });
     const state = this.host.getSnapshot();
     if (!current()) return;
     this.host.patch({ conversations: { ...state.conversations,
@@ -44,9 +44,11 @@ export class ConversationHistory {
 
   loadOlder(id: string, current: () => boolean): Promise<Turn[] | undefined> {
     const pending = this.older.get(id);
-    if (pending) return pending;
-    const reading = this.readOlder(id, current).finally(() => this.older.delete(id));
-    this.older.set(id, reading);
+    if (pending?.current()) return pending.reading;
+    const reading = this.readOlder(id, current).finally(() => {
+      if (this.older.get(id)?.reading === reading) this.older.delete(id);
+    });
+    this.older.set(id, { current, reading });
     return reading;
   }
 
@@ -54,10 +56,14 @@ export class ConversationHistory {
     const previous = this.host.getSnapshot().conversations[id];
     if (!previous?.historyPage?.hasMore) return;
     const { thread, page } = await guiApi.request<HistoryResponse>({ operation: 'read', threadId: id,
-      window: { start: previous.historyPage.start, older: true } });
+      window: { start: previous.historyPage.start, older: true, deferProcesses: true } });
     if (!current()) return;
     const state = this.host.getSnapshot();
-    const loaded = { ...conversation(thread, state.conversations[id], previous), historyPage: page };
+    const latest = state.conversations[id];
+    if (!latest || thread.id !== id || latest.thread.id !== id
+      || latest.historyPage?.start?.turnId !== previous.historyPage.start?.turnId
+      || latest.historyPage?.start?.itemId !== previous.historyPage.start?.itemId) return;
+    const loaded = { ...conversation(thread, latest, previous), historyPage: page };
     this.host.patch({ conversations: { ...state.conversations, [id]: loaded } });
     this.host.loaded(id);
     return loaded.turns;
@@ -76,7 +82,7 @@ export class ConversationHistory {
     const events: GuiEvent[] = [];
     this.events.set(id, events);
     const { thread, page } = await guiApi.request<HistoryResponse>({ operation: 'read', threadId: id,
-      window: { start: before?.historyPage?.start } });
+      window: { start: before?.historyPage?.start, deferProcesses: true } });
     const state = this.host.getSnapshot();
     // Lifecycle events received during the read are newer than its history response.
     if (state.conversations[id] !== before) return;

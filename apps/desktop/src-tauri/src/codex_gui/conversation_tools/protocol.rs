@@ -6,6 +6,7 @@ use super::{Error, Result};
 use crate::codex_gui::model_settings::{self, Effort, ModelSelection};
 
 pub(super) const MAX_MESSAGE_BYTES: usize = 64_000;
+pub(super) const MAX_TITLE_CHARACTERS: usize = 120;
 pub(super) const SERVER_NAME: &str = "codex_gui";
 pub(super) const TOOLS: &str = include_str!("tools.json");
 
@@ -14,6 +15,14 @@ pub(super) fn tools() -> Result<Value> {
     let browser: Value = serde_json::from_str(include_str!("browser_tools.json"))?;
     tools["tools"].as_array_mut().ok_or(Error::Invalid)?.extend(
         browser["tools"]
+            .as_array()
+            .ok_or(Error::Invalid)?
+            .iter()
+            .cloned(),
+    );
+    let ssh: Value = serde_json::from_str(include_str!("ssh_tools.json"))?;
+    tools["tools"].as_array_mut().ok_or(Error::Invalid)?.extend(
+        ssh["tools"]
             .as_array()
             .ok_or(Error::Invalid)?
             .iter()
@@ -28,6 +37,8 @@ pub(super) struct Create {
     pub request_id: String,
     pub message: String,
     pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -76,6 +87,9 @@ impl Mutation {
         identifier(self.request_id())?;
         let message = match self {
             Self::Create(args) => {
+                if let Some(title) = &args.title {
+                    validate_title(title)?;
+                }
                 if let Some(model) = &args.model {
                     model_settings::validate_model(model).map_err(|_| Error::Invalid)?;
                 }
@@ -92,6 +106,16 @@ impl Mutation {
         }
         Ok(())
     }
+}
+
+fn validate_title(title: &str) -> Result<()> {
+    if title.trim().is_empty()
+        || title.chars().count() > MAX_TITLE_CHARACTERS
+        || title.chars().any(char::is_control)
+    {
+        return Err(Error::Invalid);
+    }
+    Ok(())
 }
 
 pub(super) enum Tool {

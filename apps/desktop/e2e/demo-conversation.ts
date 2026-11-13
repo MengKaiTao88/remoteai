@@ -26,6 +26,8 @@ import { demoVideoResponse, seedDemoVideo } from './demo-videos';
 import { demoChatParityOperation, seedChatParity, seedAsyncQuestion } from './demo-chat-parity';
 import { configureDownloadFixture, demoDownloads, seedDownloads } from './demo-downloads';
 import { chatHandshake } from '../../../shared/remote-chat/handshake';
+import { updateThread } from '../../../shared/remote-chat/client/events';
+import { demoConversationSync } from './demo-conversation-sync';
 
 type DemoLink = Pick<ChatLink, 'send'>;
 
@@ -65,6 +67,17 @@ export function demoState() {
     sidebar: guiSidebar.snapshot(), queue: demoQueueSnapshot() };
 }
 
+export async function emitDemoEvent(event: GuiEvent, link: DemoLink): Promise<void> {
+  const thread = threads.get(event.params.threadId ?? event.params.thread?.id ?? '');
+  if (thread) {
+    Object.assign(thread, updateThread(thread, event));
+    if (event.method === 'turn/started' || event.method === 'turn/completed') {
+      thread.status = { type: event.method === 'turn/started' ? 'active' : 'idle' };
+    }
+  }
+  await link.send({ kind: 'event', event });
+}
+
 export function demoResponse(request: RpcRequest, link: DemoLink): unknown {
   sidebarLink = link;
   if (request.method === 'connect') {
@@ -73,6 +86,9 @@ export function demoResponse(request: RpcRequest, link: DemoLink): unknown {
   }
   const input = (request.body ?? {}) as Record<string, unknown>;
   operations.push({ ...input, method: request.method });
+  if (input.operation === 'conversationSync') {
+    return demoConversationSync(input.request);
+  }
   const download = demoDownloads(input);
   if (download) return download.value;
   if (input.operation === 'guiProjects') {

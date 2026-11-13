@@ -3,7 +3,8 @@ import { ChatLink } from '../../../shared/remote-chat/link';
 import { RtcPeer } from '../../../shared/remote-chat/rtcPeer';
 import { ChatRpc } from '../../../shared/remote-chat/rpc';
 import { parseMessage, type IceServer, type RpcMessage, type Signal } from '../../../shared/remote-chat/protocol';
-import { demoResponse, demoState, changeDemoSidebar } from './demo-conversation';
+import { demoResponse, demoState, changeDemoSidebar, emitDemoEvent } from './demo-conversation';
+import type { GuiEvent } from '../../../shared/conversation/types';
 import { setDemoReview } from './demo-task-review';
 import { changeDemoComposer } from './demo-composer';
 import { demoSkillsDelay, setDemoSkills } from './demo-skills';
@@ -29,6 +30,7 @@ const modes: string[] = [];
 const errors: string[] = [];
 let executions = 0;
 let settingsDelay = 0;
+let submissionDelay = 0;
 let historyDelay = 0;
 let tokenSummaryDelay = 0;
 let legacyHistory = false;
@@ -97,11 +99,14 @@ async function receive({ data }: MessageEvent<string>) {
         }
         const target = sessionLink;
         const isSettings = (message.body as { operation?: string } | undefined)?.operation === 'composerSet';
+        const isSubmission = ['queueEnqueue', 'send', 'steer'].includes(
+          String((message.body as { operation?: string })?.operation));
         const isHistory = (message.body as { operation?: string } | undefined)?.operation === 'syncHistory';
         const isSkills = (message.body as { operation?: string } | undefined)?.operation === 'skills';
         const isTokenSummary = (message.body as { operation?: string } | undefined)?.operation === 'tokenSummary';
         const send = () => { void target.send(response).catch((error: unknown) => errors.push(String(error))); };
-        if (isSettings && settingsDelay) setTimeout(send, settingsDelay);
+        if (isSubmission && submissionDelay) setTimeout(send, submissionDelay);
+        else if (isSettings && settingsDelay) setTimeout(send, settingsDelay);
         else if (isHistory && historyDelay) setTimeout(send, historyDelay);
         else if (isSkills && demoSkillsDelay()) setTimeout(send, demoSkillsDelay());
         else if (isTokenSummary && tokenSummaryDelay) setTimeout(send, tokenSummaryDelay);
@@ -138,10 +143,12 @@ declare global {
     chatTest: { modes: string[]; errors: string[]; events: unknown[]; request: (text: string) => Promise<unknown>;
       fallback: () => void; stream: (text: string) => Promise<void>; executions: () => number; beats: () => number;
       demoState: typeof demoState; setReview: typeof setDemoReview;
+      emitEvent: (event: GuiEvent) => Promise<void>;
       setComposer: (input: unknown) => void; setSidebar: (action: string) => void;
       setSettingsDelay: (milliseconds: number) => void; setHistoryDelay: (milliseconds: number) => void;
       setSkills: typeof setDemoSkills;
       setTokenSummaryDelay: (milliseconds: number) => void;
+      setSubmissionDelay: (milliseconds: number) => void;
       setLegacyHistory: (enabled: boolean) => void };
     downloadFixture: (path: string) => ReturnType<typeof downloadFixture>;
   }
@@ -149,8 +156,10 @@ declare global {
 window.chatTest = { modes, errors, events, request: (text) => rpc.request('request', { text }),
   fallback: () => link.fallback(), stream: (text) => broadcastLink.send({ kind: 'event', event: { text } }),
   executions: () => executions, beats: () => heartbeats, demoState, setReview: setDemoReview,
+  emitEvent: event => emitDemoEvent(event, broadcastLink),
   setComposer: (input) => { changeDemoComposer(input, broadcastLink); },
   setSkills: setDemoSkills,
+  setSubmissionDelay: (milliseconds) => { submissionDelay = Math.max(0, Math.min(20000, milliseconds)); },
   setTokenSummaryDelay: (milliseconds) => { tokenSummaryDelay = Math.max(0, Math.min(20000, milliseconds)); },
   setSettingsDelay: (milliseconds) => { settingsDelay = Math.max(0, Math.min(5000, milliseconds)); },
   setHistoryDelay: (milliseconds) => { historyDelay = Math.max(0, Math.min(5000, milliseconds)); },

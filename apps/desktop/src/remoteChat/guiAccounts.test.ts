@@ -3,8 +3,9 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { invoke } from '../api/backend';
 import { readGuiAccounts, selectGuiAccount } from './guiAccounts';
 import { ChatOperations } from './operations';
+import { guiAccountSelectionForEngine } from '../../../../shared/remote-chat/guiAccounts';
 
-vi.mock('../api/backend', () => ({ invoke: vi.fn(), hasLocalBackend: false }));
+vi.mock('../api/backend', () => ({ isDesktopApp: false, invoke: vi.fn(), hasLocalBackend: false }));
 vi.mock('../../../../shared/platform/localBackend', async () => await import('../api/backend'));
 vi.mock('../../../../shared/conversation/api', () => ({ guiApi: { connect: vi.fn(), request: vi.fn(), respond: vi.fn() } }));
 beforeEach(() => vi.resetAllMocks());
@@ -93,4 +94,71 @@ it('publishes aggregate availability without exposing member settings', async ()
   expect((await readGuiAccounts()).choices).toEqual([
     { kind: 'aggregate', id: 'pool', name: 'Pool', detail: 'shared', available: true },
   ]);
+});
+
+it('publishes selectable Claude defaults without exposing credentials or changing Codex routing', async () => {
+  const id = `claude_${'a'.repeat(32)}`;
+  vi.mocked(invoke).mockImplementation(async command => {
+    if (command === 'codex_gui_account_selection') return { kind: 'provider', id: 'codex-provider' };
+    if (command === 'list_accounts') return [{ id, accountSource: 'claudeCode', active: true,
+      email: 'claude@example.test', plan: 'Pro', localProxyCompatible: false,
+      privateDetails: { password: 'private' }, oauth: { accessToken: 'secret' } }];
+    return [];
+  });
+  const snapshot = await readGuiAccounts();
+  expect(snapshot.selection).toEqual({ kind: 'provider', id: 'codex-provider' });
+  expect(snapshot.choices[0]).toMatchObject({ id, accountSource: 'claudeCode', active: true,
+    available: true, detail: 'Claude Code · Pro' });
+  expect(JSON.stringify(snapshot)).not.toMatch(/privateDetails|password|oauth|secret/);
+  vi.mocked(invoke).mockClear();
+  await expect(selectGuiAccount({ kind: 'account', id })).resolves.toEqual({ kind: 'account', id });
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('claude_account_request', { request: { action: 'activate', id } });
+});
+
+it('propagates Claude switch failures without changing the Codex account', async () => {
+  vi.mocked(invoke).mockRejectedValueOnce(new Error('client.officialAccounts.authOverride'));
+  await expect(selectGuiAccount({ kind: 'account', id: `claude_${'b'.repeat(32)}` })).rejects.toThrow('authOverride');
+  expect(vi.mocked(invoke).mock.calls.map(([command]) => command)).toEqual(['claude_account_request']);
+});
+
+it.each(['account', 'provider', 'aggregate'] as const)(
+  'switches Claude back to a %s proxy source before clearing its native default', async kind => {
+    const selection = { kind, id: 'proxy' };
+    vi.mocked(invoke).mockResolvedValue(selection);
+    await expect(selectGuiAccount({ ...selection, engine: 'claude' })).resolves.toEqual(selection);
+    expect(vi.mocked(invoke).mock.calls).toEqual([
+      ['codex_gui_switch_account', { selection, engine: 'claude' }],
+      ['claude_account_request', { request: { action: 'deactivate' } }],
+    ]);
+  });
+
+it('keeps the native Claude default when the proxy switch is rejected', async () => {
+  vi.mocked(invoke).mockRejectedValueOnce(new Error('unavailable'));
+  await expect(selectGuiAccount({ kind: 'provider', id: 'missing', engine: 'claude' })).rejects.toThrow('unavailable');
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('codex_gui_switch_account',
+    { selection: { kind: 'provider', id: 'missing' }, engine: 'claude' });
+});
+
+it('shows the separate CLI route without changing the official Codex account selection', async () => {
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === 'codex_gui_account_selection') return args?.engine
+      ? { kind: 'provider', id: 'cli-provider' } : { kind: 'account', id: 'official-account' };
+    if (command === 'list_accounts') return [{ id: 'official-account', email: 'owner@example.test' }];
+    if (command === 'list_providers') return [{ id: 'cli-provider', name: 'CLI', model: 'model' }];
+    return [];
+  });
+  const snapshot = await readGuiAccounts();
+  expect(guiAccountSelectionForEngine(snapshot.selection, snapshot.choices, 'codex'))
+    .toEqual({ kind: 'account', id: 'official-account' });
+  for (const engine of ['claude', 'gemini'] as const) {
+    expect(guiAccountSelectionForEngine(snapshot.selection, snapshot.choices, engine))
+      .toEqual({ kind: 'provider', id: 'cli-provider' });
+  }
+  expect(guiAccountSelectionForEngine(snapshot.selection,
+    snapshot.choices.map(choice => ({ ...choice, cliSelected: false })), 'gemini')).toEqual({ kind: 'none' });
+});
+
+it('rejects an invalid engine before switching accounts', async () => {
+  await expect(selectGuiAccount({ kind: 'account', id: 'proxy', engine: 'unknown' })).rejects.toThrow();
+  expect(invoke).not.toHaveBeenCalled();
 });

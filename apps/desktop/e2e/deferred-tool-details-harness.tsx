@@ -6,6 +6,7 @@ import { ChatActivity } from '../../../shared/remote-chat/views/ChatActivity';
 import { ToolDetailsContext, localToolDetails } from '../../../shared/chat/DeferredToolDetails';
 import { ChatController } from '../../../shared/remote-chat/client/controller';
 import { ApplicationTypography } from '../../../shared/appearance/ApplicationTypography';
+import { guiFontStyle, useGuiFontSize } from '../../../shared/appearance/fontSize';
 import type { Item } from '../../../shared/conversation/types';
 import { setThemeMode } from '../../web/src/theme/preference';
 import guiStyles from '../../../shared/conversation/styles.module.less';
@@ -32,7 +33,8 @@ const controller = new ChatController(() => ({ start() {}, stop() {},
 const initial: Item = { id: 'command', type: 'commandExecution', status: 'inProgress', commandPreview: 'npm test',
   detailsRef: { threadId: 'chat', turnId: 'turn', itemId: 'command' } };
 
-function Harness() {
+function Harness({ initial }: { initial: Item }) {
+  const fontSize = useGuiFontSize();
   const [item, setItem] = useState(initial);
   const [beats, setBeats] = useState(0);
   useEffect(() => {
@@ -48,15 +50,34 @@ function Harness() {
     }}>
       <main className={`chat-page ${mode === 'web' ? '' : guiStyles.page}
         ${mode === 'remote' ? 'gui-remote-workspace' : ''}`}
-        style={{ display: 'block', height: '100vh', width: '100%', padding: 32 }}>
+        style={{ display: 'block', height: '100vh', width: '100%', padding: 32,
+          ...(mode === 'web' ? {} : guiFontStyle(fontSize)) }}>
         <section style={{ maxWidth: 920, margin: '0 auto' }}>
           <h2>Codex GUI</h2><p>检查项目测试结果</p>
           {mode === 'local' ? <ActivityRow item={item} text="" />
-            : <ChatActivity item={item} inline onOpen={() => {}} />}
+            : <ChatActivity item={item} running={item.status === 'inProgress'} inline onOpen={() => {}} />}
           <p style={{ marginTop: 24 }}>测试正在执行，完成后汇总结果。</p>
         </section><output hidden aria-label="heartbeat">{beats}</output>
       </main>
     </ToolDetailsContext.Provider></ApplicationTypography>
   </ConfigProvider>;
 }
-createRoot(document.getElementById('root')!).render(<Harness />);
+async function renderHarness() {
+  let item = initial;
+  if (query.has('routed')) {
+    const { ChatOperations } = await import('../src/remoteChat/operations');
+    const host = new ChatOperations();
+    await host.execute({ kind: 'request', id: 'select', method: 'request',
+      body: { operation: 'viewThread', threadId: 'chat', deferToolDetails: true } },
+    'relay', 'viewer-connection', 'persistent-account');
+    const event = host.views.event('viewer-connection', host.prepareEvent({ method: 'item/started',
+      params: { threadId: 'chat', turnId: 'turn', item: { id: 'command', type: 'commandExecution',
+        status: 'inProgress', command: 'npm test -- --runInBand', aggregatedOutput: 'private output' } } }));
+    host.release();
+    if (!event?.params.item) throw new Error('Running command event was dropped');
+    item = event.params.item;
+    document.documentElement.dataset.routedPayload = JSON.stringify(item);
+  }
+  createRoot(document.getElementById('root')!).render(<Harness initial={item} />);
+}
+void renderHarness();

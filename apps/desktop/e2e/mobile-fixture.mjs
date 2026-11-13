@@ -15,6 +15,10 @@ const devices = [{ deviceId: 'computer', name: '我的工作电脑', platform: '
   localProxyRunning: false, capabilities: [], lastSeenAt: new Date().toISOString() }];
 let page;
 let blockMobileConnections = false;
+let initialRelayIssue = null;
+const relayIssueFrame = reason => reason ? { type: 'relay-quota', reason } : { type: 'relay-usage', usage: {
+  monthUsedBytes: 0, monthlyLimitBytes: -1, resetAt: '2027-01-01T00:00:00Z',
+} };
 const previewImage = await readFile(new URL('../src-tauri/icons/32x32.png', import.meta.url));
 const httpServer = http.createServer((request, response) => {
   if (request.url === '/test/preview.png') {
@@ -31,6 +35,17 @@ const httpServer = http.createServer((request, response) => {
       let body = '';
       for await (const chunk of request) body += chunk.toString();
       await page.evaluate((input) => window.chatTest.setComposer(input), JSON.parse(body));
+      response.end('{}');
+    })().catch(() => response.writeHead(400).end('{}'));
+    return;
+  }
+  if (request.url === '/test/chat-event' && request.method === 'POST') {
+    void (async () => {
+      let body = '';
+      for await (const chunk of request) body += chunk.toString();
+      const event = JSON.parse(body);
+      if (typeof event.method !== 'string' || !event.params) throw new Error('Invalid fixture event');
+      await page.evaluate(value => window.chatTest.emitEvent(value), event);
       response.end('{}');
     })().catch(() => response.writeHead(400).end('{}'));
     return;
@@ -71,13 +86,15 @@ const httpServer = http.createServer((request, response) => {
     })().catch(() => response.writeHead(400).end('{}'));
     return;
   }
-  if (['/test/settings-delay', '/test/history-delay', '/test/token-summary-delay'].includes(request.url)
+  if (['/test/settings-delay', '/test/history-delay', '/test/token-summary-delay', '/test/submission-delay']
+    .includes(request.url)
     && request.method === 'POST') {
     void (async () => {
       let body = '';
       for await (const chunk of request) body += chunk.toString();
       await page.evaluate(({ milliseconds, route }) => {
-        if (route === '/test/token-summary-delay') window.chatTest.setTokenSummaryDelay(milliseconds);
+        if (route === '/test/submission-delay') window.chatTest.setSubmissionDelay(milliseconds);
+        else if (route === '/test/token-summary-delay') window.chatTest.setTokenSummaryDelay(milliseconds);
         else if (route === '/test/history-delay') window.chatTest.setHistoryDelay(milliseconds);
         else window.chatTest.setSettingsDelay(milliseconds);
       }, {
@@ -101,6 +118,7 @@ const httpServer = http.createServer((request, response) => {
   }
   if (request.url === '/test/reset' && request.method === 'POST') {
     blockMobileConnections = false;
+    initialRelayIssue = null;
     for (const client of mobileClients) client.terminate();
     relayFrames = 0;
     // The page load event can precede the chat harness's asynchronous initialization.
@@ -121,6 +139,18 @@ const httpServer = http.createServer((request, response) => {
   if (request.url === '/test/fallback' && request.method === 'POST') {
     void page.evaluate(() => window.chatTest.fallback()).then(() => response.end('{}'))
       .catch(() => response.writeHead(503).end('{}'));
+    return;
+  }
+  if (request.url === '/test/relay-issue' && request.method === 'POST') {
+    void (async () => {
+      let body = '';
+      for await (const chunk of request) body += chunk.toString();
+      const { reason, initial } = JSON.parse(body);
+      if (![null, 'unavailable', 'quota'].includes(reason)) throw new Error('Invalid fixture reason');
+      if (initial) initialRelayIssue = reason;
+      for (const client of mobileClients) client.send(JSON.stringify(relayIssueFrame(reason)));
+      response.end('{}');
+    })().catch(() => response.writeHead(400).end('{}'));
     return;
   }
   if (request.url === '/test/disconnect' && request.method === 'POST') {
@@ -172,6 +202,7 @@ wss.on('connection', (socket, request) => {
         mobileClients.add(socket);
         mobileConnections += 1;
         if (blockMobileConnections) { socket.close(4004, 'Emulator unavailable test'); return; }
+        if (initialRelayIssue) socket.send(JSON.stringify(relayIssueFrame(initialRelayIssue)));
       }
       session.join(socket, { role: frame.role, deviceId: 'computer', ownerId: profile.id,
         expiresAt: Date.now() + 3600_000 }, frame, []);
@@ -188,7 +219,8 @@ wss.on('connection', (socket, request) => {
   socket.on('close', () => { mobileClients.delete(socket); session.disconnect(socket); });
 });
 await new Promise((resolve) => httpServer.listen(apiPort, '127.0.0.1', resolve));
-const vite = await createServer({ optimizeDeps: { entries: ['e2e/chat-harness.html'] },
+const vite = await createServer({ configFile: 'scripts/vite.config.ts',
+  optimizeDeps: { entries: ['e2e/chat-harness.html'] },
   cacheDir: process.env.CHAT_TEST_CACHE, server: { port: uiPort, host: '127.0.0.1' } });
 await vite.listen();
 const browser = await chromium.launch(testBrowserLaunchOptions({

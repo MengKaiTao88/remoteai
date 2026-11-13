@@ -6,7 +6,10 @@ import enUS from "antd/locale/en_US";
 import zhCN from "antd/locale/zh_CN";
 import ruRU from "antd/locale/ru_RU";
 import jaJP from "antd/locale/ja_JP";
-import { CalendarClock, Check, CircleHelp, PanelLeftClose, PanelLeftOpen, Play, Plus, RefreshCw, RotateCcw, ShieldCheck } from "lucide-react";
+import {
+  CalendarClock, Check, CircleHelp, FileSliders, PackageOpen, Palette, PanelLeftClose, PanelLeftOpen,
+  Play, Plus, RefreshCw, RotateCcw, ShieldCheck,
+} from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { findAndroidReleaseAsset } from "../../../../../shared/app-update/androidRelease";
 import {
@@ -53,11 +56,16 @@ import { LoungePage } from "../../../../../shared/lounge/LoungePage";
 import { useDesktopLounge } from "../../lounge/useDesktopLounge";
 import { CloudAccountIdentity } from './CloudAccountIdentity';
 import { authenticatedDownloadOwner } from "../../downloads/useDesktopDownloads";
+import { useSyncDownloadAccount } from "../../../../../shared/conversation/sync/useSyncDownloadAccount";
 import logDiagnosticsStyles from "../../pages/LogDiagnosticsPage/index.module.less";
 import { CloudLoginModal } from "../modals/CloudLoginModal";
 import { CloudAccountModal } from "../modals/CloudAccountModal";
 import { CloudRecycleBin } from "../CloudRecycleBin";
 import { LoginModal } from "../modals/LoginModal";
+import { AddOfficialAccountButton } from "../../../../../shared/accounts/AddOfficialAccountButton";
+import type { OfficialAccountSource } from "../../../../../shared/accounts/source";
+import { ClaudeAccountModal } from "../../../../../shared/accounts/ClaudeAccountModal";
+import { localClaudeAccounts } from "../../../../../shared/accounts/claudeAccounts";
 import { ProxySettingsModal } from "../modals/ProxySettingsModal";
 import { UpdateModal } from "../modals/UpdateModal";
 import { CcSwitchImportModal } from "../modals/CcSwitchImportModal";
@@ -190,6 +198,7 @@ type SystemMenuAction =
   | "token-usage"
   | "dream-skin"
   | "skills"
+  | "codex-config"
   | "coze"
   | "sessions"
   | "proxy-sessions"
@@ -270,6 +279,7 @@ export function DashboardApp() {
     setPage("logDiagnostics");
   };
   const [showLogin, setShowLogin] = useState(false);
+  const [loginSource, setLoginSource] = useState<OfficialAccountSource>("codex");
   const [showCloudLogin, setShowCloudLogin] = useState(false);
   const [cloudSessionExpired, setCloudSessionExpired] = useState(false);
   const [showCloudAccount, setShowCloudAccount] = useState(false);
@@ -468,7 +478,7 @@ export function DashboardApp() {
     ...providerManager.providers.filter(provider => provider.kind === "custom").map(provider => provider.group),
   ].filter(Boolean))], [sharedGroups, manager.accounts, providerManager.providers]);
   const resetCredits = useResetCredits(manager.accounts, notify, t);
-  const activeAccount = manager.accounts.find((account) => account.active) ?? null;
+  const activeAccount = manager.accounts.find(account => account.active && account.accountSource !== 'claudeCode') ?? null;
   const activeProvider = providerManager.activeProvider;
   const thirdPartySubagentModels = useMemo(() => {
     if (!activeProvider || activeProvider.kind !== "custom") return ["sol", "terra", "luna"];
@@ -575,7 +585,10 @@ export function DashboardApp() {
     currentAutoRefreshTargetId,
     () => refreshCurrentSelection(),
   );
-  const openLogin = useCallback(() => setShowLogin(true), []);
+  const openLogin = useCallback((source: OfficialAccountSource = "codex") => {
+    setLoginSource(source);
+    setShowLogin(true);
+  }, []);
   const openCloudLogin = useCallback(() => {
     setCloudSessionExpired(false);
     setShowCloudLogin(true);
@@ -1013,6 +1026,9 @@ export function DashboardApp() {
       case "skills":
         setPage("skills");
         break;
+      case "codex-config":
+        setPage("codexConfig");
+        break;
       case "coze":
         setPage("coze");
         break;
@@ -1204,6 +1220,7 @@ export function DashboardApp() {
   );
   const sidebarNavigationEnabled = navigationStyle.style === "sidebar";
   const downloadOwner = authenticatedDownloadOwner(cloud.state);
+  useSyncDownloadAccount(downloadOwner);
   const proxySpeedControl = <ExternalProxySpeedButton proxy={providerManager.localProxy}
     busy={providerManager.proxyBusy} onChange={providerManager.setProxyServiceTier} t={t} />;
   const proxyTopbarActions = (
@@ -1216,9 +1233,20 @@ export function DashboardApp() {
       navigation={sidebarNavigationEnabled ? undefined : {
         page, onPageChange: setPage, downloadOwner,
         loungeUnread: lounge.state.unread, loungeAvailable: cloud.state.authenticated }}>
+      {sidebarNavigationEnabled && <>
+        <button type="button" className="refresh-all" onClick={() => setPage("dreamSkin")}>
+          <Palette size={15} /><span>{t("nav.dreamSkin")}</span>
+        </button>
+        <button type="button" className="refresh-all" onClick={() => setPage("skills")}>
+          <PackageOpen size={15} /><span>{t("nav.skills")}</span>
+        </button>
+      </>}
       {(page === "accounts" || page === "providers") && <>
         {titlebarProxyRunning && <CloudRecycleBin t={t} disabled={!cloud.state.authenticated}
           triggerClassName="refresh-all" />}
+        <button type="button" className="refresh-all" onClick={() => setPage("codexConfig")}>
+          <FileSliders size={14} /><span>{t("nav.codexConfig")}</span>
+        </button>
         <CodexConfigRepairButton disabled={providerManager.proxyBusy} notify={notify} t={t} />
         <AccountDisplayTabs displayMode={accountDisplayMode.displayMode}
           onChange={accountDisplayMode.setDisplayMode} t={t} />
@@ -1353,9 +1381,7 @@ export function DashboardApp() {
                 {accountToolbox}
               </>}>
               {page === "accounts" && <>
-                <button type="button" className="primary-button" onClick={openLogin}>
-                  <Plus size={18} />{t("actions.addAccount")}
-                </button>
+                <AddOfficialAccountButton label={t("actions.addAccount")} onSelect={openLogin} />
                 {refreshActionMenu}
                 {officialAccountActions}
               </>}
@@ -1682,7 +1708,12 @@ export function DashboardApp() {
 
         <HelpAssistant language={language} page={page} onOpenCodex={() => setPage("codexGui")} />
 
-        {showLogin && <LoginModal onClose={() => setShowLogin(false)} onWebSession={startWebSessionLogin}
+        {showLogin && loginSource === "claudeCode" && <ClaudeAccountModal transport={localClaudeAccounts}
+          onClose={() => setShowLogin(false)} onSaved={() => {
+            setShowLogin(false); void manager.reload(); notify(uiText("client.officialAccounts.saved"));
+          }} />}
+        {showLogin && loginSource === "codex" && <LoginModal
+          onClose={() => setShowLogin(false)} onWebSession={startWebSessionLogin}
           onStart={startLogin}
           onImport={importAccountJson} onImportClipboard={importAccountJsonFromClipboard}
           onImportText={manager.importAccountJsonFromClipboard} t={t} />}

@@ -4,8 +4,8 @@ use zeroize::Zeroize;
 const MAX_PASSWORD_BYTES: usize = 4096;
 const MAX_PRIVATE_KEY_BYTES: usize = 65536;
 
-/// Login material exists only while saving or opening a connection, never in profile metadata.
-#[derive(Deserialize, Serialize)]
+/// Login material stays in the host's private cache or connection, never in profile metadata.
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct SshCredentials {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -17,6 +17,12 @@ pub(crate) struct SshCredentials {
 }
 
 impl SshCredentials {
+    pub(super) fn apply(mut self, request: &mut csw_ssh_client::Connect) {
+        request.password = self.password.take();
+        request.private_key = self.private_key.take();
+        request.passphrase = self.passphrase.take();
+    }
+
     pub(super) fn valid(&self) -> bool {
         valid_secret(&self.password, MAX_PASSWORD_BYTES)
             && valid_secret(&self.private_key, MAX_PRIVATE_KEY_BYTES)

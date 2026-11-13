@@ -5,6 +5,11 @@ desktop remote and Web PC terminals. It supports password or pasted private-key
 authentication, SHA256 host-key pinning, terminal input/resize, and SFTP browsing,
 upload, download, file/folder creation, rename, and confirmed recursive deletion.
 
+`Client::open_pty` starts a plain PTY command or shell for Agent tools without installing terminal
+panel integration hooks. It waits for PTY and shell/exec acknowledgements, then accepts the existing
+input, resize and close commands. It never retries opening, and does not support X11 forwarding.
+The host owns conversation authorization, saved credentials, output redaction and session expiry.
+
 Optional X11 forwarding displays graphical applications on the PC that owns the
 SSH connection, including when the terminal is viewed through remote mode or Web.
 Saving a profile with X11 enabled prepares that PC's X server before saving. Testing
@@ -101,7 +106,7 @@ Keep the bridge running, and in another Windows PowerShell terminal:
 ```powershell
 $env:SSH_FIXTURE_CONFIG = "$PWD/.codex-tmp/ssh-wsl/config.json"
 Set-Location apps/desktop
-npx playwright test --config playwright.chat.config.ts ssh.pw.ts --workers 1
+npx playwright test --config scripts/playwright.chat.config.ts ssh.pw.ts --workers 1
 ```
 
 Playwright starts Vite if needed. It exercises the production local, remote and
@@ -126,7 +131,7 @@ Start the bridge with `SSH_FIXTURE_CONFIG` pointing to that JSON and
 ```powershell
 $env:SSH_DIRECTORY_FIXTURE = '1'
 Set-Location apps/desktop
-npx playwright test --config playwright.chat.config.ts ssh-directory.pw.ts --workers 1
+npx playwright test --config scripts/playwright.chat.config.ts ssh-directory.pw.ts --workers 1
 ```
 
 This covers local, remote and Web PC shell-to-browser navigation, queued

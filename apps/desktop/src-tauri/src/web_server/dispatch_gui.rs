@@ -136,12 +136,13 @@ fn dispatch_gui_command(app: AppHandle, command: &str, args: Value) -> Result<Va
             ),
         )),
         "codex_gui_account_selection" => serialize(block_on(
-            codex_gui::account_selection::codex_gui_account_selection(app),
+            codex_gui::account_selection::codex_gui_account_selection(app, argument(&args, "engine")?),
         )),
         "codex_gui_switch_account" => serialize(block_on(
             codex_gui::account_selection::codex_gui_switch_account(
                 app,
                 argument(&args, "selection")?,
+                argument(&args, "engine")?,
             ),
         )),
         "codex_gui_git_tool" => serialize(block_on(codex_gui::git::tool::codex_gui_git_tool(
@@ -176,6 +177,9 @@ fn dispatch_gui_command(app: AppHandle, command: &str, args: Value) -> Result<Va
             app.state::<GuiState>(),
             argument(&args, "request")?,
             argument(&args, "scope")?,
+        ))),
+        "cli_gui_request" => serialize(block_on(crate::cli_gui::cli_gui_request(
+            app.clone(), app.state::<crate::cli_gui::CliGuiState>(), argument(&args, "request")?,
         ))),
         "codex_gui_respond" => serialize(block_on(codex_gui::codex_gui_respond(
             app.state::<GuiState>(),

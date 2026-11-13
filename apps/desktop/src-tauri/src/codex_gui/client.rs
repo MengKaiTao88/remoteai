@@ -6,6 +6,7 @@ mod conversation_awareness;
 mod coze;
 mod deletion;
 mod idle_threads;
+mod interrupt;
 mod live_settings;
 mod model_context;
 mod plugin_refresh;
@@ -98,6 +99,8 @@ impl Client {
         command
             .arg("-c")
             .arg("features.step_model_switching=true")
+            .arg("-c")
+            .arg(context_capacity::UNLOAD_CONFIG)
             .arg("-c")
             .arg(format!("sqlite_home={}", json!(home.to_string_lossy())))
             .arg("-c")
@@ -207,6 +210,13 @@ impl Client {
             return self.request_raw(method, params).await;
         }
         super::home::scope_thread_request(method, &mut params);
+        if method == "thread/goal/set" && params["status"] == "paused" {
+            if let Some(thread) = params["threadId"].as_str() {
+                if self.forget_recovery_thread(thread).await.is_err() {
+                    eprintln!("Codex GUI could not clear a paused task recovery record");
+                }
+            }
+        }
         if method == "turn/interrupt" {
             return self.interrupt_with_context(params).await;
         }
@@ -250,7 +260,11 @@ impl Client {
         )
         .await?;
         let (sender, receiver) = oneshot::channel();
-        self.pending.lock().await.insert(id, sender);
+        {
+            let mut pending = self.pending.lock().await;
+            pending.retain(|_, sender| !sender.is_closed());
+            pending.insert(id, sender);
+        }
         if let Err(error) = self
             .write(json!({"id": id, "method": method, "params": params}))
             .await
@@ -292,6 +306,7 @@ impl Client {
             if method.starts_with("codex/event/") {
                 return;
             }
+            self.record_recovery_event(method, &value["params"]).await;
             self.workspaces
                 .event(&self.notification_session, method, &value["params"])
                 .await;
@@ -397,7 +412,7 @@ impl Client {
         !self.active_turns.lock().await.is_empty() || !self.pending.lock().await.is_empty()
     }
 
-    async fn emit(&self, event: GuiEvent) {
+    pub(super) async fn emit(&self, event: GuiEvent) {
         if context_usage::tracks(&event) {
             self.emit_context_usage(event).await;
         } else {

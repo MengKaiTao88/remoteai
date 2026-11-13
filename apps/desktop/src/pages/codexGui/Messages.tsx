@@ -20,14 +20,19 @@ import { FileThreadContext } from "../../../../../shared/conversation/fileApi";
 import { MessageEditContext } from "./messageEditContext";
 import type { CapacityRetryControl } from "../../../../../shared/conversation/CapacityErrorNotice";
 import { groupVisibleTurns } from "./messageErrorGroups";
+import { ConversationImageGallery } from '../../../../../shared/chat/ImageGallery';
+
+const EMPTY_TURNS: Turn[] = [];
 
 export function Messages({ value, selected, active = true, footer, pendingRequest, onQuote,
-  onEdit, onDelete, editDisabled, editCwd, onFork, forkDisabled, retry, onCancelRetry, onLoadOlder }: {
+  onEdit, onDelete, editDisabled, editCwd, onFork, forkDisabled, retry, onCancelRetry, onLoadOlder,
+  canUndoChanges = true }: {
   value?: Conversation; selected: string | null; active?: boolean; footer?: ReactNode;
   pendingRequest?: PendingRequest;
   onQuote?: (quote: ReplyQuote) => boolean;
   onEdit?: EditMessage; editDisabled?: boolean; editCwd?: string;
   onDelete?: DeleteMessage;
+  canUndoChanges?: boolean;
   onLoadOlder?: () => Promise<Turn[] | undefined>;
   onFork?: (threadId: string, turnId: string) => Promise<boolean>; forkDisabled?: boolean;
 } & CapacityRetryControl) {
@@ -43,7 +48,9 @@ export function Messages({ value, selected, active = true, footer, pendingReques
   const activeTurn = value?.turns.find((turn) => turn.id === value.activeTurn);
   return <MessageEditContext.Provider value={{ cwd: editCwd ?? value?.thread.cwd ?? "", active }}>
     <FileThreadContext.Provider value={selected}>
-    <ImageThreadContext.Provider value={selected}><div className={styles.messageArea}>
+    <ImageThreadContext.Provider value={selected}>
+    <ConversationImageGallery turns={value?.turns ?? EMPTY_TURNS}>
+    <div className={styles.messageArea}>
     {quote.selection && <QuoteSelectionButton selection={quote.selection} onQuote={() => {
       const current = content.current ? selectedQuote(content.current) : null;
       if (!current || !onQuote?.(current.quote)) return;
@@ -72,7 +79,7 @@ export function Messages({ value, selected, active = true, footer, pendingReques
           {entries.map(({ turn, items, followsInterruption, groups }) => <TurnMessage
             key={`${selected}:${turn.id}`} turn={turn} visibleItems={items}
             messageGroups={groups}
-            threadId={selected ?? undefined}
+            threadId={canUndoChanges ? selected ?? undefined : undefined}
             retry={retry?.threadId === selected && retry.turnId === turn.id ? retry : undefined}
             onCancelRetry={onCancelRetry}
             onFork={onFork && selected ? () => { void onFork(selected, turn.id); } : undefined}
@@ -101,5 +108,6 @@ export function Messages({ value, selected, active = true, footer, pendingReques
         </div>
       </div>
     </div>
-  </div></ImageThreadContext.Provider></FileThreadContext.Provider></MessageEditContext.Provider>;
+  </div></ConversationImageGallery>
+  </ImageThreadContext.Provider></FileThreadContext.Provider></MessageEditContext.Provider>;
 }

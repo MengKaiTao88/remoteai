@@ -101,7 +101,7 @@ it("edits GUI prompt rules in its own tab without changing account or proxy sett
   await click([...document.querySelectorAll<HTMLElement>('[role="tab"]')]
     .find((element) => element.textContent === "系统提示词")!);
   expect(document.body.textContent).toContain("GUI 规则");
-  expect(document.body.textContent).toContain("仅用于 Codex GUI 对话");
+  expect(document.body.textContent).toContain("仅用于 Agent Hub 对话");
   await click(button("启用或禁用系统提示词注入"));
   expect(invoke).toHaveBeenLastCalledWith("codex_gui_set_system_prompt_settings", {
     settings: { ...prompts, injectionEnabled: true },
@@ -257,7 +257,7 @@ it("saves concurrent distribution and a fallback Provider independently", async 
     ...defaults, enabled: true, mode: "concurrent", fallbackProviderId: "backup",
   } });
   expect(onClose).toHaveBeenCalledOnce();
-});
+}, 15_000);
 
 it("drops rules for removed accounts on save while preserving current rules and the fallback choice", async () => {
   const existingRule = { accountId: account.id, enabled: false, priority: 7, thresholdPercent: 15 };

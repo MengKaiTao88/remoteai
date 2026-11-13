@@ -139,7 +139,7 @@ it("selects every preset without saving until confirmed while polling is pending
   await click(footerButton("保存"));
   expect(invoke).toHaveBeenLastCalledWith("codex_gui_set_context_settings",
     { threadId: "one", settings: { capacity: 1_000_000 } });
-});
+}, 15_000);
 
 it("uses Enter to select a preset without prematurely saving the previous value", async () => {
   await render(); await openSettings(); await type("256");

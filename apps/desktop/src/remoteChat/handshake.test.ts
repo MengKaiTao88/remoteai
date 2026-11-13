@@ -22,7 +22,7 @@ it.each([undefined, chatHandshake])('connects compatible phones and preserves pe
   expect(chatApprovals(result.data)).toEqual(approvals);
   expect(guiApi.connect).toHaveBeenCalledWith({ reuseExisting: true });
   if (body) expect(result.data).toEqual({ ...chatHandshake, fileBulkV1: true, filePreviewsV1: true,
-    portStreamsV1: true, conversationViewsV1: true, approvals });
+    portStreamsV1: true, conversationViewsV1: true, taskRecoveryV1: true, approvals });
   else expect(result.data).toEqual(approvals);
 });
 
@@ -41,7 +41,7 @@ it('uses bounded image RPCs when the desktop bridge has no managed file preview 
     body: chatHandshake });
   expect(result.error).toBeUndefined();
   expect(result.data).toMatchObject({ fileBulkV1: false, filePreviewsV1: false, portStreamsV1: false,
-    conversationViewsV1: true, approvals: [] });
+    conversationViewsV1: true, taskRecoveryV1: false, approvals: [] });
 });
 
 it('keeps official chat file capabilities separate from a proxy owned by the same app', async () => {

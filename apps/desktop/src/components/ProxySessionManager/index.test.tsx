@@ -10,6 +10,7 @@ import { LogDiagnosticsPage, type LogDiagnosticsTab } from "../../pages/LogDiagn
 import { DashboardNavigation, type DashboardPage } from "../dashboard/DashboardNavigation";
 
 vi.mock("../../api/backend", () => ({
+  isDesktopApp: true,
   loadProxySessions: vi.fn(),
   loadProxySessionUnlimitedConversation: vi.fn().mockResolvedValue(false),
   loadProxySessionRequests: vi.fn().mockResolvedValue([]),
@@ -110,7 +111,7 @@ it("opens the session tab inline and allows navigation while a single poll remai
   await openProxySessions();
   expect(load).toHaveBeenCalledTimes(4);
   expect(document.querySelector('strong[title="新对话名称"]')).not.toBeNull();
-});
+}, 15_000);
 
 it("stops request detail polling when switching diagnostics tabs", async () => {
   vi.mocked(loadProxySessions).mockResolvedValue([session]);

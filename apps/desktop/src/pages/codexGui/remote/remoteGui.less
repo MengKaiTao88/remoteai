@@ -4,6 +4,10 @@
   --chat-background: var(--panel); --chat-pale: var(--green-selection);
   display: flex; height: 100%; font-size: var(--gui-font-size, 14px); line-height: 1.8;
   .chat-conversation { background: transparent; }
+  .chat-conversation:has(> .gui-remote-feature) {
+    > :not(.chat-header):not(.gui-remote-feature) { display: none; }
+  }
+  .gui-remote-feature { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; }
   .gui-remote-tools { display: flex; align-items: center; gap: var(--workspace-toolbar-gap, 6px); flex-shrink: 0; }
   .chat-message-region { color: var(--ink); font: inherit; }
   .chat-sidebar { flex-basis: auto; background: transparent; border: 0; }
@@ -68,7 +72,7 @@
   .chat-composer-access, .chat-composer .chat-model, .chat-composer-status {
     font-size: calc(var(--gui-font-size, 14px) - 2px); }
   .chat-button, .chat-composer-popover, .chat-approval { background: var(--panel); color: var(--ink); }
-  .chat-composer-popover { max-width: min(400px, calc(100vw - 32px)); }
+  .chat-composer-popover { max-width: min(400px, calc(100vw - 32px)); border-color: var(--line); }
   .chat-composer-submit { background: var(--green); }
   .chat-composer .chat-composer-submit:disabled {
     color: color-mix(in srgb, var(--ink) 25%, transparent);
@@ -78,7 +82,7 @@
     color: var(--ink); background: var(--panel); border-color: var(--line); }
   .chat-add-menu button, .chat-menu-options button, .composer-model-option { color: var(--ink); }
   .chat-add-menu svg { background: var(--bg); }
-  .chat-add-menu button:hover, .chat-menu-options button:hover,
+  .chat-add-menu button:hover:not(:disabled), .chat-menu-options button:hover:not(:disabled),
   .composer-model-option:hover, .chat-composer-access-menu button:hover { background: var(--green-selection); }
   .chat-menu-options small, .composer-model-name, .composer-model-hint, .chat-composer-access-menu small,
   .chat-composer-access-heading { color: var(--muted); }

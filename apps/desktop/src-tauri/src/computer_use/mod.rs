@@ -1,4 +1,6 @@
 //! Managed CUA installation and per-home, revocable STDIO sessions.
+#[cfg(windows)]
+pub(crate) mod administrator;
 mod archive;
 mod assets;
 mod automatic;
@@ -19,7 +21,7 @@ pub(crate) use client::ComputerSession;
 pub(crate) use upgrade::start;
 static CHANGES: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-const VERSION: &str = "0.37.0-remoteai.2";
+const VERSION: &str = "0.37.0-remoteai.4";
 // run_script allows 120 seconds; leave time for dispatch and the final response.
 const TOOL_TIMEOUT_SECONDS: u64 = 150;
 const MCP_SERVER: &str = "codex_switch_computer_use";
@@ -27,6 +29,9 @@ const HELPER_ARGUMENT: &str = "--computer-use-mcp=";
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ComputerError {
+    #[cfg(windows)]
+    #[error("{{\"code\":\"client.computerUseAdmin.authorizationFailed\"}}")]
+    Administrator,
     #[error("电脑助手操作未完成，请重试。")]
     Storage,
     #[error("电脑助手支持 Windows 64 位和 macOS 13 及以上系统。")]
@@ -69,6 +74,14 @@ fn root() -> Result<PathBuf> {
 
 /// Dispatch before Tauri starts so MCP stdout contains only protocol messages.
 pub(crate) fn run_helper() -> bool {
+    #[cfg(windows)]
+    if let Some(result) = administrator::run_helper() {
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return true;
+    }
     let Some(id) = std::env::args()
         .nth(1)
         .and_then(|arg| arg.strip_prefix(HELPER_ARGUMENT).map(str::to_owned))

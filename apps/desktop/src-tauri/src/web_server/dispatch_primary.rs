@@ -1,5 +1,8 @@
 fn dispatch_command(app: AppHandle, command: &str, args: Value) -> Result<Value, String> {
     match command {
+        "claude_account_request" => serialize(block_on(crate::claude_accounts::claude_account_request(
+            app, argument(&args, "request")?,
+        ))),
         "codex_gui_open_file_preview" => serialize(block_on(
             crate::codex_gui::file_preview::hosted::open(app, argument(&args, "target")?),
         )),
@@ -297,6 +300,9 @@ fn dispatch_command(app: AppHandle, command: &str, args: Value) -> Result<Value,
         )),
         "restore_non_proxy_conversations" => serialize(block_on(
             crate::commands::restore_non_proxy_conversations(app),
+        )),
+        "codex_conversation_sync" => serialize(block_on(
+            crate::conversation_hub::synchronization::codex_conversation_sync(app, argument(&args, "request")?),
         )),
         "browse_codex_threads" => {
             serialize(crate::conversation_hub::browse_codex_threads_blocking(

@@ -12,9 +12,11 @@ mod browser;
 mod ccs_import;
 mod chatgpt_launch;
 mod chrome_plugin;
+mod claude_accounts;
 mod claude_code;
 mod claude_code_provider;
 mod claude_desktop;
+mod cli_gui;
 mod client_integration;
 mod client_lifecycle;
 mod cloud;
@@ -158,6 +160,7 @@ pub fn run() {
         .manage(AppState::default())
         .manage(coze::CozeState::default())
         .manage(codex_gui::GuiState::default())
+        .manage(cli_gui::CliGuiState::default())
         .manage(provider_browser::automation::State::default())
         .manage(codex_gui::dropped_files::DroppedFilesState::default())
         .manage(gui_terminal::ssh_drop::SshDropState::default())
@@ -370,6 +373,9 @@ pub fn run() {
             #[cfg(windows)]
             system_tray::quick_menu::quick_menu_activate,
             codex_gui::codex_gui_connect,
+            cli_gui::cli_gui_request,
+            claude_accounts::claude_account_request,
+            claude_accounts::authorization_browser::open_claude_authorization,
             codex_gui::dictation::codex_gui_dictation_prepare,
             codex_gui::dictation::codex_gui_dictation_transcribe,
             codex_gui::dictation::codex_gui_dictation_cancel,
@@ -440,6 +446,7 @@ pub fn run() {
             remote_chat::traversal::remote_chat_local_addresses,
             codex_gui::clipboard_images::codex_gui_remote_clipboard_images,
             remote_chat::gui_remote_open,
+            remote_chat::gui_remote_file_open,
             remote_chat::gui_remote_send,
             remote_chat::client_bulk_send::gui_remote_bulk_send,
             remote_chat::gui_remote_ack,
@@ -537,6 +544,7 @@ pub fn run() {
             open_code::restart_open_code,
             commands::restore_non_proxy_conversations,
             conversation_hub::browse_codex_threads,
+            conversation_hub::synchronization::codex_conversation_sync,
             conversation_hub::measure_codex_thread_tokens,
             conversation_hub::discard_codex_threads,
             conversation_hub::browse_codex_thread_bin,

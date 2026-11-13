@@ -1,6 +1,6 @@
 import { displayText } from '../../../../../shared/localization/uiText';
 import { MessageDeliveryMode } from '../../../../../shared/chat/MessageDeliveryMode';
-import { CodexVersionStatus } from '../../../../../shared/codex-status/CodexVersionStatus';
+import { EngineSelector } from '../../../../../shared/cli-gui/EngineSelector';
 import { readCodexServiceStatus } from '../../api/codexServiceStatus';
 import { uiText } from "../../../../../shared/localization/uiText";
 import {
@@ -9,6 +9,7 @@ import {
 import { flushSync } from "react-dom";
 import { Target, X } from "lucide-react";
 import { isDesktopApp } from "../../api/backend";
+import { desktopSshProfiles } from '../../api/sshProfiles';
 import { useGoalMode } from "../../../../../shared/remote-chat/client/useGoalMode";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerFilesDialog } from "./ComposerFilesDialog";
@@ -39,6 +40,7 @@ import { GuiToolbox } from "../../../../../shared/conversation/GuiToolbox";
 import { useLocalGitDownloads } from '../../downloads/localGitDownloads';
 import { LocalProjectBrowser } from './LocalProjectBrowser';
 import { useComposerFileReferences } from '../../../../../shared/chat/ChatFileReferences';
+import { useComposerImageAnnotations } from '../../../../../shared/chat/ImageAnnotations';
 import { localGitClient } from "./localGitClient";
 import { SkillInput, type SkillInputHandle } from "./SkillInput";
 import { useNextPromptSuggestion } from './useNextPromptSuggestion';
@@ -66,8 +68,9 @@ export const Composer = forwardRef<ComposerHandle, {
   const usageSnapshot = useContext(DesktopUsageContext);
   const metrics = useConversationMetrics(loadConversationMetrics, state.selected, active && state.connection === 'ready');
   const workspaceBusy = Boolean(state.workspaceBusy);
-  const { draft, reading: draftReading, editContent, appendDictation, removeImage, editImage, addImages, paste, pasteKeyDown,
-    send: sendDraft, addAttachments, removeAttachment, addQuote, removeQuote, clearQuotes, editQueued }
+  const { draft, reading: draftReading, editContent, appendDictation, removeImage, editImage, addImages,
+    paste, pasteKeyDown, send: sendDraft, addAttachments, removeAttachment, addQuote, removeQuote,
+    clearQuotes, editQueued, addAnnotatedImage }
     = useComposerDraft(key, controller);
   // Creating a goal first creates its conversation; keep the form until the goal request succeeds.
   useEffect(() => { if (!controller.getSnapshot().goalBusy || !active) setDialog(null); }, [key, active, controller]);
@@ -83,6 +86,9 @@ export const Composer = forwardRef<ComposerHandle, {
     disabled: disabled || draftReading || !!dialog, addAttachments, addImages,
     setProject: controller.setProject, report: controller.report, focus: () => skillInput.current?.focus() });
   const reading = draftReading || drop.reading || dictating;
+  useComposerImageAnnotations({ scope: `${key}:${project}`, mode: 'direct',
+    enabled: active && !disabled && !reading && !goalMode.enabled,
+    add: addAnnotatedImage, focus: () => skillInput.current?.focus() });
   useComposerFileReferences({ scope: `${key}:${project}`,
     enabled: active && !disabled && !reading && !goalMode.enabled,
     add: reference => addAttachments([reference]), addQuote, focus: () => skillInput.current?.focus() });
@@ -141,6 +147,7 @@ export const Composer = forwardRef<ComposerHandle, {
         suggestion={suggestion.text} onUserInput={suggestion.dismiss} onInputEnd={suggestion.restore}
         conversations={state} onConversation={(reference) => addAttachments([reference])}
         onCoze={(reference) => addAttachments([reference])}
+        sshProfiles={desktopSshProfiles} onSsh={reference => addAttachments([reference])}
         onFile={(reference) => addAttachments([reference])}
         connected={state.connection === "ready"} disabled={disabled}
         compact={compactCommand(state, () => void controller.compact())}
@@ -190,7 +197,7 @@ export const Composer = forwardRef<ComposerHandle, {
       </div>
     </div>
     <div className={`${styles.composerHint} cs-usage-footer-container`}>
-      <CodexVersionStatus version={cliVersion} read={readCodexServiceStatus} active={active} t={uiText} />
+      <EngineSelector version={cliVersion} locked={Boolean(state.selected)} read={readCodexServiceStatus} active={active} />
       <ConversationTokenStatus threadId={state.selected} metrics={metrics}
         turns={current?.turns} active={active && state.connection === 'ready'} usage={usageSnapshot.usage} /></div>
     {dialog === "files" && <ComposerFilesDialog onAdd={addAttachments} onImages={() => fileInput.current?.click()}

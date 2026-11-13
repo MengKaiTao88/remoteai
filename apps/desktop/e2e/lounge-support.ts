@@ -2,6 +2,7 @@ import { expect, type Page, type WebSocketRoute } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import type { LoungeReply } from '../../../shared/lounge/reply';
 import type { LoungeAccount } from '../../../shared/lounge/types';
+import type { LoungeClientInfo } from '../../../shared/lounge/clientVersion';
 import { LoungeNamesFixture } from './lounge-names-support';
 import type { LoungeContactsFixture } from './lounge-contact-support';
 import { LoungeNotificationsFixture } from './lounge-notifications-support';
@@ -28,9 +29,11 @@ export async function setupLounge(page: Page, web = false, reset = false, savedC
   let directState = 'new';
   let lookupReply = true;
   let deviceSync = false;
+  const reportedVersions: string[] = [];
   const lookups: string[] = [];
   const receipts: { type: string; id: string; to: string; status: string }[] = [];
   const moderation: { userId: string; minutes: number }[] = [];
+  const groupReadFrames: Record<string, unknown>[] = [];
   const sent: { id: string; text: string; images: string[]; avatar?: string; reply?: LoungeReply; to?: string }[] = [];
   const bob = { id: 'bob', account: 'bob@example.test' };
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
@@ -53,6 +56,7 @@ export async function setupLounge(page: Page, web = false, reset = false, savedC
       notifications.handle(route, frame);
       savedContacts?.handle(route, frame);
       if (frame.type === 'authenticate') {
+        if (typeof frame.clientVersion === 'string') reportedVersions.push(frame.clientVersion);
         route.send(JSON.stringify({ type: 'ready', profiles: true, accountLookup: true, names: names.enabled,
           avatarCache: avatarCache.enabled,
           savedContacts: !!savedContacts, deviceSync,
@@ -113,6 +117,7 @@ export async function setupLounge(page: Page, web = false, reset = false, savedC
       if (frame.type === 'receipt') route.send(JSON.stringify({ type: 'receipt-confirm', id: frame.id,
         from: frame.to, to: 'alice', status: frame.status }));
       if (frame.type === 'receipt' || frame.type === 'receipt-confirm') receipts.push(frame);
+      if (frame.type === 'group-read' || frame.type === 'group-read-confirm') groupReadFrames.push(frame);
       if (frame.type === 'moderate') {
         moderation.push(frame);
         route.send(JSON.stringify({ type: 'moderated', id: frame.id }));
@@ -138,6 +143,10 @@ export async function setupLounge(page: Page, web = false, reset = false, savedC
     } });
   }, web);
   return {
+    groupReadFrames,
+    reportedVersions,
+    versions: (clientVersions: string[], clients?: LoungeClientInfo[]) => socket.send(JSON.stringify({
+      type: 'client-versions', users: [{ id: 'bob', clientVersions, clients }] })),
     avatarCache,
     notifications,
     enableDeviceSync: () => { deviceSync = true; },

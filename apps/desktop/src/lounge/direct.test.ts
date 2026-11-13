@@ -60,58 +60,30 @@ it('uses server permissions after switching devices and ignores stale permission
   expect(controller.snapshot().messages.at(-1)?.text).toBe('reply received on another device');
 });
 
-it('deletes a contact only after acknowledgement and rejects old deliveries after the reset', async () => {
+it.each([false, true])('allows moderator openings with a waiting server state: %s', async waiting => {
+  const { controller, socket } = await start(); socket.ready(); controller.selectConversation(bob);
+  if (waiting) socket.frame({ type: 'direct-permissions', states: { [bob.id]: 'waiting' } });
+  socket.frame({ type: 'policy', policy: { moderator: true, mutedUntil: null } });
+  await Promise.all(['first', 'second', 'third'].map(text => controller.send({ text, images: [], to: bob.id })));
+  expect(controller.snapshot().messages.map(item => item.text)).toEqual(['first', 'second', 'third']);
+  socket.frame({ type: 'policy', policy: { moderator: false, mutedUntil: null } });
+  await expect(controller.send({ text: 'revoked', images: [], to: bob.id })).rejects.toThrow('awaitingReply');
+  socket.frame({ ...message('answer', true), receipts: true }); await settle();
+  socket.frame({ type: 'direct-permissions', states: { [bob.id]: 'open' } });
+  await controller.send({ text: 'after reply', images: [], to: bob.id });
+  expect(controller.snapshot().messages.at(-1)?.text).toBe('after reply');
+});
+
+it('requires current conversation permissions for moderators after reconnect', async () => {
   const { controller, socket } = await start();
-  socket.frame({ type: 'ready', user: alice, direct: true, receipts: true, directReset: true });
-  socket.frame({ type: 'direct-permissions', states: { bob: 'open' }, generations: { bob: 0 } });
-  socket.frame(message('old-private', true)); await settle();
-  const failed = controller.deleteContact('bob');
-  const firstRequest = JSON.parse(socket.send.mock.calls.at(-1)![0]);
-  socket.frame({ type: 'rejected', id: firstRequest.id });
-  await expect(failed).rejects.toThrow(); expect(controller.snapshot().contacts).toHaveLength(1);
-  const deleting = controller.deleteContact('bob');
-  const request = JSON.parse(socket.send.mock.calls.at(-1)![0]);
-  expect(request.type).toBe('delete-direct'); expect(controller.snapshot().contacts).toHaveLength(1);
-  // The acknowledgement includes the version even if a separate permissions sync failed.
-  socket.frame({ type: 'updated', id: request.id, userId: 'bob', generation: 1 }); await deleting;
-  expect(controller.snapshot().contacts).toHaveLength(0); expect(controller.snapshot().unread).toBe(0);
-  socket.frame(message('late-old', true)); await settle();
-  expect(controller.snapshot().contacts).toHaveLength(0);
+  socket.frame({ type: 'ready', user: { ...alice, moderator: true }, direct: true, receipts: true, directReset: true,
+    policy: { moderator: true, mutedUntil: null } });
   controller.selectConversation(bob);
-  await controller.send({ to: 'bob', text: 'fresh hello', images: [] });
-  await expect(controller.send({ to: 'bob', text: 'second', images: [] })).rejects.toThrow('awaitingReply');
-  socket.frame({ ...message('fresh reply', true), generation: 1, receipts: true }); await settle();
-  await controller.send({ to: 'bob', text: 'unlocked', images: [] });
-  expect(controller.snapshot().messages.map(value => value.text)).toEqual(['fresh hello', 'fresh reply', 'unlocked']);
-});
-
-it('retains history and reports failure when local deletion fails after the server resets', async () => {
-  const store: LoungeHistoryStore = { save: async () => {}, page: async () => ({ messages: [] }),
-    deleteConversation: async () => { throw new Error('storage unavailable'); } };
-  const { controller, socket } = await start(store);
-  socket.frame({ type: 'ready', user: alice, direct: true, receipts: true, directReset: true });
-  socket.frame(message('keep on error', true)); await settle();
-  const deleting = controller.deleteContact('bob');
-  const request = JSON.parse(socket.send.mock.calls.at(-1)![0]);
-  socket.frame({ type: 'updated', id: request.id, userId: 'bob', generation: 1 });
-  await expect(deleting).rejects.toThrow('storage unavailable');
-  expect(controller.snapshot().contacts).toHaveLength(1);
-  expect((await controller.searchHistory({ query: '', conversation: 'bob' })).messages).toHaveLength(0);
-});
-
-it('preserves a new-generation message delivered while deletion is being acknowledged', async () => {
-  const { controller, socket } = await start();
-  socket.frame({ type: 'ready', user: alice, direct: true, receipts: true, directReset: true });
-  socket.frame(message('old', true)); await settle();
-  const deleting = controller.deleteContact('bob');
-  const request = JSON.parse(socket.send.mock.calls.at(-1)![0]);
-  socket.frame({ type: 'direct-permissions', states: { bob: 'new' }, generations: { bob: 1 } });
-  socket.frame({ ...message('new arrival', true), generation: 1, receipts: true });
-  socket.frame({ type: 'updated', id: request.id, userId: 'bob', generation: 1 }); await deleting; await settle();
-  expect(controller.snapshot().contacts).toHaveLength(1);
-  expect((await controller.searchHistory({ query: '', conversation: 'bob' })).messages.map(value => value.id))
-    .toEqual(['new arrival']);
-  expect(controller.snapshot().unreadByConversation.bob).toBe(1);
+  await expect(controller.send({ text: 'not synced', images: [], to: bob.id })).rejects.toThrow('directUnavailable');
+  socket.frame({ type: 'direct-permissions', states: { bob: 'new' }, generations: { bob: 2 } });
+  await controller.send({ text: 'first', images: [], to: bob.id });
+  await controller.send({ text: 'second', images: [], to: bob.id });
+  expect(controller.snapshot().messages.map(item => item.generation)).toEqual([2, 2]);
 });
 
 it('stops retrying an opening rejected during a race with another device', async () => {

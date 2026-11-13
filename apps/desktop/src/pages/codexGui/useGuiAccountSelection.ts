@@ -1,4 +1,7 @@
 import { uiText } from "../../../../../shared/localization/uiText";
+import { isCodexAccount } from "../../../../../shared/accounts/source";
+import { isClaudeAccountId } from '../../../../../shared/accounts/claudeAccounts';
+import { useCliGui } from '../../../../../shared/cli-gui/context';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { hasLocalBackend, invoke, loadAggregateApis, subscribeToProviderEvents } from "../../api/backend";
 import type { Account, AggregateApi, Provider } from "../../types";
@@ -15,7 +18,12 @@ export function selectedGuiEntries<T extends { id: string; active: boolean }>(
 }
 
 export function useGuiAccountSelection(options: { active: boolean; accounts: Account[]; providers: Provider[] }) {
+  const cli = useCliGui();
+  const engine = cli?.state.engine ?? 'codex';
   const [selection, setSelection] = useState<GuiAccountSelection>({ kind: "none" });
+  const savedClaudeId = options.accounts.find(account => account.accountSource === 'claudeCode' && account.active)?.id;
+  const [claudeAccountId, setClaudeAccountId] = useState(savedClaudeId);
+  useEffect(() => { setClaudeAccountId(savedClaudeId); }, [savedClaudeId]);
   const [aggregates, setAggregates] = useState<AggregateApi[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,13 +33,14 @@ export function useGuiAccountSelection(options: { active: boolean; accounts: Acc
     const request = ++generation.current;
     try {
       const [next, available] = await Promise.all([
-        invoke<GuiAccountSelection>("codex_gui_account_selection"), loadAggregateApis(),
+        engine === 'codex' ? invoke<GuiAccountSelection>("codex_gui_account_selection")
+          : invoke<GuiAccountSelection>("codex_gui_account_selection", { engine }), loadAggregateApis(),
       ]);
       if (request === generation.current) { setSelection(next); setAggregates(available); setError(""); }
     } catch {
       if (request === generation.current) setError(uiText("client.workspaceActions.couldNotLoadTheCodexGuiAccountReopenThePage"));
     } finally { if (request === generation.current) setLoading(false); }
-  }, []);
+  }, [engine]);
 
   useEffect(() => {
     if (!options.active || !hasLocalBackend) return;
@@ -39,6 +48,7 @@ export function useGuiAccountSelection(options: { active: boolean; accounts: Acc
     let stop: (() => void) | undefined;
     void subscribeGuiEvent<GuiAccountSelection>("codex-gui-account-changed", (next) => {
       if (disposed) return;
+      if (engine !== 'codex') { void refresh(); return; }
       generation.current++;
       setSelection(next); setLoading(false); setError("");
     }).then((unsubscribe) => {
@@ -49,7 +59,7 @@ export function useGuiAccountSelection(options: { active: boolean; accounts: Acc
       if (!disposed) { setLoading(false); setError(uiText("client.workspaceActions.accountUpdatesAreUnavailableReopenThePageToRetry")); }
     });
     return () => { disposed = true; generation.current++; stop?.(); };
-  }, [options.active, refresh]);
+  }, [options.active, refresh, engine]);
 
   useEffect(() => {
     if (!options.active || !hasLocalBackend) return;
@@ -73,13 +83,22 @@ export function useGuiAccountSelection(options: { active: boolean; accounts: Acc
     switching.current = true;
     const request = ++generation.current;
     try {
-      const saved = await switchGuiAccount(next);
-      if (request === generation.current) { setSelection(saved); setError(""); }
+      const engine = cli?.state.engine;
+      const saved = await switchGuiAccount(next, engine);
+      // A proxy change event can advance generation before the native-default change is acknowledged.
+      if (saved.kind === 'account' && isClaudeAccountId(saved.id)) setClaudeAccountId(saved.id);
+      else if (engine === 'claude') setClaudeAccountId(undefined);
+      if (request === generation.current) {
+        if (!(saved.kind === 'account' && isClaudeAccountId(saved.id))) setSelection(saved);
+        setError("");
+      }
       return true;
     } finally { switching.current = false; }
   };
-  const accounts = useMemo(() => selectedGuiEntries(options.accounts, selection, "account"),
-    [options.accounts, selection]);
+  const accounts = useMemo(() => options.accounts.map(account => isCodexAccount(account)
+    ? { ...account, active: selection.kind === 'account' && selection.id === account.id }
+    : { ...account, active: account.id === claudeAccountId }),
+  [options.accounts, selection, claudeAccountId]);
   const providers = useMemo(() => selectedGuiEntries(options.providers, selection, "provider"),
     [options.providers, selection]);
   const aggregateApis = useMemo(() => selectedGuiEntries(aggregates, selection, "aggregate"), [aggregates, selection]);

@@ -24,6 +24,8 @@ mod file_activity;
 mod file_activity_tests;
 mod history;
 mod integration;
+#[cfg(test)]
+mod large_changes_tests;
 mod message;
 mod message_context;
 #[cfg(test)]
@@ -32,6 +34,9 @@ mod message_transport;
 pub(crate) mod patch;
 #[cfg(test)]
 mod patch_tests;
+pub(super) mod repositories;
+#[cfg(test)]
+mod repository_tests;
 mod review;
 mod revision;
 #[cfg(test)]
@@ -61,6 +66,8 @@ pub(crate) enum Request {
     },
     Repository {
         cwd: String,
+        #[serde(default)]
+        include_children: bool,
     },
     Action {
         cwd: String,
@@ -143,7 +150,7 @@ fn execute(request: Request) -> Result<Response> {
         Request::GenerateMessage { request } => &request.cwd,
         Request::Review { cwd, .. }
         | Request::Changes { cwd }
-        | Request::Repository { cwd }
+        | Request::Repository { cwd, .. }
         | Request::Action { cwd, .. }
         | Request::Revision { cwd, .. }
         | Request::Diff { cwd, .. }
@@ -160,7 +167,15 @@ fn execute(request: Request) -> Result<Response> {
         Request::Review { .. } | Request::GenerateMessage { .. } | Request::Settings { .. } => {
             Err(GitError::Operation)
         }
-        Request::Repository { .. } => branches::read(&root).map(Response::Repository),
+        Request::Repository {
+            include_children, ..
+        } => {
+            let mut value = branches::read(&root)?;
+            if include_children {
+                value.repositories = Some(repositories::read(&root)?);
+            }
+            Ok(Response::Repository(value))
+        }
         Request::Conflict { path, .. } => conflicts::read(&root, &path).map(Response::Conflict),
         Request::ResolveConflict { request, .. } => {
             conflicts::resolve(&root, request).map(Response::Done)

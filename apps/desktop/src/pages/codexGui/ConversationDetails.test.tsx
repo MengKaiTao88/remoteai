@@ -38,7 +38,7 @@ async function openDetails() {
   }
 }
 
-it("keeps expandable proxy errors inside the affected reply when later replies arrive", async () => {
+it("removes recovered proxy errors when the reply completes and later replies arrive", async () => {
   let value = conversation({ id: "test", cwd: "", preview: "", updatedAt: 1,
     turns: [{ id: "first", status: "inProgress", items: [] }] });
   value = reduceConversation(value, { method: "error", params: { turnId: "first", willRetry: true,
@@ -47,9 +47,9 @@ it("keeps expandable proxy errors inside the affected reply when later replies a
   const notice = container.querySelector<HTMLElement>("[data-request-error]")!;
   const summary = notice.querySelector("summary")!;
   expect(summary.getAttribute("aria-label")).toBe("查看报错详情");
-  expect(summary.textContent).toContain("HTTP 502 Bad Gateway");
+  expect(summary.textContent).toContain("Codex 正在重试");
+  expect(notice.textContent).not.toContain("HTTP 502 Bad Gateway");
   expect(notice.querySelector("pre")).toBeNull();
-  expect(notice.textContent).not.toContain("Codex 正在重试");
   expect(notice.querySelector("script")).toBeNull();
   await openDetails();
   expect(notice.textContent).toContain("Codex 正在重试");
@@ -61,9 +61,9 @@ it("keeps expandable proxy errors inside the affected reply when later replies a
   value = reduceConversation(value, { method: "turn/started", params: {
     turn: { id: "second", status: "inProgress", items: [] } } });
   await act(async () => root.render(<Messages selected="test" value={value} />));
-  expect(notice.closest("[data-turn-id]")?.getAttribute("data-turn-id")).toBe("first");
-  expect(notice.textContent).toContain("现已恢复");
-  expect(summary.textContent).toContain("HTTP 502 Bad Gateway");
+  expect(container.querySelector("[data-request-error]")).toBeNull();
+  expect(container.textContent).not.toContain("现已恢复");
+  expect(container.textContent).not.toContain("HTTP 502 Bad Gateway");
   expect(container.querySelector('[data-turn-id="second"] [data-request-error]')).toBeNull();
 });
 

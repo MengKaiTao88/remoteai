@@ -8,6 +8,10 @@ import { ProxyAccountPicker, type ProxyAccountPickerProps } from "./ProxyAccount
 import { useUsageStatus } from "./useUsageStatus";
 import detailsStyles from "../../../../../shared/conversation/ProxyAccountDetails.module.less";
 import type { GuiAutoSwitchSettings } from "../../../../../shared/conversation/autoSwitchSettings";
+import type { GuiEngine } from '../../../../../shared/cli-gui/types';
+
+let engine: GuiEngine;
+vi.mock('../../../../../shared/cli-gui/context', () => ({ useCliGui: () => ({ state: { engine } }) }));
 
 vi.mock("../../api/backend", () => ({ invoke: vi.fn(), queryProviderBalance: vi.fn(),
   subscribeToProviderBalance: vi.fn(), isHostedWebApp: false, canManageCodexConnection: true }));
@@ -40,7 +44,22 @@ const option = (text: string) => Array.from(document.querySelectorAll<HTMLButton
   .find((button) => button.textContent?.includes(text))!;
 const click = (button: HTMLButtonElement) => act(async () => button.click());
 
+it('lets Claude defaults switch from the account list without proxy compatibility or empty Codex quotas', async () => {
+  props.accounts.push({ ...account, id: `claude_${'a'.repeat(32)}`, accountSource: 'claudeCode',
+    email: 'claude@example.test', active: false, localProxyCompatible: false });
+  await render(); await click(trigger());
+  const row = option('claude@example.test');
+  expect(row.disabled).toBe(false);
+  expect(row.textContent).toContain('Claude Code');
+  expect(row.textContent).not.toContain('不可用');
+  expect(row.querySelector('[aria-label^="主用量剩余"]')).toBeNull();
+  await click(row);
+  expect(props.onSwitchAccount).toHaveBeenCalledWith(props.accounts[1].id);
+  expect(document.body.textContent).toContain('新建会话将使用此账户');
+});
+
 beforeEach(() => {
+  engine = 'codex';
   vi.useFakeTimers();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addListener: vi.fn(), removeListener: vi.fn() })));
@@ -56,6 +75,30 @@ beforeEach(() => {
     aggregateApis: [],
     busy: false, loading: false, onSwitchAccount: vi.fn().mockResolvedValue(true),
     onSwitchProvider: vi.fn().mockResolvedValue(true) };
+});
+
+it('keeps both defaults in the list but selects only the current engine, including proxy fallback', async () => {
+  const claude = { ...account, id: `claude_${'b'.repeat(32)}`, accountSource: 'claudeCode',
+    email: 'claude@example.test', active: true };
+  props.accounts.push(claude);
+  props.providers = [{ ...provider, active: true }];
+  await render(); await click(trigger());
+  expect(option(claude.email).getAttribute('aria-pressed')).toBe('false');
+  expect(option(provider.name).getAttribute('aria-pressed')).toBe('true');
+  engine = 'claude'; await render();
+  expect(trigger().textContent).toContain(claude.email);
+  expect(option(claude.email).getAttribute('aria-pressed')).toBe('true');
+  expect(option(provider.name).getAttribute('aria-pressed')).toBe('false');
+  expect(option(account.email).getAttribute('aria-pressed')).toBe('false');
+  engine = 'gemini'; await render();
+  expect(trigger().textContent).toContain(provider.name);
+  expect(option(claude.email).getAttribute('aria-pressed')).toBe('false');
+  expect(option(provider.name).getAttribute('aria-pressed')).toBe('true');
+  engine = 'claude';
+  props.accounts = props.accounts.map(entry => ({ ...entry, active: false }));
+  await render();
+  expect(trigger().textContent).toContain(provider.name);
+  expect(option(provider.name).getAttribute('aria-pressed')).toBe('true');
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -348,11 +391,11 @@ it("opens independent auto-switch settings from the list footer and closes them 
   await render();
   expect(invoke).not.toHaveBeenCalledWith("codex_gui_auto_switch_settings");
   await click(trigger());
-  const settingsButton = document.querySelector<HTMLButtonElement>('button[aria-label="Codex GUI 设置"]')!;
+  const settingsButton = document.querySelector<HTMLButtonElement>('button[aria-label="Agent Hub 设置"]')!;
   expect(settingsButton.getAttribute("aria-haspopup")).toBe("dialog");
   await click(settingsButton);
   expect(trigger().getAttribute("aria-expanded")).toBe("false");
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Codex GUI 设置");
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Agent Hub 设置");
   expect(invoke).toHaveBeenCalledWith("codex_gui_auto_switch_settings");
   expect(props.onSwitchAccount).not.toHaveBeenCalled();
   props.active = false;
@@ -364,7 +407,7 @@ it("waits for the account catalog before allowing automatic switching settings t
   props.loading = true;
   await render();
   await click(trigger());
-  const settingsButton = document.querySelector<HTMLButtonElement>('button[aria-label="Codex GUI 设置"]')!;
+  const settingsButton = document.querySelector<HTMLButtonElement>('button[aria-label="Agent Hub 设置"]')!;
   expect(settingsButton.disabled).toBe(true);
   await click(settingsButton);
   expect(invoke).not.toHaveBeenCalledWith("codex_gui_auto_switch_settings");

@@ -10,6 +10,7 @@ mod context;
 pub(crate) use context::ThreadContext;
 mod deletion_batch;
 pub(crate) mod deletion_plan;
+pub(crate) mod synchronization;
 mod thread_relations;
 
 use std::{
@@ -35,7 +36,7 @@ use crate::storage::{replace_file, write_text_atomic};
 const INDEX_NAME: &str = "session_index.jsonl";
 const ROLLOUT_FOLDERS: [&str; 2] = ["sessions", "archived_sessions"];
 const BUNDLE_KIND: &str = "codex-session-export";
-const BUNDLE_REVISION: u32 = 1;
+const BUNDLE_REVISION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -179,6 +180,17 @@ struct PackageItem {
     state_row: Option<SqliteRowSnapshot>,
     #[serde(default)]
     related_state: Vec<SqliteTableSnapshot>,
+    #[serde(default)]
+    rollouts: Vec<PackageRollout>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PackageRollout {
+    relative_rollout_path: String,
+    file_entry: String,
+    size_bytes: u64,
+    sha256: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -250,6 +262,10 @@ include!("bin_migration.rs");
 include!("discard.rs");
 include!("bin.rs");
 include!("transfer.rs");
+mod rollout_pointer;
+mod rollout_selection;
+mod transfer_import;
+mod transfer_package;
 include!("migration.rs");
 include!("visibility.rs");
 include!("commands.rs");
@@ -260,9 +276,16 @@ include!("tests.rs");
 mod thread_title_tests;
 
 #[cfg(test)]
+mod discovery_tests;
+
+#[cfg(test)]
 mod visibility_provider_tests;
 
 #[cfg(test)]
 mod bin_test_support;
 #[cfg(test)]
 mod bin_tests;
+#[cfg(test)]
+mod rollout_selection_tests;
+#[cfg(test)]
+mod transfer_tests;

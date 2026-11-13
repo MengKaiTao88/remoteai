@@ -8,6 +8,8 @@ import { queueStorage } from './queueStorage';
 import { watchModelCatalog } from './modelCatalogRefresh';
 import { readGuiProviderModels } from './providerModelSource';
 import { backendSnapshot } from './backendScope';
+import { isClaudeAccountId } from '../../../../../shared/accounts/claudeAccounts';
+import type { GuiEngine } from '../../../../../shared/cli-gui/types';
 
 let controller: GuiController | undefined;
 let owners = 0;
@@ -16,9 +18,19 @@ let detach: (() => void) | undefined;
 /** The workspace and remote host share one queue, including before the GUI is first opened. */
 export function getGuiController() { return controller ??= new GuiController(hasLocalBackend ? queueStorage : undefined); }
 
-export function switchGuiAccount(selection: GuiAccountSelection) {
-  return getGuiController().modelCatalog.switchSource(() =>
-    invoke<GuiAccountSelection>('codex_gui_switch_account', { selection }));
+export function switchGuiAccount(selection: GuiAccountSelection, engine?: GuiEngine) {
+  if (selection.kind === 'account' && isClaudeAccountId(selection.id)) {
+    return invoke('claude_account_request', { request: { action: 'activate', id: selection.id } })
+      .then(() => selection);
+  }
+  return getGuiController().modelCatalog.switchSource(async () => {
+    const saved = await invoke<GuiAccountSelection>('codex_gui_switch_account', {
+      selection, ...(engine && engine !== 'codex' ? { engine } : {}),
+    });
+    // Clear the native override only after the requested proxy route was accepted.
+    if (engine === 'claude') await invoke('claude_account_request', { request: { action: 'deactivate' } });
+    return saved;
+  });
 }
 
 export function retainGuiSession() {

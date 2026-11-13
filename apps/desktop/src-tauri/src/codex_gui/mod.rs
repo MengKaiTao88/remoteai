@@ -35,6 +35,7 @@ pub(crate) mod git;
 mod goals;
 mod group_members;
 pub(crate) mod help_assistant;
+mod history_access;
 mod history_page;
 mod home;
 mod icons;
@@ -50,6 +51,9 @@ mod mcp_approval;
 mod message_edit;
 mod model_catalog_cache;
 mod model_discovery;
+mod native_history;
+mod process_details;
+mod ssh_reference;
 mod tool_details;
 pub(crate) use model_catalog_cache::cached_catalog;
 pub(crate) mod model_context;
@@ -58,6 +62,7 @@ pub(crate) mod notification_navigation;
 mod notifications;
 mod official_bridge;
 mod official_bridge_inputs;
+mod official_files;
 mod official_sidebar;
 mod platform;
 pub(crate) mod plugin_client;
@@ -74,6 +79,7 @@ pub(crate) mod push_notifications;
 mod push_outbox;
 mod push_writer;
 pub(crate) mod queue_store;
+mod recovery;
 pub(crate) mod releases;
 pub(crate) mod scheduled_tasks;
 #[cfg(test)]
@@ -191,10 +197,15 @@ async fn connect_gui(
     if let Some(client) = current.as_ref() {
         // A phone reconnect or transport switch must preserve idle, already loaded threads.
         if client.alive.load(Ordering::Acquire) && (reuse_existing || client.is_running().await) {
+            let home = client.home.clone();
+            let approvals = client.pending_approvals().await;
+            // A UAC prompt on local GUI entry must not hold the client lock needed by running chats.
+            drop(current);
             if setup_desktop_plugins {
-                crate::remote_command::setup_gui(client.home.clone()).await;
+                crate::remote_command::setup_gui(home.clone()).await;
+                computer_use_setup::prepare(app.clone(), home).await;
             }
-            return Ok(client.pending_approvals().await);
+            return Ok(approvals);
         }
         client.stop().await;
     }
@@ -228,7 +239,10 @@ pub(crate) async fn codex_gui_request(
 /// Share request validation and typed failures with background GUI operations.
 async fn execute_request(state: &GuiState, request: GuiRequest) -> Result<GuiResponse> {
     if official_bridge::enabled() {
-        return state.official_bridge.request(request).await;
+        return official_files::request(Arc::clone(&state.downloads.0), request, |request| {
+            state.official_bridge.request(request)
+        })
+        .await;
     }
     execute_gui_request(state, request).await
 }
@@ -255,7 +269,10 @@ async fn execute_gui_request(state: &GuiState, request: GuiRequest) -> Result<Gu
     };
     let client = connected(state).await?;
     match request {
+        GuiRequest::RecoveryList => return client.recovery_list().await,
+        GuiRequest::RecoveryDecide(decision) => return client.recovery_decide(decision).await,
         GuiRequest::ToolDetails(target) => return tool_details::read(client, target).await,
+        GuiRequest::ProcessDetails(target) => return process_details::read(client, target).await,
         GuiRequest::GroupThreadSummaries(query) => {
             return group_members::summaries::load(
                 client.home.clone(),
@@ -386,7 +403,31 @@ async fn execute_gui_request(state: &GuiState, request: GuiRequest) -> Result<Gu
     } else {
         None
     };
-    let data = icons::resolve(method, client.request(method, params).await?).await?;
+    let native = if let Some(window) = history_window.as_ref().filter(|window| {
+        method == "thread/read" && !include_tool_details && window.defers_processes()
+    }) {
+        native_history::read(
+            params["threadId"]
+                .as_str()
+                .ok_or(GuiError::InvalidRequest)?,
+            window,
+            |method, params| client.request(method, params),
+        )
+        .await
+        .map(Some)?
+    } else {
+        None
+    };
+    let (data, native_more) = if let Some((data, more)) = native {
+        (data, more)
+    } else {
+        (client.request(method, params).await?, false)
+    };
+    let mut data = data;
+    if method == "thread/resume" {
+        history_access::resume(&mut data, |method, params| client.request(method, params)).await?;
+    }
+    let data = icons::resolve(method, data).await?;
     // Discard unrequested history before serializing IPC, away from the UI and async workers.
     tauri::async_runtime::spawn_blocking(move || {
         let mut data = data;
@@ -398,6 +439,21 @@ async fn execute_gui_request(state: &GuiState, request: GuiRequest) -> Result<Gu
         }
         if let Some(window) = history_window {
             history_page::apply(&mut data, &window)?;
+            if native_more {
+                data["page"]["hasMore"] = serde_json::json!(true);
+            }
+        }
+        // Sending or retrying a viewed conversation must not refill its folded history.
+        if method == "thread/resume" && !summary_only {
+            if let Some(thread) = data.get_mut("thread") {
+                process_details::summarize_thread(thread);
+            }
+        }
+        // Sending or retrying a viewed conversation must not refill its folded history.
+        if method == "thread/resume" && !summary_only {
+            if let Some(thread) = data.get_mut("thread") {
+                process_details::summarize_thread(thread);
+            }
         }
         if !include_tool_details {
             if let Some(thread) = data.get_mut("thread") {

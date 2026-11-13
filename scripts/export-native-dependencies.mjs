@@ -22,6 +22,13 @@ const pending = new Set([
 const slash = value => value.replaceAll('\\', '/');
 const hash = value => createHash('sha256').update(value).digest('hex');
 const git = (args, cwd = root) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+const repository = cwd => {
+  const remotes = git(['remote'], cwd).split(/\s+/);
+  const value = git(['remote', 'get-url', remotes.includes('personal') ? 'personal' : 'origin'], cwd);
+  const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(value);
+  if (!match) throw new Error('Dependency provenance requires a credential-free GitHub repository URL.');
+  return `https://github.com/${match[1]}`;
+};
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const writeJson = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
 const sourcePattern = /\.[cm]?[jt]sx?$|\.css$|\.less$/;
@@ -90,7 +97,7 @@ for (const relative of git(['ls-files', ...roots]).split('\n').filter(Boolean)) 
 copy('LICENSE');
 const shared = readJson(path.join(root, 'shared/dependencies.json'));
 const i18n = readJson(path.join(destination, 'package.json')).dependencies['@remoteai/i18n'];
-if (!i18n.startsWith('https://github.com/piperhex/remoteai-i18n/releases/download/')) {
+if (!/^https:\/\/github\.com\/(?:piperhex|MengKaiTao88)\/remoteai-i18n\/releases\/download\//.test(i18n)) {
   throw new Error('Native must pin a published @remoteai/i18n release.');
 }
 writeJson(path.join(vendor, 'package.json'), {
@@ -101,8 +108,8 @@ writeJson(path.join(vendor, 'package.json'), {
     .filter(([name]) => name.startsWith('@types/'))),
 });
 writeJson(path.join(vendor, 'source-lock.json'), {
-  repository: 'https://github.com/piperhex/remoteai.git', revision: git(['rev-parse', 'HEAD']),
-  sharedSource: { repository: 'https://github.com/piperhex/remoteai-shared.git',
+  repository: repository(root), revision: git(['rev-parse', 'HEAD']),
+  sharedSource: { repository: repository(path.join(root, 'shared')),
     revision: git(['rev-parse', 'HEAD'], path.join(root, 'shared')) }, i18n, files,
 });
 for (const relative of Object.keys(previous)) {

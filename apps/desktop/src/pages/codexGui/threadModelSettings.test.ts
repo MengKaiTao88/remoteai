@@ -20,7 +20,7 @@ it('uses actual official permissions and waits for owner confirmation before cha
     access: 'danger-full-access', revision: 1 };
   saved.set('official', official);
   let finish!: (snapshot: ModelSettingsSnapshot) => void;
-  api.writeAccess = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+  api.writeAccess = vi.fn(() => new Promise<ModelSettingsSnapshot>(resolve => { finish = resolve; }));
   const controller = await client(api);
   await controller.select('official');
   await controller.modelSettings.ready('official');

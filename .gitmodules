@@ -15,7 +15,7 @@
 	url = https://github.com/MengKaiTao88/remoteai-i18n.git
 [submodule "apps/native"]
 	path = apps/native
-	url = https://github.com/piperhex/remoteai-native.git
+	url = https://github.com/MengKaiTao88/remoteai-native.git
 [submodule "apps/web"]
 	path = apps/web
 	url = https://github.com/MengKaiTao88/remoteai-web.git

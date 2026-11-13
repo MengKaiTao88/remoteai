@@ -9,6 +9,7 @@ import { formatTurnDuration } from "../../../../../shared/conversation/turnTimin
 import { DeferredDetails } from "./DeferredDetails";
 import { collaborationSummary, isCollaborationActivity } from "../../../../../shared/conversation/collaborationActivity";
 import styles from "./ActivityRow.module.less";
+import { useToolSummary } from '../../../../../shared/chat/useToolSummary';
 import { activityFileNames, activityGroupLabel, activityGroupStatus, commandActivityLabel }
   from '../../../../../shared/conversation/activitySummary';
 
@@ -70,11 +71,12 @@ export function ActivitySummary({ item, text, items }: { item: Item; text: strin
     </summary>;
 }
 
-export function ActivityRow({ item, text }: { item: Item; text: string }) {
+export function ActivityRow({ item: source, text }: { item: Item; text: string }) {
+  const { item, onLoad } = useToolSummary(source);
   const reasoning = item.type === "reasoning";
   return <DeferredDetails className={styles.row} status={item.status}
     summary={<ActivitySummary item={item} text={text} />}>
     {() => <div className={reasoning ? styles.reasoningBody : styles.commandBody}>
-      <ToolDetails item={item} text={text} /></div>}
+      <ToolDetails item={source} text={text} onLoad={onLoad} /></div>}
   </DeferredDetails>;
 }

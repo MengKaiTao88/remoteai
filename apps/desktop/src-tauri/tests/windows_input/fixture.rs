@@ -1,8 +1,8 @@
 use std::{
     cell::Cell,
-    sync::mpsc::{self, Sender},
+    sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    time::Duration,
 };
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
@@ -10,15 +10,13 @@ use windows::Win32::{
     UI::{
         Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
         WindowsAndMessaging::{
-            CallNextHookEx, GetQueueStatus, SendMessageTimeoutW, SetWindowsHookExW,
-            UnhookWindowsHookEx, HHOOK, PM_NOREMOVE, QS_SENDMESSAGE, SMTO_ABORTIFHUNG,
-            WH_GETMESSAGE, WM_KILLFOCUS,
+            CallNextHookEx, SendNotifyMessageW, SetWindowsHookExW, UnhookWindowsHookEx, HHOOK,
+            PM_NOREMOVE, WH_GETMESSAGE, WM_KILLFOCUS,
         },
     },
 };
 
 const SUBCLASS_ID: usize = 188;
-const SEND_TIMEOUT_MS: u32 = 5_000;
 const QUEUE_TIMEOUT: Duration = Duration::from_secs(3);
 
 thread_local! {
@@ -37,6 +35,7 @@ pub struct FocusReentry {
     nested_focus: Cell<bool>,
     hook_armed: Cell<bool>,
     sender: Sender<()>,
+    enqueued: Receiver<bool>,
     worker: Option<JoinHandle<bool>>,
     hook: Option<HHOOK>,
 }
@@ -44,30 +43,25 @@ pub struct FocusReentry {
 impl FocusReentry {
     pub fn install(hwnd: HWND, message: u32, at_ime_peek: bool) -> Box<Self> {
         let (sender, receiver) = mpsc::channel();
+        let (notify, enqueued) = mpsc::channel();
         let raw_hwnd = hwnd.0 as usize;
         let worker = thread::spawn(move || {
             if receiver.recv_timeout(QUEUE_TIMEOUT).is_err() {
                 return false;
             }
-            // SAFETY: The fixture retains the native window until this worker joins.
-            unsafe {
-                SendMessageTimeoutW(
-                    HWND(raw_hwnd as _),
-                    WM_KILLFOCUS,
-                    WPARAM(0),
-                    LPARAM(0),
-                    SMTO_ABORTIFHUNG,
-                    SEND_TIMEOUT_MS,
-                    None,
-                )
-                .0 != 0
-            }
+            // SAFETY: The fixture retains the window through verification. WM_KILLFOCUS has
+            // no pointer parameters; cross-thread notification queues it without waiting for dispatch.
+            let sent = unsafe {
+                SendNotifyMessageW(HWND(raw_hwnd as _), WM_KILLFOCUS, WPARAM(0), LPARAM(0)).is_ok()
+            };
+            notify.send(sent).is_ok() && sent
         });
         let mut fixture = Box::new(Self {
             hwnd,
             message,
             at_ime_peek,
             sender,
+            enqueued,
             armed: Cell::new(true),
             inside_input: Cell::new(false),
             queued: Cell::new(false),
@@ -106,16 +100,11 @@ impl FocusReentry {
         if self.sender.send(()).is_err() {
             return;
         }
-        let deadline = Instant::now() + QUEUE_TIMEOUT;
-        while Instant::now() < deadline {
-            // SAFETY: This only queries the current thread's queue; it does not pump it.
-            let pending = unsafe { GetQueueStatus(QS_SENDMESSAGE) } >> 16;
-            if pending & QS_SENDMESSAGE.0 != 0 {
-                self.queued.set(true);
-                return;
-            }
-            thread::yield_now();
-        }
+        // QS_SENDMESSAGE describes every sender, so unrelated Windows messages can make it
+        // true before this worker queues focus loss. Acknowledge our exact enqueue operation
+        // without pumping the target thread; Tao's next PeekMessage must still dispatch it.
+        self.queued
+            .set(self.enqueued.recv_timeout(QUEUE_TIMEOUT) == Ok(true));
     }
 
     pub fn verify(&mut self) {

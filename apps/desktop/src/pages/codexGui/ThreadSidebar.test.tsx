@@ -286,10 +286,10 @@ it("opens feature pages during a reply without creating or changing a conversati
   expect(button("会话示例").closest("." + styles.selected)).toBeNull();
   await act(async () => button("定时任务").click());
   expect(onNavigate).toHaveBeenCalledExactlyOnceWith("scheduled-tasks");
-  const navigation = container.querySelector('nav[aria-label="Codex GUI 导航"]')!;
+  const navigation = container.querySelector('nav[aria-label="Agent Hub 导航"]')!;
   expect([...navigation.querySelectorAll("button")].map((entry) => entry.textContent))
-    .toEqual(["新对话", "定时任务", "插件", "对话迁移"]);
-  await act(async () => button("对话迁移").click());
+    .toEqual(["新对话", "定时任务", "插件", "对话同步"]);
+  await act(async () => button("对话同步").click());
   expect(onNavigate).toHaveBeenLastCalledWith("conversation-migration");
   expect(start).not.toHaveBeenCalled();
   expect(select).not.toHaveBeenCalled();
@@ -321,6 +321,24 @@ it.each(["D:/project", ""])("temporarily promotes running chats within %j before
   await render();
   expect(titles()).toEqual(Array.from({ length: 7 }, (_, index) => `聊天 ${index}`));
   expect(state.threads.map((thread) => thread.id)).toEqual(Array.from({ length: 7 }, (_, index) => `chat-${index}`));
+});
+
+it("orders conversations merged from different projects into a custom group by activity", async () => {
+  state = { ...state, grouping: { groups: [{ id: 'custom', name: 'Custom', parentId: null }], projects: {},
+    threads: { oldest: 'custom', latest: 'custom', running: 'custom' } }, threads: [
+    { id: 'oldest', cwd: '/first', preview: 'Oldest', updatedAt: 1 },
+    { id: 'latest', cwd: '/second', preview: 'Latest', updatedAt: 30 },
+    { id: 'running', cwd: '/first', preview: 'Running', updatedAt: 10, status: { type: 'active' } },
+  ] };
+  await render();
+  const titles = () => [...container.querySelectorAll(`.${styles.threadTitle}`)].map(entry => entry.textContent);
+  expect(titles()).toEqual(['Running', 'Latest', 'Oldest']);
+  state = { ...state, pins: ['oldest'] };
+  await render();
+  expect(titles()).toEqual(['Running', 'Oldest', 'Latest']);
+  state = { ...state, threads: state.threads.map(thread => ({ ...thread, status: { type: 'idle' } })) };
+  await render();
+  expect(titles()).toEqual(['Oldest', 'Latest', 'Running']);
 });
 
 it("returns to the conversation when selecting the already selected thread from a feature page", async () => {

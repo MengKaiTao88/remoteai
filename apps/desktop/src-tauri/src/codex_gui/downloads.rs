@@ -30,7 +30,7 @@ pub(crate) struct Location {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Browse {
     #[serde(flatten)]
-    location: Location,
+    pub(super) location: Location,
     directory: String,
 }
 
@@ -38,7 +38,7 @@ pub(crate) struct Browse {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Open {
     #[serde(flatten)]
-    location: Location,
+    pub(super) location: Location,
     transfer_id: String,
     path: String,
     max_bytes: u64,
@@ -46,6 +46,12 @@ pub(crate) struct Open {
     #[serde(default)]
     prepare: bool,
     preparation_id: Option<String>,
+}
+
+impl Open {
+    pub(super) fn needs_root(&self) -> bool {
+        self.preparation_id.is_none()
+    }
 }
 
 /// Patch content is generated privately, never written into the source repository.
@@ -70,18 +76,19 @@ pub(super) async fn open_git_patch(
     .map_err(|_| GuiError::GitPatch)?
 }
 
-async fn project_root(client: &Client, location: &Location) -> Result<Option<PathBuf>> {
+pub(super) async fn project_root<F, Fut>(
+    location: &Location,
+    read_cwd: F,
+) -> Result<Option<PathBuf>>
+where
+    F: FnOnce(String) -> Fut,
+    Fut: std::future::Future<Output = Result<PathBuf>>,
+{
     if matches!(location.scope, Scope::Computer) {
         return Ok(None);
     }
     if let Some(id) = &location.thread_id {
-        let response = client
-            .request("thread/read", thread_params(id.clone())?)
-            .await?;
-        return response["thread"]["cwd"]
-            .as_str()
-            .map(|path| Some(PathBuf::from(path)))
-            .ok_or(GuiError::ProjectFiles);
+        return read_cwd(id.clone()).await.map(Some);
     }
     location
         .cwd
@@ -113,7 +120,19 @@ fn volume_root(path: &str) -> Result<PathBuf> {
 }
 
 pub(super) async fn browse(client: &Client, options: Browse) -> Result<GuiResponse> {
-    let root = project_root(client, &options.location).await?;
+    let root = project_root(&options.location, |id| client_root(client, id)).await?;
+    browse_at_root(root, options).await
+}
+
+async fn client_root(client: &Client, id: String) -> Result<PathBuf> {
+    let response = client.request("thread/read", thread_params(id)?).await?;
+    response["thread"]["cwd"]
+        .as_str()
+        .map(PathBuf::from)
+        .ok_or(GuiError::ProjectFiles)
+}
+
+pub(super) async fn browse_at_root(root: Option<PathBuf>, options: Browse) -> Result<GuiResponse> {
     let data = tauri::async_runtime::spawn_blocking(move || {
         if let Some(root) = root {
             return project_files::browse(&root, &options.directory, false);
@@ -147,12 +166,24 @@ pub(super) async fn open(
     streams: Arc<FileStreams>,
     options: Open,
 ) -> Result<GuiResponse> {
+    let root = if options.needs_root() {
+        project_root(&options.location, |id| client_root(client, id)).await?
+    } else {
+        None
+    };
+    open_at_root(streams, options, root).await
+}
+
+pub(super) async fn open_at_root(
+    streams: Arc<FileStreams>,
+    options: Open,
+    root: Option<PathBuf>,
+) -> Result<GuiResponse> {
     uuid::Uuid::parse_str(&options.transfer_id).map_err(|_| GuiError::InvalidRequest)?;
     if let Some(id) = options.preparation_id {
         uuid::Uuid::parse_str(&id).map_err(|_| GuiError::InvalidRequest)?;
         return streams.archive_status(options.transfer_id, id).await;
     }
-    let root = project_root(client, &options.location).await?;
     tauri::async_runtime::spawn_blocking(move || {
         let root = match root {
             Some(root) => root,

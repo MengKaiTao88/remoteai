@@ -9,6 +9,9 @@ import { RichText } from "../../../shared/conversation/RichText";
 import { useThemeMode } from "../src/hooks/useThemeMode";
 import { filePreviewApi, type FilePreviewData } from "../../../shared/file-preview/workspace/api";
 import { fileApi } from "../../../shared/conversation/fileApi";
+import { FileEnvironmentContext, type FileEnvironment } from "../../../shared/conversation/fileEnvironment";
+import { FileThreadContext } from "../../../shared/conversation/fileApi";
+import { ApplicationTypography } from "../../../shared/appearance/ApplicationTypography";
 import { WebsitePreviewControls } from "./website-preview-controls";
 import "../src/styles.css";
 import "antd/dist/reset.css";
@@ -68,12 +71,16 @@ if (!native && !params.has("hosted")) {
     return { path: target.path, saved: false, text: data.text ?? undefined };
   };
 }
+const environment: FileEnvironment | null = params.get("mode") === "remote" ? {
+  remote: true, actions: fileApi, previews: filePreviewApi,
+  resolveWebsite: async url => url, image: props => <img {...props} />,
+} : null;
 function Conversation() {
   const panel = useContext(DetailsContext);
   const openFile = panel?.openFile;
   useEffect(() => {
     if (!websiteOnly && !params.has("manual")) {
-      void openFile?.({ path: params.get("path") ?? data.path, threadId: null });
+      void openFile?.({ path: params.get("path") ?? data.path, threadId: null }, { browser: params.has("browser") });
     }
   }, [openFile]);
   return <div style={{ padding: 24 }}>
@@ -90,10 +97,14 @@ function Conversation() {
 }
 function Harness() {
   const { mode } = useThemeMode();
-  return <ConfigProvider theme={{ algorithm: mode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm }}>
+  const algorithm = mode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm;
+  return <ConfigProvider theme={{ algorithm: params.has("browser") ? [algorithm, theme.compactAlgorithm] : algorithm }}>
+    <ApplicationTypography><FileEnvironmentContext.Provider value={environment}>
+    <FileThreadContext.Provider value="fixture">
     <div style={{ height: "100vh" }}><DetailsWorkspace selected="fixture" active>
       <Conversation />
     </DetailsWorkspace></div>
+    </FileThreadContext.Provider></FileEnvironmentContext.Provider></ApplicationTypography>
   </ConfigProvider>;
 }
 document.body.style.minWidth = "0";

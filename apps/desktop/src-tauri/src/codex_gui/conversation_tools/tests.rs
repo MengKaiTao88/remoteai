@@ -11,6 +11,8 @@ use tokio::sync::Mutex;
 
 #[path = "model_tests.rs"]
 mod model_tests;
+#[path = "title_tests.rs"]
+mod title_tests;
 
 struct Fake(Mutex<VecDeque<(&'static str, Value, Result<Value>)>>);
 
@@ -27,6 +29,18 @@ impl Backend for Fake {
         self.request("save/model", json!({"threadId":id, "selection":selection}))
             .await
             .map(|_| ())
+    }
+
+    fn generate_title(&self, id: &str, prompt: String) {
+        let (method, params, result) = self
+            .0
+            .try_lock()
+            .unwrap()
+            .pop_front()
+            .expect("unexpected title generation");
+        assert_eq!(method, "generate/title");
+        assert_eq!(params, json!({"threadId":id, "prompt":prompt}));
+        result.unwrap();
     }
 }
 
@@ -59,6 +73,7 @@ fn prepared(params: Value) -> operations::PreparedCreate {
         params,
         selection: selection(),
         message: "补充要求".into(),
+        title: None,
     }
 }
 
@@ -91,7 +106,7 @@ fn tools_reject_unexpected_permissions_invalid_targets_and_empty_messages() {
         );
     }
     let tools = protocol::tools().unwrap();
-    assert_eq!(tools["tools"].as_array().unwrap().len(), 6);
+    assert_eq!(tools["tools"].as_array().unwrap().len(), 10);
     assert!(protocol::parse(&json!({"name":"gui_list_running_conversations"})).is_ok());
 }
 
@@ -235,6 +250,7 @@ async fn creation_checkpoints_thread_before_sending_and_reports_uncertain_outcom
         request_id: "create-one".into(),
         message: "补充要求".into(),
         cwd: None,
+        title: None,
         model: None,
         effort: None,
         caller: Some(selection()),
@@ -301,6 +317,7 @@ async fn successful_creation_returns_a_durable_receipt_without_resending() {
         request_id: "create-success".into(),
         message: "补充要求".into(),
         cwd: None,
+        title: None,
         model: None,
         effort: None,
         caller: Some(selection()),
@@ -315,6 +332,11 @@ async fn successful_creation_returns_a_durable_receipt_without_resending() {
             "turn/start",
             creation_prompt(),
             Ok(json!({"turn":{"id":"created-turn"}})),
+        ),
+        (
+            "generate/title",
+            json!({"threadId":"target", "prompt":"补充要求"}),
+            Ok(json!({})),
         ),
     ])));
     let receipt = operations::create(&fake, prepared(json!({})), &mut entry)
@@ -336,12 +358,28 @@ fn mcp_handshake_and_listing_do_not_require_a_connected_engine() {
     let initialize = http::dispatch(json!({"id":1,"method":"initialize"}), no_engine);
     assert_eq!(initialize["result"]["serverInfo"]["name"], "codex_gui");
     let listing = http::dispatch(json!({"id":2,"method":"tools/list"}), no_engine);
-    assert_eq!(listing["result"]["tools"].as_array().unwrap().len(), 6);
+    assert_eq!(listing["result"]["tools"].as_array().unwrap().len(), 10);
+    for name in ["gui_ssh_profiles", "gui_ssh_execute", "gui_ssh_terminal"] {
+        assert!(listing["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["name"] == name));
+    }
     assert!(listing["result"]["tools"]
         .as_array()
         .unwrap()
         .iter()
         .any(|tool| tool["name"] == "gui_browser_open"));
+    assert!(listing["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|tool| tool["name"] == "gui_browser_finish"));
+    assert!(initialize["result"]["instructions"]
+        .as_str()
+        .unwrap()
+        .contains("gui_browser_finish"));
     let failure = http::dispatch(json!({"id":3,"method":"tools/call", "params":{}}), |_| {
         Err(Error::Invalid)
     });

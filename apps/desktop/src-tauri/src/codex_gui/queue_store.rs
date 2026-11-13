@@ -96,6 +96,7 @@ struct Attachment {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 enum AttachmentKind {
+    Ssh,
     Coze,
     File,
     Folder,
@@ -268,7 +269,8 @@ mod tests {
             serde_json::from_value(serde_json::json!({"revision":0,"threads":{
                 "thread":[{"id":"message","text":"hello","images":[],"skills":[],
                     "attachments":[{"kind":"coze","name":"库存",
-                        "path":"coze://f321c884-a198-4244-ad4f-53762b3d2aba"}],
+                        "path":"coze://f321c884-a198-4244-ad4f-53762b3d2aba"},
+                        {"kind":"ssh","name":"开发服务器","path":"ssh-profile://development"}],
                     "model":"model","effort":"high","access":"read-only","busy":true}]
             }}))
             .unwrap();
@@ -286,6 +288,11 @@ mod tests {
         assert_eq!(
             saved["threads"]["thread"][0]["attachments"][0]["kind"],
             "coze"
+        );
+        assert_eq!(
+            saved["threads"]["thread"][0]["attachments"][1],
+            serde_json::json!({
+            "kind":"ssh", "name":"开发服务器", "path":"ssh-profile://development"})
         );
         assert!(restored.has_pending(&["parent".into(), "thread".into()]));
         assert!(!restored.has_pending(&["unrelated".into()]));
