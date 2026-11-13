@@ -67,6 +67,17 @@ impl Client {
                             if client.accept(view).await.is_err() {
                                 return;
                             }
+                        } else if let Ok(view) = client
+                            .http
+                            .get(&format!("/api/sessions/{thread}?host=local"))
+                            .await
+                        {
+                            // Queue storage has its own revision and may change while the
+                            // conversation stream is idle. Refresh after the bounded long poll;
+                            // this reads state only and never activates or replays a message.
+                            if client.accept(&view).await.is_err() {
+                                return;
+                            }
                         }
                     }
                     Err(_) => {
@@ -128,6 +139,12 @@ impl Client {
             .insert(id.to_owned(), view.clone());
         self.publish_turns(previous.as_ref(), view);
         self.publish_usage(previous.as_ref(), view);
+        if view["nativeQueue"].is_array()
+            && previous.as_ref().map(|old| &old["nativeQueue"]) != Some(&view["nativeQueue"])
+        {
+            self.emit(json!({"method":"thread/nativeQueue/updated",
+                "params":{"threadId":id,"nativeQueue":view["nativeQueue"]}}));
+        }
         if super::models::selection(view) != previous.as_ref().and_then(super::models::selection)
             || super::models::access(view) != previous.as_ref().and_then(super::models::access)
             || (view["permissionUpdate"] == "nextTurn")

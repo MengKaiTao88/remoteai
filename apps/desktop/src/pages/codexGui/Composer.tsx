@@ -129,6 +129,7 @@ export const Composer = forwardRef<ComposerHandle, {
       onBusyChange={controller.setWorkspaceBusy}
       onChange={controller.setProject} onError={controller.report} />
     {state.selected && <QueuedMessages threadId={state.selected} messages={queuedMessages}
+      nativeQueue={current?.thread.nativeQueue}
       running={running} connected={state.connection === "ready"} queue={controller.queue}
       editDisabled={disabled || reading || !active} onEdit={editQueuedMessage} />}
     <div ref={composer} className={styles.composer} {...drop.handlers}

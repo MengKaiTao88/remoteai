@@ -133,6 +133,7 @@ export class MessageQueue {
       || this.pending.has(threadId)
       || this.preparing.has(threadId)
       || state.conversations[threadId]?.activeTurn || !messages.length
+      || Boolean(state.conversations[threadId]?.thread.nativeQueue?.length)
       || modelSelectionError(state.models, messages[0])
       || (!retry && messages.some(item => item.needsReview || item.error))) return;
     this.pending.add(threadId);

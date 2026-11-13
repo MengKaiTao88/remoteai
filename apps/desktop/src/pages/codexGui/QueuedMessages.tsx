@@ -4,11 +4,13 @@ import { Button, Dropdown } from "antd";
 import { ArrowDown, ArrowUp, CornerDownRight, MoreHorizontal, Trash2 } from "lucide-react";
 import type { QueuedMessage } from "../../../../../shared/conversation/types";
 import type { MessageQueue } from "./messageQueue";
+import type { NativeQueueMessage } from '../../../../../shared/remote-chat/queue';
 import styles from "./QueuedMessages.module.less";
 
 interface QueueProps {
   threadId: string;
   messages: QueuedMessage[];
+  nativeQueue?: NativeQueueMessage[];
   running: boolean;
   connected: boolean;
   queue: MessageQueue;
@@ -49,16 +51,25 @@ function QueueItem({ item, context, canMoveUp, canMoveDown }: QueueItemProps) {
   </li>;
 }
 
-export function QueuedMessages({ messages, ...context }: QueueProps) {
-  if (!messages.length) return null;
+export function QueuedMessages({ messages, nativeQueue = [], ...context }: QueueProps) {
+  if (!messages.length && !nativeQueue.length) return null;
   return <div className={styles.queue}>
-    <div className={styles.heading}>{uiText("client.chat.queued")} {messages.length}
+    {nativeQueue.length > 0 && <>
+      <div className={styles.heading}>Codex · {uiText('client.chat.queued')} {nativeQueue.length}</div>
+      <ul aria-label={`Codex · ${uiText('client.chat.queuedMessages')}`}>
+        {nativeQueue.map(item => <li key={item.id} className={styles.item}>
+          <div className={styles.row}><CornerDownRight size={15} />
+            <span className={styles.text}>{item.text || uiText('client.chat.imageMessage')}</span></div>
+        </li>)}
+      </ul>
+    </>}
+    {messages.length > 0 && <><div className={styles.heading}>Remote AI · {uiText("client.chat.queued")} {messages.length}
       {!context.running && <Button type="text" size="small"
-        disabled={!context.connected || messages.some((item) => item.busy)}
+        disabled={!context.connected || nativeQueue.length > 0 || messages.some((item) => item.busy)}
         onClick={() => void context.queue.flush(context.threadId, true)}>{uiText("client.chat.sendAll")}</Button>}</div>
     <ul aria-label={uiText("client.chat.queuedMessages")}>{messages.map((item, index) =>
       <QueueItem key={item.id} item={item} context={context}
         canMoveUp={!item.busy && index > 0 && !messages[index - 1].busy}
-        canMoveDown={!item.busy && index < messages.length - 1 && !messages[index + 1].busy} />)}</ul>
+        canMoveDown={!item.busy && index < messages.length - 1 && !messages[index + 1].busy} />)}</ul></>}
   </div>;
 }

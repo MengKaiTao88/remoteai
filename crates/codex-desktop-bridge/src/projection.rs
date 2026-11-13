@@ -42,6 +42,9 @@ pub(super) fn thread(view: &Value) -> Value {
     if let Some(usage) = super::usage::snapshot(view) {
         projected["tokenUsage"] = usage;
     }
+    if view["nativeQueue"].is_array() {
+        projected["nativeQueue"] = view["nativeQueue"].clone();
+    }
     projected
 }
 

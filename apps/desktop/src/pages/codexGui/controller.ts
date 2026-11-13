@@ -214,6 +214,7 @@ export class GuiController {
       if (value && turnId) rememberTurnDetails(value, turnId);
     }
     if (event.method === "turn/completed" && event.params.threadId) void this.queue.flush(event.params.threadId);
+      if (event.method === 'thread/nativeQueue/updated' && event.params.threadId) void this.queue.flush(event.params.threadId);
   }
 
   connect = (options?: { reuseExisting: boolean }) => {

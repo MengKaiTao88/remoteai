@@ -24,7 +24,7 @@ export class LiveHistory {
       }
       return;
     }
-    if (!event.params.turnId && !event.params.turn?.id && !event.params.tokenUsage) return;
+    if (!event.params.turnId && !event.params.turn?.id && !event.params.tokenUsage && !event.params.nativeQueue) return;
     const previous = this.threads.get(id);
     const thread = previous && event.method !== 'turn/started'
       ? previous : { id, preview: '', cwd: '', updatedAt: 0, turns: [], tokenUsage: previous?.tokenUsage };

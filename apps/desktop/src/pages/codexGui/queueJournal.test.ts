@@ -64,3 +64,15 @@ it('serializes writes and retains the latest edit across reopening', async () =>
   await journal.saved();
   expect(await store.read()).toEqual({ revision: 2, threads: { thread: [{ ...message, text: 'edited' }] } });
 });
+
+it('reviews restored official failures without claiming the independent owner queue failed or replaying a draft', async () => {
+  const failed = { ...message, error: '发送失败，请重试。', needsReview: false };
+  const restore = vi.fn();
+  const store: QueueStorage = { reviewRestoredFailures: true,
+    read: async () => ({ revision: 5, threads: { thread: [failed] } }), save: vi.fn() };
+  await new QueueJournal(store, restore, vi.fn()).restore();
+  expect(restore).toHaveBeenCalledWith({ thread: [{ ...failed, busy: false, needsReview: true,
+    error: '上次发送结果尚未确认，请查看聊天后决定是否重发。' }] });
+  expect(store.save).not.toHaveBeenCalled();
+  expect(failed.error).toBe('发送失败，请重试。');
+});

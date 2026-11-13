@@ -21,6 +21,44 @@ fn view(text: &str) -> Value {
 }
 
 #[test]
+fn owner_queue_projection_is_explicit_and_independent_from_turn_history() {
+    let mut state = view("unchanged history");
+    assert!(projection::thread(&state)["nativeQueue"].is_null());
+    state["nativeQueue"] = json!([{"id":"official-1","text":"queued","imageCount":0}]);
+    let thread = projection::thread(&state);
+    assert_eq!(thread["nativeQueue"], state["nativeQueue"]);
+    state["nativeQueue"] = json!([]);
+    assert_eq!(projection::thread(&state)["nativeQueue"], json!([]));
+    assert_eq!(projection::thread(&state)["turns"], thread["turns"]);
+}
+
+#[tokio::test]
+async fn owner_queue_updates_and_clears_without_turn_changes_or_message_submissions() {
+    let fixture = fixture(false).await;
+    let client = client(&fixture).await;
+    let mut events = client.subscribe();
+    let mut state = view("unchanged");
+    state["nativeQueue"] = json!([]);
+    client.accept(&state).await.unwrap();
+    while events.try_recv().is_ok() {}
+    state["nativeQueue"] = json!([{"id":"owner-1","text":"queued","imageCount":0}]);
+    client.accept(&state).await.unwrap();
+    let event = events.try_recv().unwrap();
+    assert_eq!(event["method"], "thread/nativeQueue/updated");
+    assert_eq!(event["params"]["nativeQueue"], state["nativeQueue"]);
+    client.accept(&state).await.unwrap();
+    assert!(events.try_recv().is_err());
+    state["nativeQueue"] = json!([]);
+    client.accept(&state).await.unwrap();
+    assert_eq!(
+        events.try_recv().unwrap()["params"]["nativeQueue"],
+        json!([])
+    );
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 0);
+    client.close().await;
+}
+
+#[test]
 fn rejects_remote_urls_credentials_queries_and_paths() {
     for url in [
         "https://127.0.0.1:8000",

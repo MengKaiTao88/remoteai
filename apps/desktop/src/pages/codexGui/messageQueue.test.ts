@@ -40,6 +40,21 @@ beforeEach(async () => {
 });
 afterEach(() => { controller.dispose(); localStorage.clear(); });
 
+it('never dispatches the local outbox ahead of the official owner queue, including an explicit flush', async () => {
+  await controller.send('local draft', []);
+  receive({ method: 'thread/nativeQueue/updated', params: { threadId: 'one', nativeQueue: [
+    { id: 'owner-message', text: 'official draft', imageCount: 0 },
+  ] } });
+  vi.mocked(guiApi.request).mockClear();
+  await finish();
+  await controller.queue.flush('one', true);
+  expect(guiApi.request).not.toHaveBeenCalledWith(expect.objectContaining({ operation: 'sendBatch' }));
+  expect(messages().map(message => message.text)).toEqual(['local draft']);
+  receive({ method: 'thread/nativeQueue/updated', params: { threadId: 'one', nativeQueue: [] } });
+  await settle();
+  expect(guiApi.request).toHaveBeenCalledWith(expect.objectContaining({ operation: 'sendBatch' }));
+});
+
 it("sends immediately with all content when queuing is disabled and leaves waiting messages intact", async () => {
   await controller.send("already queued", []);
   saveMessageQueueEnabled(false);

@@ -2,6 +2,8 @@ import type { GuiState, QueuedMessage } from '../../../../../shared/conversation
 
 export interface QueueSnapshot { revision: number; threads: GuiState['queued'] }
 export interface QueueStorage {
+  /** Official Codex can accept or queue a message independently while this client is closed. */
+  reviewRestoredFailures?: boolean;
   read(): Promise<QueueSnapshot>;
   save(snapshot: QueueSnapshot): Promise<QueueSnapshot>;
 }
@@ -25,7 +27,7 @@ export class QueueJournal {
       const snapshot = await this.storage.read();
       this.revision = snapshot.revision;
       const threads = Object.fromEntries(Object.entries(snapshot.threads).map(([id, messages]) => [id,
-        messages.map((message): QueuedMessage => message.busy
+        messages.map((message): QueuedMessage => message.busy || (message.error && this.storage?.reviewRestoredFailures)
           ? { ...message, busy: false, needsReview: true, error: UNCERTAIN_MESSAGE } : message)]));
       this.restoreQueue(threads);
     }
