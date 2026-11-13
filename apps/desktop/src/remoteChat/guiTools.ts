@@ -1,3 +1,5 @@
+import { resetPriorityRequest } from './resetPriority';
+import { RESET_PRIORITY_READ, RESET_PRIORITY_SET } from '../../../../shared/remote-chat/resetPriority';
 import { invoke } from '../api/backend';
 import { CODEX_STATUS_OPERATION } from '../../../../shared/codex-status/status';
 import { readCodexServiceStatus } from '../api/codexServiceStatus';
@@ -40,6 +42,8 @@ async function install(version: string) {
 
 export async function guiToolRequest(body: Record<string, unknown>) {
   switch (body.operation) {
+    case RESET_PRIORITY_READ:
+    case RESET_PRIORITY_SET: return resetPriorityRequest(body);
     case CODEX_STATUS_OPERATION: return readCodexServiceStatus();
     case 'guiBrowser': return invoke('codex_gui_browser', { request: body.request });
     case PROJECT_LIST_OPERATION: return readRemoteProjects();

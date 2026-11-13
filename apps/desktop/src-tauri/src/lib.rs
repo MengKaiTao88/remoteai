@@ -638,6 +638,7 @@ pub fn run() {
             local_proxy::set_auto_reset_settings,
             local_proxy::set_concurrent_account_routing_enabled,
             local_proxy::set_custom_auto_switch_priority_enabled,
+            local_proxy::set_auto_switch_priority_by_reset,
             local_proxy::set_custom_auto_switch_threshold_enabled,
             local_proxy::set_global_auto_switch_threshold,
             local_proxy::set_auto_disable_unreachable_accounts,

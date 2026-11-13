@@ -46,6 +46,14 @@ export function ProxyTopbarActions({
                   onChange={(enabled) => void manager.setProxyCustomPriority(enabled)} />
               </div>
             </Tooltip>
+            <Tooltip title={t("table.resetPriorityTooltip")} styles={{ root: { maxWidth: 400 } }}>
+              <div className="proxy-auto-switch-menu-item">
+                <span>{t("table.resetPriorityEnabled")}</span>
+                <Switch size="small" checked={Boolean(localProxy?.autoSwitchPriorityByReset)}
+                  disabled={manager.proxyBusy || !localProxy?.autoSwitchOnQuotaExhaustion}
+                  onChange={(enabled) => void manager.setProxyResetPriority(enabled)} />
+              </div>
+            </Tooltip>
             <div className="proxy-auto-switch-menu-item" title={t("table.customThresholdTooltip")}>
               <span>{t("table.customThresholdEnabled")}</span>
               <Switch size="small" checked={localProxy?.customAutoSwitchThresholdEnabled}

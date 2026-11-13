@@ -151,6 +151,7 @@ pub(crate) fn list_accounts_blocking<R: Runtime>(
         });
     }
     accounts.sort_by(|left, right| left.email.cmp(&right.email));
+    crate::local_proxy::reset_priority::apply(&mut accounts, &state);
     Ok(accounts)
 }
 

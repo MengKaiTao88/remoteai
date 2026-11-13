@@ -142,6 +142,7 @@ export function AccountsPage({
         autoSwitchThresholdBusyAccountId={autoSwitchThresholdBusyAccountId}
         autoSwitchOnQuotaExhaustion={localProxy?.autoSwitchOnQuotaExhaustion ?? false}
         customAutoSwitchPriorityEnabled={localProxy?.customAutoSwitchPriorityEnabled ?? false}
+        autoSwitchPriorityByReset={localProxy?.autoSwitchPriorityByReset ?? false}
         customAutoSwitchThresholdEnabled={localProxy?.customAutoSwitchThresholdEnabled ?? false}
         globalAutoSwitchThreshold={localProxy?.globalAutoSwitchThreshold ?? 0}
         onGlobalAutoSwitchThresholdChange={onGlobalAutoSwitchThresholdChange}

@@ -151,6 +151,7 @@ fn try_auto_switch_official_account<R: Runtime>(
         });
     }
 
+    reset_priority::reload(&paths, &mut refreshed_accounts, &state);
     if let Some(target) = account_with_lowest_remaining_primary_quota(
         &refreshed_accounts,
         &current_id,

@@ -112,6 +112,7 @@ interface AccountTableProps {
   autoSwitchThresholdBusyAccountId: string | null;
   autoSwitchOnQuotaExhaustion: boolean;
   customAutoSwitchPriorityEnabled: boolean;
+  autoSwitchPriorityByReset?: boolean;
   customAutoSwitchThresholdEnabled: boolean;
   globalAutoSwitchThreshold: number;
   onGlobalAutoSwitchThresholdChange: (threshold: number) => Promise<boolean>;
@@ -307,6 +308,7 @@ export function AccountTable({
   autoSwitchThresholdBusyAccountId,
   autoSwitchOnQuotaExhaustion,
   customAutoSwitchPriorityEnabled,
+  autoSwitchPriorityByReset = false,
   customAutoSwitchThresholdEnabled,
   globalAutoSwitchThreshold,
   onGlobalAutoSwitchThresholdChange,
@@ -718,11 +720,13 @@ export function AccountTable({
       </strong>,
     },
     ...(customPriorityActive ? [{
-      title: t("table.autoSwitchPriority"), key: "autoSwitchPriority", width: 150,
+      title: <Tooltip title={autoSwitchPriorityByReset ? t("table.resetPriorityTooltip") : undefined}>
+        {t(autoSwitchPriorityByReset ? "table.resetPriorityColumn" : "table.autoSwitchPriority")}
+      </Tooltip>, key: "autoSwitchPriority", width: 150,
       align: "center" as const, fixed: "right" as const,
       render: (_: unknown, account: Account) => (
         <AutoSwitchPriorityInput account={account} t={t}
-          disabled={autoSwitchPriorityBusyAccountId !== null}
+          disabled={autoSwitchPriorityByReset || autoSwitchPriorityBusyAccountId !== null}
           onSave={onAutoSwitchPriorityChange} />
       ),
     }] : []),
@@ -1261,7 +1265,7 @@ export function AccountTable({
             </header>
             <AccountCardAutoSwitchSettings account={account} t={t}
               priorityEnabled={customPriorityActive} thresholdEnabled={customThresholdActive}
-              priorityBusy={autoSwitchPriorityBusyAccountId !== null}
+              priorityBusy={autoSwitchPriorityByReset || autoSwitchPriorityBusyAccountId !== null}
               thresholdBusy={autoSwitchThresholdBusyAccountId !== null}
               onPrioritySave={onAutoSwitchPriorityChange} onThresholdSave={onAutoSwitchThresholdChange} />
             <div className="account-card-usage">

@@ -16,6 +16,7 @@ interface LocalProxyCardProps {
   onOpenSessions: () => void;
   onAutoSwitchChange: (enabled: boolean) => void;
   onCustomAutoSwitchPriorityEnabledChange: (enabled: boolean) => void;
+  onResetPriorityChange?: (enabled: boolean) => void;
   onCustomAutoSwitchThresholdEnabledChange: (enabled: boolean) => void;
   onAutoDisableUnreachableChange: (enabled: boolean) => void;
   onImageModelChange: (routeKind: ImageRouteKind, target: ImageModelTarget | null) => void;
@@ -34,6 +35,7 @@ export function LocalProxyCard({
   onOpenSessions,
   onAutoSwitchChange,
   onCustomAutoSwitchPriorityEnabledChange,
+  onResetPriorityChange,
   onCustomAutoSwitchThresholdEnabledChange,
   onAutoDisableUnreachableChange,
   onImageModelChange,
@@ -118,6 +120,15 @@ export function LocalProxyCard({
                         onChange={onCustomAutoSwitchPriorityEnabledChange} />
                     </div>
                   </Tooltip>
+                  {onResetPriorityChange && <Tooltip title={t("table.resetPriorityTooltip")}
+                    styles={{ root: { maxWidth: 400 } }}>
+                    <div className="proxy-auto-switch-menu-item">
+                      <span>{t("table.resetPriorityEnabled")}</span>
+                      <Switch size="small" checked={Boolean(localProxy?.autoSwitchPriorityByReset)}
+                        disabled={proxyBusy || !localProxy?.autoSwitchOnQuotaExhaustion}
+                        onChange={onResetPriorityChange} />
+                    </div>
+                  </Tooltip>}
                   <div className="proxy-auto-switch-menu-item"
                     title={t("table.customThresholdTooltip")}>
                     <span>{t("table.customThresholdEnabled")}</span>

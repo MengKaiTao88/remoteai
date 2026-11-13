@@ -278,6 +278,7 @@ export interface LocalProxyStatus {
   concurrentAccountRoutingEnabled: boolean;
   concurrentAccountGroup?: string | null;
   customAutoSwitchPriorityEnabled: boolean;
+  autoSwitchPriorityByReset?: boolean;
   customAutoSwitchThresholdEnabled: boolean;
   globalAutoSwitchThreshold: number;
   autoDisableUnreachableAccounts: boolean;

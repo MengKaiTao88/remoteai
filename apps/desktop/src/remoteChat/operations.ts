@@ -35,6 +35,7 @@ import { encodeTokenSummary, QUOTA_HISTORY_FORMAT } from '../../../../shared/rem
 import { readTokenSummary } from './tokenSummary';
 import { CONTEXT_READ_OPERATION, CONTEXT_WRITE_OPERATION } from '../../../../shared/remote-chat/contextSettings';
 import { contextSettingsRequest } from './contextSettings';
+import { RESET_PRIORITY_READ } from '../../../../shared/remote-chat/resetPriority';
 import { GUI_TOOL_OPERATIONS } from '../../../../shared/remote-chat/guiTools';
 import { CODEX_STATUS_OPERATION } from '../../../../shared/codex-status/status';
 import { GUI_FILE_OPERATIONS } from '../../../../shared/remote-chat/files';
@@ -94,6 +95,7 @@ const READ_OPERATIONS = new Set([
   'toolDetails',
   'viewThread',
   CODEX_STATUS_OPERATION,
+  RESET_PRIORITY_READ,
   'projectFileRead',
   'projectFileBlame',
   'guiFileApplications', 'guiFilePreviewClose', 'guiFilePreviewHost', 'guiFilePreviewText', 'guiResourceClose',

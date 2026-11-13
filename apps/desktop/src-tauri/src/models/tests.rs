@@ -12,6 +12,7 @@
         assert!(!state.concurrent_account_routing_enabled);
         assert!(state.concurrent_account_group.is_none());
         assert!(!state.custom_auto_switch_priority_enabled);
+        assert!(!state.auto_switch_priority_by_reset);
         assert!(!state.custom_auto_switch_threshold_enabled);
         assert_eq!(state.global_auto_switch_threshold, 0.0);
         assert!(!state.auto_disable_unreachable_accounts);

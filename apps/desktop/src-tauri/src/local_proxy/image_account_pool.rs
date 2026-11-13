@@ -82,9 +82,8 @@ fn image_failover_account_ids(
     if state.concurrent_account_routing_enabled && concurrent_custom_priority_enabled(state) {
         // Keep every tier for 429 fallback; the explicitly selected image account
         // is still prepended by ordered_image_account_ids.
-        account_ids.sort_by_cached_key(|account_id| {
-            load_auto_switch_priority(&auto_switch_priority_path(paths, account_id))
-        });
+        let now = chrono::Utc::now().timestamp();
+        account_ids.sort_by_cached_key(|id| reset_priority::stored_key(paths, state, id, now));
     }
     Ok(account_ids)
 }

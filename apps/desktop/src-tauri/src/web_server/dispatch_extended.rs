@@ -57,6 +57,12 @@ fn dispatch_extended_command(app: AppHandle, command: &str, args: Value) -> Resu
                 argument(&args, "enabled")?,
             ))
         }
+        "set_auto_switch_priority_by_reset" => {
+            serialize(block_on(crate::local_proxy::set_auto_switch_priority_by_reset(
+                app,
+                argument(&args, "enabled")?,
+            )))
+        }
         "set_custom_auto_switch_priority_enabled" => {
             serialize(block_on(crate::local_proxy::set_custom_auto_switch_priority_enabled(
                 app,

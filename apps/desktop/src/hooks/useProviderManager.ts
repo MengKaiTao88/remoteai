@@ -12,6 +12,7 @@ import {
   saveProviderProfile,
   setLocalProxyAutoDisableUnreachable,
   setLocalProxyCustomPriority,
+  setLocalProxyResetPriority,
   setLocalProxyCustomThreshold,
   setLocalProxyServiceTier,
   setLocalProxyGlobalThreshold,
@@ -585,6 +586,18 @@ export function useProviderManager(
     }
   }, [load, notify, t]);
 
+  const setProxyResetPriority = useCallback(async (enabled: boolean) => {
+    setProxyBusy(true);
+    try {
+      setLocalProxy(await setLocalProxyResetPriority(enabled));
+      await load();
+    } catch (error) {
+      notify(providerErrorMessage(error, t));
+    } finally {
+      setProxyBusy(false);
+    }
+  }, [load, notify, t]);
+
   const setProxyServiceTier = useCallback(async (serviceTier: ProxyServiceTier) => {
     setProxyBusy(true);
     try {
@@ -796,6 +809,7 @@ export function useProviderManager(
     setProxyConcurrentRouting,
     setProxyAutoDisableUnreachable,
     setProxyCustomPriority,
+    setProxyResetPriority,
     setProxyCustomThreshold,
     setProxyGlobalThreshold,
     setProxyImageAccount,

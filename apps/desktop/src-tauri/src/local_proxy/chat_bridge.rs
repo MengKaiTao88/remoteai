@@ -203,10 +203,11 @@ fn preferred_concurrent_account_ids(
     }
     // Read each priority once per request, before taking the router lock. A setting
     // change must not produce an empty tier by changing between two file reads.
+    let now = chrono::Utc::now().timestamp();
     let priorities = eligible_account_ids
         .iter()
         .map(|account_id| {
-            let priority = load_auto_switch_priority(&auto_switch_priority_path(paths, account_id));
+            let priority = reset_priority::stored_key(paths, state, account_id, now);
             (account_id, priority)
         })
         .collect::<Vec<_>>();

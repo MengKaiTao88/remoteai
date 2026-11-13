@@ -114,6 +114,9 @@ pub(crate) async fn set_custom_auto_switch_priority_enabled<R: Runtime + 'static
                 );
             }
             state.custom_auto_switch_priority_enabled = enabled;
+            if !enabled {
+                state.auto_switch_priority_by_reset = false;
+            }
             Ok(())
         })?;
         app.emit("providers-changed", ())

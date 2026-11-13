@@ -438,6 +438,7 @@ function previewLocalProxyStatus(): LocalProxyStatus {
     concurrentAccountRoutingEnabled: window.localStorage.getItem(LOCAL_PROXY_CONCURRENT_ROUTING_PREVIEW_KEY) === "true",
     concurrentAccountGroup: window.localStorage.getItem(LOCAL_PROXY_CONCURRENT_GROUP_PREVIEW_KEY),
     customAutoSwitchPriorityEnabled: window.localStorage.getItem(LOCAL_PROXY_CUSTOM_PRIORITY_PREVIEW_KEY) === "true",
+    autoSwitchPriorityByReset: window.localStorage.getItem("csw.preview.reset-priority") === "true",
     customAutoSwitchThresholdEnabled: window.localStorage.getItem(LOCAL_PROXY_CUSTOM_THRESHOLD_PREVIEW_KEY) === "true",
     globalAutoSwitchThreshold: Number.isFinite(configuredGlobalThreshold)
       && configuredGlobalThreshold >= 0 && configuredGlobalThreshold <= 100
@@ -1595,7 +1596,19 @@ export async function showTokenUsageWindow(): Promise<void> {
 }
 
 export async function loadAccounts(): Promise<Account[]> {
-  if (!hasLocalBackend) return readPreviewAccounts();
+  if (!hasLocalBackend) {
+    const accounts = readPreviewAccounts();
+    const status = previewLocalProxyStatus();
+    if (status.autoSwitchOnQuotaExhaustion && status.customAutoSwitchPriorityEnabled && status.autoSwitchPriorityByReset) {
+      const resetKey = (account: Account) => {
+        const reset = account.usage.secondary?.resetsAt;
+        return !account.usage.error && reset && reset * 1000 > Date.now() ? reset : Infinity;
+      };
+      const times = [...new Set(accounts.map(resetKey))].sort((a, b) => a - b);
+      for (const account of accounts) account.autoSwitchPriority = times.indexOf(resetKey(account)) + 1;
+    }
+    return accounts;
+  }
   return invoke<Account[]>("list_accounts");
 }
 
@@ -1816,6 +1829,20 @@ export async function setLocalProxyAutoDisableUnreachable(enabled: boolean): Pro
   return invoke<LocalProxyStatus>("set_auto_disable_unreachable_accounts", { enabled });
 }
 
+export async function setLocalProxyResetPriority(enabled: boolean): Promise<LocalProxyStatus> {
+  if (!hasLocalBackend) {
+    const status = previewLocalProxyStatus();
+    if (enabled && (!status.running || !status.autoSwitchOnQuotaExhaustion)) {
+      throw new Error("Enable automatic account switching before enabling custom priorities");
+    }
+    window.localStorage.setItem("csw.preview.reset-priority", String(enabled));
+    if (enabled) window.localStorage.setItem(LOCAL_PROXY_CUSTOM_PRIORITY_PREVIEW_KEY, "true");
+    window.dispatchEvent(new CustomEvent(PROVIDERS_EVENT));
+    return previewLocalProxyStatus();
+  }
+  return invoke<LocalProxyStatus>("set_auto_switch_priority_by_reset", { enabled });
+}
+
 export async function setLocalProxyCustomPriority(enabled: boolean): Promise<LocalProxyStatus> {
   if (!hasLocalBackend) {
     const status = previewLocalProxyStatus();
@@ -1823,6 +1850,7 @@ export async function setLocalProxyCustomPriority(enabled: boolean): Promise<Loc
       throw new Error("Enable automatic account switching before enabling custom priorities");
     }
     window.localStorage.setItem(LOCAL_PROXY_CUSTOM_PRIORITY_PREVIEW_KEY, String(enabled));
+    if (!enabled) window.localStorage.removeItem("csw.preview.reset-priority");
     window.dispatchEvent(new CustomEvent(PROVIDERS_EVENT));
     return previewLocalProxyStatus();
   }

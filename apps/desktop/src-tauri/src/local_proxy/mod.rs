@@ -53,6 +53,7 @@ pub(crate) use official_model_cache::admin_model_catalog;
 mod quota_detection;
 mod quota_sse;
 mod request_error;
+pub(crate) mod reset_priority;
 pub(crate) mod response_header_timeout;
 mod responses_lite;
 mod session_cost;
@@ -88,6 +89,7 @@ include!("commands_status.rs");
 include!("commands_speed.rs");
 include!("lifecycle.rs");
 include!("settings.rs");
+include!("reset_priority_settings.rs");
 include!("lan_settings.rs");
 include!("auto_reset_commands.rs");
 include!("system_prompt_filter.rs");
@@ -134,6 +136,7 @@ include!("sse.rs");
 
 #[cfg(test)]
 mod tests {
+    include!("tests/reset_priority.rs");
     include!("tests/aggregate_failover.rs");
     include!("tests/aggregate_recovery.rs");
     include!("tests/aggregate_official.rs");

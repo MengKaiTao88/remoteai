@@ -162,6 +162,8 @@ pub(crate) struct ManagerStateFile {
     #[serde(default)]
     pub(crate) custom_auto_switch_priority_enabled: bool,
     #[serde(default)]
+    pub(crate) auto_switch_priority_by_reset: bool,
+    #[serde(default)]
     pub(crate) custom_auto_switch_threshold_enabled: bool,
     #[serde(default)]
     pub(crate) global_auto_switch_threshold: f64,
