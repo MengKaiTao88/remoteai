@@ -45,6 +45,17 @@ it('does not acknowledge a message while its save is pending or has failed', asy
   expect(failed).toHaveBeenCalledOnce();
 });
 
+it('preserves the pre-send failure classification and contents while restoring failed drafts', async () => {
+  const failed = { ...message, error: '发送失败，请重试。', needsReview: false };
+  const restore = vi.fn();
+  const store: QueueStorage = { read: async () => ({ revision: 5, threads: { thread: [failed] } }),
+    save: vi.fn() };
+  await new QueueJournal(store, restore, vi.fn()).restore();
+  expect(restore).toHaveBeenCalledWith({ thread: [failed] });
+  expect(failed.needsReview).toBe(false);
+  expect(store.save).not.toHaveBeenCalled();
+});
+
 it('serializes writes and retains the latest edit across reopening', async () => {
   const store = storage();
   const journal = new QueueJournal(store, vi.fn(), vi.fn()); await journal.restore();

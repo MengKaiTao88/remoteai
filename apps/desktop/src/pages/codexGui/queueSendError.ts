@@ -12,5 +12,9 @@ export function queueSendError(error: unknown, dispatched: boolean): string {
   if (typeof message === 'string' && IMAGE_INPUT_ERRORS.has(message)) return displayError(message);
   if (message === 'client.errors.thisOperationIsNotSupportedByThisClient'
     || message === 'client.errorsCodexGui.invalidChatRequestRefreshAndTryAgain') return displayError(message);
+  if (!dispatched && (message === 'client.errorsCodexGui.codexDisconnectedReconnectToContinue'
+    || message === 'client.errors.yourSessionExpiredSignInAgainToConnectToYour'
+    || message === 'Codex 已断开连接，请重新连接后继续。'
+    || message === 'Codex 响应超时，请检查连接状态。')) return displayError(message);
   return dispatched ? uiText("client.conversation.couldNotConfirmWhetherTheMessageWasSentCheckThe") : uiText("client.conversation.couldNotSendTheMessagePleaseTryAgain");
 }

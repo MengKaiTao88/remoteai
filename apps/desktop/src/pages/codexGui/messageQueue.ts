@@ -134,7 +134,7 @@ export class MessageQueue {
       || this.preparing.has(threadId)
       || state.conversations[threadId]?.activeTurn || !messages.length
       || modelSelectionError(state.models, messages[0])
-      || (!retry && messages.some(item => item.needsReview))) return;
+      || (!retry && messages.some(item => item.needsReview || item.error))) return;
     this.pending.add(threadId);
     const ids = new Set(messages.map((item) => item.id));
     this.markBusy(threadId, ids, true);

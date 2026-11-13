@@ -242,6 +242,25 @@ it("keeps failed batches available for retry and does not loop", async () => {
   expect(messages()).toEqual([]);
 });
 
+it('retains a pre-send connection failure until explicit retry after reconnection', async () => {
+  await controller.send('keep this draft', []);
+  const original = vi.mocked(guiApi.request).getMockImplementation()!;
+  vi.mocked(guiApi.request).mockImplementation(async request => {
+    if (request.operation === 'resume') throw 'client.errorsCodexGui.codexDisconnectedReconnectToContinue';
+    return original(request);
+  });
+  await finish();
+  expect(messages()[0]).toMatchObject({ text: 'keep this draft', busy: false, needsReview: false,
+    error: 'Codex 已断开连接，请重新连接后继续。' });
+  expect(guiApi.request).not.toHaveBeenCalledWith(expect.objectContaining({ operation: 'sendBatch' }));
+  vi.mocked(guiApi.request).mockImplementation(original);
+  await controller.queue.flush('one');
+  expect(messages()).toHaveLength(1);
+  await controller.queue.flush('one', true);
+  expect(messages()).toEqual([]);
+  expect(vi.mocked(guiApi.request).mock.calls.filter(([request]) => request.operation === 'sendBatch')).toHaveLength(1);
+});
+
 it.each(['sendBatch', 'steer'])('shows image validation errors from %s and retains the message for editing',
   async operation => {
     const error = '图片无法读取，请重新选择后发送。';
