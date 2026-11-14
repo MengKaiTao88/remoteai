@@ -503,6 +503,32 @@ fn official_membership_is_separate_from_the_execution_directory() {
 }
 
 #[tokio::test]
+async fn owner_resolved_questions_clear_all_viewers_without_resubmitting() {
+    let fixture = fixture(false).await;
+    let client = client(&fixture).await;
+    let mut computer = client.subscribe();
+    let mut phone = client.subscribe();
+    client.accept(&view("first")).await.unwrap();
+    computer.recv().await.unwrap();
+    phone.recv().await.unwrap();
+    let mut state = view("first");
+    state["requests"] = json!([{"id":"async:turn:question", "method":"bridge/requestUserInputAsync",
+        "supported":true, "params":{"questions":[{"id":"question", "question":"Which screen?"}]}}]);
+    client.accept(&state).await.unwrap();
+    let pending = computer.recv().await.unwrap();
+    assert_eq!(pending, phone.recv().await.unwrap());
+    state["requests"] = json!([]);
+    state["sequence"] = json!(2);
+    client.accept(&state).await.unwrap();
+    let resolved = computer.recv().await.unwrap();
+    assert_eq!(resolved, phone.recv().await.unwrap());
+    assert_eq!(resolved["method"], "serverRequest/resolved");
+    assert_eq!(resolved["params"]["requestId"], pending["id"]);
+    assert!(client.pending().await.is_empty());
+    client.close().await;
+}
+
+#[tokio::test]
 async fn updates_and_resolved_approvals_reach_all_viewers() {
     let fixture = fixture(false).await;
     let client = client(&fixture).await;

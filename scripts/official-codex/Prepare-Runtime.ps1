@@ -25,7 +25,8 @@ Get-ChildItem -LiteralPath $pythonRoot | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination $pythonDestination -Recurse -Force
 }
 foreach ($name in @('Ensure-Gateway.ps1', 'initialize_gateway.py', 'run_gateway.py',
-    'native_history.py', 'image_archive.py', 'native_usage.py', 'native_permissions.py', 'native_protocol.py', 'native_queue.py')) {
+    'native_history.py', 'image_archive.py', 'native_usage.py', 'native_permissions.py', 'native_protocol.py', 'native_queue.py',
+    'native_questions.py')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $destination -Force
 }
 @{ bridgeRevision = $revision; pythonVersion = (& $Python --version) } |
