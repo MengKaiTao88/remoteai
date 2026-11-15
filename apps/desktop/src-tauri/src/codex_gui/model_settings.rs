@@ -187,7 +187,7 @@ pub(crate) async fn codex_gui_model_settings(
         scope,
     )
     .await?;
-    if super::uses_official_desktop() {
+    if official_conversation(super::uses_official_desktop(), thread_id.as_deref()) {
         let value = app
             .state::<super::GuiState>()
             .official_bridge
@@ -254,7 +254,7 @@ pub(crate) async fn codex_gui_set_model_settings(
         return Ok(snapshot);
     }
     let selection = selection.ok_or_else(|| ModelSettingsError::Invalid.to_string())?;
-    if super::uses_official_desktop() {
+    if official_conversation(super::uses_official_desktop(), thread_id.as_deref()) {
         let selection =
             serde_json::to_value(selection).map_err(|_| ModelSettingsError::Invalid.to_string())?;
         let value = app
@@ -278,6 +278,12 @@ pub(crate) async fn codex_gui_set_model_settings(
     }
     super::web::publish(&app, CHANGED_EVENT, &snapshot);
     Ok(snapshot)
+}
+
+fn official_conversation(official: bool, thread_id: Option<&str>) -> bool {
+    // A new-chat draft has no native session yet. Its defaults stay in draft.json
+    // in both backend modes, including choices inherited from an existing chat.
+    official && thread_id.is_some()
 }
 
 #[cfg(test)]

@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn official_drafts_use_persistent_defaults_without_requiring_a_native_session() {
+    assert!(!official_conversation(true, None));
+    assert!(official_conversation(true, Some("native-session")));
+    assert!(!official_conversation(false, Some("standalone-session")));
+    let root = root();
+    let inherited = selection("inherited-model", Effort::High);
+    let saved = save(&root, None, inherited.clone()).unwrap();
+    assert_eq!(saved.thread_id, None);
+    assert_eq!(read(&root, None).unwrap().selection, Some(inherited));
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn official_permission_snapshots_survive_the_desktop_serialization_boundary() {
     let snapshot: ModelSettingsSnapshot = serde_json::from_value(serde_json::json!({
         "threadId":"official", "selection":{"model":"gpt-test","effort":"high"},

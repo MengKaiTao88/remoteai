@@ -1,5 +1,6 @@
 //! Adapts Codex Mobile Bridge's authenticated loopback API to Remote AI's chat protocol.
 //! The desktop owner remains responsible for execution, authentication and permissions.
+mod creation;
 mod history;
 mod http;
 mod images;
@@ -95,6 +96,7 @@ pub struct Client {
     approvals: Mutex<HashMap<String, projection::Approval>>,
     writes: Mutex<()>,
     updates: Mutex<()>,
+    initial_access: Mutex<HashMap<String, String>>,
 }
 
 impl Client {
@@ -111,6 +113,7 @@ impl Client {
             approvals: Mutex::default(),
             writes: Mutex::default(),
             updates: Mutex::default(),
+            initial_access: Mutex::default(),
         }))
     }
 
@@ -133,6 +136,7 @@ impl Client {
         }
         self.snapshots.lock().await.clear();
         self.approvals.lock().await.clear();
+        self.initial_access.lock().await.clear();
     }
 
     fn emit(&self, event: Value) {
@@ -149,6 +153,8 @@ fn thread_id(request: &Value) -> Result<&str> {
 
 #[cfg(test)]
 mod activation_tests;
+#[cfg(test)]
+mod creation_tests;
 #[cfg(test)]
 mod model_tests;
 #[cfg(test)]

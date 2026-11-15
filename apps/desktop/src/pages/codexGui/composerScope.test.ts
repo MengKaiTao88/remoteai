@@ -166,6 +166,34 @@ async function connectPhone(request: <T>(method: string, body?: unknown) => Prom
   return phone;
 }
 
+it('clears new-chat busy state after inheriting official settings without writing a nonexistent native session', async () => {
+  vi.mocked(invoke).mockResolvedValue({ backend: 'official', officialAvailable: true });
+  await initializeBackendScope();
+  const old = { id: 'existing-official', cwd: '', preview: '', updatedAt: 1, turns: [] };
+  saved.set(old.id, { threadId: old.id, selection: { model: 'model', effort: 'high' },
+    access: 'read-only', revision: 1 });
+  const request = vi.fn(async (method: string, body?: Record<string, unknown>) => {
+    if (method === 'connect') return [];
+    if (body?.operation === 'models') return { data: models, nextCursor: null,
+      composer: await bridge.read(composerThreadId(body.threadId)) };
+    if (body?.operation === 'composerSet') return bridge.update(body.settings, composerThreadId(body.threadId));
+    if (body?.operation === 'syncHistory') return historyDelta(old);
+    if (body?.operation === 'queueRead') return emptyQueue();
+    return { data: [old], nextCursor: null };
+  });
+  const phone = await connectPhone(request as <T>(method: string, body?: unknown) => Promise<T>);
+  await phone.select(old);
+  await vi.waitFor(() => expect(phone.snapshot().settingsBusy).toBe(false));
+  phone.back();
+  await vi.waitFor(() => expect(saved.get(null)?.selection?.effort).toBe('high'));
+  await vi.waitFor(() => expect(phone.snapshot().settingsBusy, phone.snapshot().settingsError).toBe(false));
+  expect(phone.snapshot().selected).toBeNull();
+  expect(phone.snapshot().settingsError).toBeFalsy();
+  expect(api.write).toHaveBeenCalledWith(null, { model: 'model', effort: 'high' });
+  expect(api.writeAccess).toBeUndefined();
+  expect(request.mock.calls.some(([, body]) => body?.operation === 'start' || body?.operation === 'send')).toBe(false);
+});
+
 it('confirms repeated permission edits through the full remote client instead of retaining a busy snapshot', async () => {
   const thread = { id: 'official-phone', cwd: '', preview: '', updatedAt: 1, turns: [] };
   saved.set(thread.id, { threadId: thread.id, selection: { model: 'model', effort: 'high' },

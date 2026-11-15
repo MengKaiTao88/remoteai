@@ -103,6 +103,7 @@ impl State {
             }
             GuiRequest::Skills { .. } => json!({"operation": "skills"}),
             GuiRequest::Plugins { .. } => json!({"operation": "plugins"}),
+            request @ GuiRequest::Start { .. } => super::official_bridge_inputs::start(request)?,
             GuiRequest::List {
                 limit,
                 cursor,

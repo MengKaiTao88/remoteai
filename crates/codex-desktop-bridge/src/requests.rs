@@ -16,6 +16,7 @@ impl Client {
             "read" => self.read_history(&request).await,
             "imagePreview" => self.image_preview(&request).await,
             "resume" => self.resume(thread_id(&request)?).await,
+            "start" => self.start(&request).await,
             "send" | "steer" => self.send(&request).await,
             "interrupt" => self.interrupt(&request).await,
             "toolDetails" => self.tool_details(&request).await,
@@ -157,6 +158,11 @@ impl Client {
             return Err(Error::Stale);
         }
         if request["operation"] == "send" {
+            let initial_access = self.initial_access.lock().await.get(id).cloned();
+            if let Some(access) = initial_access {
+                self.apply_access(id, &access).await?;
+                self.initial_access.lock().await.remove(id);
+            }
             self.apply_send_model(request, &before).await?;
         }
         let submission = request["submissionId"]

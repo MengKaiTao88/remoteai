@@ -49,6 +49,24 @@ impl Client {
         id: &str,
         requested: &str,
     ) -> Result<Value> {
+        let _write = self.writes.lock().await;
+        self.apply_access(id, requested).await?;
+        self.initial_access.lock().await.remove(id);
+        self.read(id).await?;
+        let view = self
+            .snapshots
+            .lock()
+            .await
+            .get(id)
+            .cloned()
+            .ok_or(Error::Disconnected)?;
+        if access(&view) != Some(requested) {
+            return Err(Error::Stale);
+        }
+        snapshot(&view).ok_or(Error::Invalid)
+    }
+
+    pub(super) async fn apply_access(&self, id: &str, requested: &str) -> Result<()> {
         uuid::Uuid::parse_str(id).map_err(|_| Error::Invalid)?;
         let preset = match requested {
             "danger-full-access" => "full-access",
@@ -56,7 +74,6 @@ impl Client {
             "read-only" => "ask",
             _ => return Err(Error::Invalid),
         };
-        let _write = self.writes.lock().await;
         let before = self
             .http
             .get(&format!("/api/sessions/{id}?host=local"))
@@ -79,18 +96,14 @@ impl Client {
                 return Err(Error::Stale);
             }
         }
-        self.read(id).await?;
-        let view = self
-            .snapshots
-            .lock()
-            .await
-            .get(id)
-            .cloned()
-            .ok_or(Error::Disconnected)?;
-        if access(&view) != Some(requested) {
+        let after = self
+            .http
+            .get(&format!("/api/sessions/{id}?host=local"))
+            .await?;
+        if access(&after) != Some(requested) {
             return Err(Error::Stale);
         }
-        snapshot(&view).ok_or(Error::Invalid)
+        Ok(())
     }
 
     async fn catalog(&self, id: &str, refresh: bool) -> Result<Value> {

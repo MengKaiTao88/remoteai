@@ -6,6 +6,20 @@ use super::{
 };
 use serde_json::{json, Value};
 
+pub(super) fn start(request: GuiRequest) -> Result<Value> {
+    let GuiRequest::Start { cwd, model, access } = request else {
+        return Err(GuiError::InvalidRequest);
+    };
+    if let Some(model) = model.as_deref() {
+        super::model_settings::validate_model(model).map_err(|_| GuiError::InvalidRequest)?;
+    }
+    // None means an independent official chat, not a standalone scratch workspace.
+    Ok(
+        json!({"operation":"start", "cwd":cwd, "model":model, "access":access,
+        "title":crate::storage::native_text("新对话")}),
+    )
+}
+
 pub(super) fn request(request: GuiRequest) -> Result<Value> {
     let (thread_id, messages, turn_id, model, effort) = match request {
         GuiRequest::Send {
@@ -80,6 +94,21 @@ pub(super) fn request(request: GuiRequest) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_official_chat_keeps_independent_or_saved_project_scope_and_permissions() {
+        for cwd in [None, Some("C:\\saved-project")] {
+            let input = serde_json::from_value(json!({"operation":"start", "cwd":cwd,
+                "model":"gpt-test", "access":"workspace-write"}))
+            .unwrap();
+            let mapped = start(input).unwrap();
+            assert_eq!(mapped["operation"], "start");
+            assert_eq!(mapped["cwd"], json!(cwd));
+            assert_eq!(mapped["access"], "workspace-write");
+            assert_eq!(mapped["model"], "gpt-test");
+            assert!(!mapped["title"].as_str().unwrap().is_empty());
+        }
+    }
 
     #[test]
     fn queued_gui_batch_uses_the_same_validated_send_path() {

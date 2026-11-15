@@ -168,6 +168,8 @@ async fn async_questions_outlive_turn_completion_and_submit_through_the_native_g
 }
 
 pub(super) struct Fixture {
+    pub(super) creations: Arc<tokio::sync::Mutex<Vec<Value>>>,
+    pub(super) creation_wait: Arc<AtomicUsize>,
     url: String,
     pub(super) sessions: Arc<tokio::sync::Mutex<Vec<Value>>>,
     pub(super) sends: Arc<AtomicUsize>,
@@ -189,6 +191,10 @@ impl Drop for Fixture {
 }
 
 pub(super) async fn fixture(drop_send: bool) -> Fixture {
+    let creations = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+    let created = creations.clone();
+    let creation_wait = Arc::new(AtomicUsize::new(0));
+    let wait = creation_wait.clone();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let sends = Arc::new(AtomicUsize::new(0));
@@ -229,6 +235,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
             let total = total.clone();
             let saved = saved.clone();
             let output_size = output_size.clone();
+            let creations = created.clone();
+            let creation_wait = wait.clone();
             tokio::spawn(async move {
                 let mut bytes = Vec::new();
                 let mut chunk = [0; 8192];
@@ -324,6 +332,16 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                     } else if path.contains("/poll?") {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         json!({"state": null})
+                    } else if path == "/api/projects?entry=desktop&host=local" {
+                        json!({"projects":[{"key":"local|fixture", "cwd":"C:\\fixture", "type":"desktop"}]})
+                    } else if path == "/api/sessions?host=local" && headers.starts_with("post ") {
+                        let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
+                        assert!(uuid::Uuid::parse_str(body["id"].as_str().unwrap()).is_ok());
+                        creations.lock().await.push(body);
+                        if drop_send {
+                            return;
+                        }
+                        json!({"id":THREAD, "opened":true, "host":"local"})
                     } else if path.starts_with("/api/sessions?") {
                         json!({"sessions": sessions.lock().await.clone()})
                     } else if path.contains("/reconnect?") {
@@ -360,6 +378,14 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                             state["loadingHistory"] = json!(true);
                         }
                         state["connected"] = json!(connected.load(Ordering::SeqCst));
+                        if creation_wait
+                            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+                                left.checked_sub(1)
+                            })
+                            .is_ok()
+                        {
+                            state["connected"] = json!(false);
+                        }
                         state["permissionMode"] = json!(permission.lock().await.clone());
                         let total = total.load(Ordering::SeqCst);
                         if total > 0 {
@@ -389,6 +415,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
         }
     });
     Fixture {
+        creations,
+        creation_wait,
         url,
         sessions,
         sends,
