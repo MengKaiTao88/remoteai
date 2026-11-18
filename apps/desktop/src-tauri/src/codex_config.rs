@@ -20,6 +20,9 @@ pub(crate) const HELP_REQUEST_PURPOSE: &str = "remote-ai-help";
 pub(crate) const GIT_MESSAGE_REQUEST_PURPOSE: &str = "git-commit-message";
 pub(crate) const HELP_ACCOUNT_REVISION_HEADER: &str = "x-remote-ai-help-account-revision";
 pub(crate) const LOCAL_PROXY_PROVIDER_ID: &str = "codex-switch-local";
+const DEFERRED_TOOL_FEATURES: [&str; 2] =
+    ["code_mode_only_strict_3p_tools", "code_mode_tool_search"];
+const MANAGED_FEATURE_MARKER: &str = "# Managed by Remote AI official proxy";
 
 const OFFICIAL_PROVIDER_ID: &str = "openai";
 const PROVIDER_ROOT_START: &str = "# Codex Switch provider start";
@@ -40,6 +43,7 @@ pub(crate) struct LocalProxyConfig<'a> {
     pub(crate) name: &'a str,
     pub(crate) model: Option<&'a str>,
     pub(crate) model_catalog_filename: Option<&'a str>,
+    pub(crate) official_inference: bool,
     pub(crate) requires_openai_auth: bool,
     pub(crate) token_command: &'a str,
 }
@@ -70,6 +74,7 @@ pub(crate) fn apply_local_proxy(
     let mut document = parse_document(content)?;
     set_proxy_root(&mut document, options);
     replace_local_proxy_table(&mut document, options)?;
+    set_managed_tool_deferral(&mut document, options.official_inference);
     Ok(document.to_string())
 }
 
@@ -81,6 +86,7 @@ pub(crate) fn restore_official(
     let mut document = parse_document(current)?;
     remove_managed_root(&mut document);
     remove_local_proxy_table(&mut document)?;
+    set_managed_tool_deferral(&mut document, false);
 
     if let Some(backup) = backup {
         let backup = parse_document(backup)?;
@@ -122,6 +128,45 @@ pub(crate) fn contains_local_proxy(content: &str) -> bool {
         || content.contains(LOCAL_PROXY_TOKEN)
 }
 
+/// Bind the official catalog without replacing a user-owned or third-party catalog.
+pub(crate) fn set_official_proxy_catalog(
+    content: &str,
+    relative: &std::path::Path,
+    absolute: &std::path::Path,
+) -> Result<Option<String>, ConfigError> {
+    let mut document = parse_document(content)?;
+    if document.get("model_provider").and_then(Item::as_str) != Some(LOCAL_PROXY_PROVIDER_ID) {
+        return Ok(None);
+    }
+    if document.get("model_catalog_json").is_some_and(|item| {
+        !item.as_str().is_some_and(|value| {
+            let path = std::path::Path::new(value);
+            path == relative || path == absolute
+        })
+    }) {
+        return Ok(None);
+    }
+    set_root_value(
+        &mut document,
+        "model_catalog_json",
+        Value::from(absolute.to_string_lossy().as_ref()),
+    );
+    // Old installs can refresh their catalog before a provider config rewrite.
+    if !is_official_compatibility_provider(&document) {
+        if let Some(provider) = model_providers_mut(&mut document)?
+            .get_mut(LOCAL_PROXY_PROVIDER_ID)
+            .and_then(Item::as_table_mut)
+            .filter(|provider| {
+                provider.get("base_url").and_then(Item::as_str) == Some(LOCAL_PROXY_BASE_URL)
+            })
+        {
+            set_remote_compaction(provider);
+            set_managed_tool_deferral(&mut document, true);
+        }
+    }
+    Ok(Some(document.to_string()))
+}
+
 /// Reads the saved model without changing unrelated configuration.
 pub(crate) fn root_model(content: &str) -> Option<String> {
     parse_document(content)
@@ -140,6 +185,55 @@ fn parse_document(content: &str) -> Result<DocumentMut, ConfigError> {
 #[cfg(test)]
 mod default_official_tests {
     use super::*;
+
+    #[test]
+    fn official_model_catalog_rebinds_managed_proxy_and_preserves_user_config() {
+        let rel = std::path::Path::new("official-models.json");
+        let abs = std::path::Path::new("test-home/official-models.json");
+        let config = "model_provider = 'codex-switch-local'\nmodel = 'gpt-6.2-sol'\n[features]\nexample = true\n";
+        let bound = set_official_proxy_catalog(config, rel, abs)
+            .unwrap()
+            .unwrap();
+        let parsed = bound.parse::<DocumentMut>().unwrap();
+        assert_eq!(parsed["model_catalog_json"].as_str(), abs.to_str());
+        assert_eq!(parsed["model"].as_str(), Some("gpt-6.2-sol"));
+        assert_eq!(parsed["features"]["example"].as_bool(), Some(true));
+        assert_eq!(
+            set_official_proxy_catalog(&bound, rel, abs).unwrap(),
+            Some(bound)
+        );
+        for other in [
+            format!("model_catalog_json = 'third-party.json'\n{config}"),
+            config.replace("codex-switch-local", "openai"),
+        ] {
+            assert!(set_official_proxy_catalog(&other, rel, abs)
+                .unwrap()
+                .is_none());
+        }
+    }
+
+    #[test]
+    fn official_model_catalog_installs_compaction_but_honors_user_tool_opt_out() {
+        let rel = std::path::Path::new("official-models.json");
+        let abs = std::path::Path::new("test-home/official-models.json");
+        let config = format!("model_provider = '{LOCAL_PROXY_PROVIDER_ID}'\n[features]\ncode_mode_tool_search = false\n[model_providers.{LOCAL_PROXY_PROVIDER_ID}]\nbase_url = '{LOCAL_PROXY_BASE_URL}'\n");
+        let bound = set_official_proxy_catalog(&config, rel, abs)
+            .unwrap()
+            .unwrap();
+        let document = bound.parse::<DocumentMut>().unwrap();
+        assert_eq!(
+            document["features"]["code_mode_tool_search"].as_bool(),
+            Some(false)
+        );
+        assert!(document["features"]
+            .get("code_mode_only_strict_3p_tools")
+            .is_none());
+        let provider = local_proxy_table(&document).unwrap();
+        assert_eq!(
+            provider["capabilities"]["remote_compaction"].as_str(),
+            Some("v2")
+        );
+    }
 
     #[test]
     fn default_official_matches_codex_model_persistence_format() {
@@ -192,9 +286,64 @@ fn replace_local_proxy_table(
     provider["wire_api"] = value("responses");
     provider["requires_openai_auth"] = value(options.requires_openai_auth);
     set_proxy_auth(&mut provider, options);
+    if options.official_inference {
+        set_remote_compaction(&mut provider);
+    }
     provider["http_headers"] = Item::Value(Value::InlineTable(proxy_headers()));
     model_providers_mut(document)?.insert(LOCAL_PROXY_PROVIDER_ID, Item::Table(provider));
     Ok(())
+}
+
+// Official Responses accepts the v2 trigger over the same streaming endpoint.
+fn set_remote_compaction(provider: &mut Table) {
+    let entry = provider
+        .entry("capabilities")
+        .or_insert(Item::Value(Value::InlineTable(InlineTable::new())));
+    if let Some(capabilities) = entry.as_table_like_mut() {
+        if !capabilities.contains_key("remote_compaction") {
+            capabilities.insert("remote_compaction", value("v2"));
+        }
+    }
+}
+
+fn is_managed_feature(item: &Item) -> bool {
+    item.as_bool() == Some(true)
+        && item
+            .as_value()
+            .and_then(|v| v.decor().suffix())
+            .and_then(|s| s.as_str())
+            .is_some_and(|suffix| suffix.trim() == MANAGED_FEATURE_MARKER)
+}
+
+fn set_managed_tool_deferral(document: &mut DocumentMut, enabled: bool) {
+    if !enabled && !document.contains_key("features") {
+        return;
+    }
+    let Some(features) = document
+        .entry("features")
+        .or_insert(Item::Table(Table::new()))
+        .as_table_mut()
+    else {
+        return;
+    };
+    // Do not turn either part on if the user or another application disabled it.
+    let enabled = enabled
+        && DEFERRED_TOOL_FEATURES.iter().all(|name| {
+            features
+                .get(name)
+                .is_none_or(|item| item.as_bool() == Some(true))
+        });
+    for name in DEFERRED_TOOL_FEATURES {
+        if enabled && !features.contains_key(name) {
+            let mut managed = Value::from(true);
+            managed
+                .decor_mut()
+                .set_suffix(format!(" {MANAGED_FEATURE_MARKER}"));
+            features.insert(name, Item::Value(managed));
+        } else if !enabled && features.get(name).is_some_and(is_managed_feature) {
+            features.remove(name);
+        }
+    }
 }
 
 fn set_proxy_auth(provider: &mut Table, options: &LocalProxyConfig<'_>) {
@@ -382,6 +531,7 @@ mod tests {
             name: "DeepSeek",
             model: Some("deepseek-chat"),
             model_catalog_filename: Some("codex-switch-model-catalog.json"),
+            official_inference: false,
             requires_openai_auth: false,
             token_command: r"C:\Program Files\Remote AI\csw.exe",
         }

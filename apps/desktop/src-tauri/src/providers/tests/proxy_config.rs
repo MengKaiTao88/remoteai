@@ -178,12 +178,44 @@
     }
 
     #[test]
+    fn official_model_catalog_survives_proxy_config_restore_without_leaking_to_third_party() {
+        let paths = test_paths();
+        let filename = "remoteai-official-context-model-catalog.json";
+        let catalog = json!({ "models": [{ "slug": "gpt-6.2-sol",
+            "context_window": 500_000, "base_instructions": "official instructions",
+            "tool_mode": "code_mode_only" }] });
+        let catalog_path = paths.codex_home.join(filename);
+        write_json_atomic(&catalog_path, &catalog).unwrap();
+        write_text_atomic(&paths.current_config, "[features]\ncode_mode_tool_search = true # User preference\n")
+            .unwrap();
+        for _ in 0..2 {
+            write_official_local_proxy_config(&paths).unwrap();
+            let cfg = fs::read_to_string(&paths.current_config).unwrap();
+            let doc = cfg.parse::<toml_edit::DocumentMut>().unwrap();
+            assert_eq!(doc["model_catalog_json"].as_str(), catalog_path.to_str());
+            assert_eq!(read_json(&catalog_path).unwrap(), catalog);
+            assert_eq!(doc["model_providers"][crate::codex_config::LOCAL_PROXY_PROVIDER_ID]["capabilities"]["remote_compaction"].as_str(), Some("v2"));
+            assert_eq!(doc["features"]["code_mode_only_strict_3p_tools"].as_bool(), Some(true));
+            assert_eq!(doc["features"]["code_mode_tool_search"].as_bool(), Some(true));
+        }
+        write_provider_local_proxy_config(&paths, &provider()).unwrap();
+        let cfg = fs::read_to_string(&paths.current_config).unwrap();
+        let doc = cfg.parse::<toml_edit::DocumentMut>().unwrap();
+        assert_eq!(doc["model_catalog_json"].as_str(), Some(MODEL_CATALOG_FILENAME));
+        assert!(doc["model_providers"][crate::codex_config::LOCAL_PROXY_PROVIDER_ID].get("capabilities").is_none());
+        assert!(doc["features"].get("code_mode_only_strict_3p_tools").is_none());
+        assert_eq!(doc["features"]["code_mode_tool_search"].as_bool(), Some(true));
+        fs::remove_dir_all(paths.codex_home.parent().unwrap()).unwrap();
+    }
+
+    #[test]
     fn restoring_official_config_preserves_current_non_provider_settings() {
         let paths = test_paths();
         let options = LocalProxyConfigOptions {
             name: "Proxy",
             model: Some("deepseek-chat"),
-            include_model_catalog: true,
+            model_catalog_filename: Some(MODEL_CATALOG_FILENAME),
+            official_inference: false,
             requires_openai_auth: false,
             token_command: "csw",
         };
@@ -317,7 +349,8 @@
         let options = LocalProxyConfigOptions {
             name: "Proxy",
             model: Some("deepseek-chat"),
-            include_model_catalog: true,
+            model_catalog_filename: Some(MODEL_CATALOG_FILENAME),
+            official_inference: false,
             requires_openai_auth: false,
             token_command: r"C:\Program Files\Remote AI\csw.exe",
         };
@@ -346,14 +379,16 @@
         let first = LocalProxyConfigOptions {
             name: "First",
             model: Some("first-model"),
-            include_model_catalog: true,
+            model_catalog_filename: Some(MODEL_CATALOG_FILENAME),
+            official_inference: false,
             requires_openai_auth: false,
             token_command: "csw",
         };
         let second = LocalProxyConfigOptions {
             name: "Second",
             model: Some("second-model"),
-            include_model_catalog: true,
+            model_catalog_filename: Some(MODEL_CATALOG_FILENAME),
+            official_inference: false,
             requires_openai_auth: false,
             token_command: "csw",
         };

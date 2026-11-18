@@ -24,11 +24,13 @@ fn backup_codex_config_if_needed(paths: &Paths, entering_provider: bool) -> Resu
 
 pub(crate) fn write_official_local_proxy_config(paths: &Paths) -> Result<(), String> {
     sync_local_proxy_auth_before_config_write(paths, LocalProxyConfigTarget::Official)?;
+    let catalog = official_proxy_catalog::existing_path(paths);
     write_local_proxy_config(
         paths,
         LOCAL_PROXY_PROVIDER_NAME,
         Some(DEFAULT_OFFICIAL_MODEL),
-        false,
+        catalog.as_deref().and_then(std::path::Path::to_str),
+        true,
     )
 }
 
@@ -45,7 +47,8 @@ fn write_provider_local_proxy_config(
         paths,
         &provider.name,
         Some(codex_model_for_provider(provider)),
-        uses_local_catalog,
+        uses_local_catalog.then_some(MODEL_CATALOG_FILENAME),
+        false,
     )
 }
 
@@ -147,7 +150,13 @@ fn write_provider_group_local_proxy_config(
         .into_iter()
         .next()
         .ok_or_else(|| "Provider group does not contain any models".to_string())?;
-    write_local_proxy_config(paths, group, Some(&selected_model), true)
+    write_local_proxy_config(
+        paths,
+        group,
+        Some(&selected_model),
+        Some(MODEL_CATALOG_FILENAME),
+        false,
+    )
 }
 
 struct ProviderGroupCatalogData {

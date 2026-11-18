@@ -27,9 +27,22 @@ fn update_cached_official_model_context_windows<R: Runtime>(
     paths: &Paths,
     settings: &AppSettings,
 ) -> Result<(), String> {
-    update_cached_model_context_windows(paths, settings, |catalog| {
+    let result = update_cached_model_context_windows(paths, settings, |catalog| {
         official_context_models::complete(app, catalog, &settings.official_model_context_windows)
-    })
+    });
+    let state = read_state(paths);
+    if is_running()
+        && state.local_proxy_enabled
+        && state.active_provider_id.is_none()
+        && state.active_provider_group.is_none()
+    {
+        let selected = fs::read_to_string(&paths.current_config)
+            .ok()
+            .and_then(|config| crate::codex_config::root_model(&config))
+            .unwrap_or_else(providers::official_model);
+        crate::codex_runtime::refresh_official_models(selected);
+    }
+    result
 }
 
 fn update_cached_model_context_windows(

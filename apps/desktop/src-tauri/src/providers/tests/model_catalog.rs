@@ -249,7 +249,8 @@ model_reasoning_effort = "xhigh"
         let provider_options = LocalProxyConfigOptions {
             name: "DeepSeek",
             model: Some("deepseek-v4-flash"),
-            include_model_catalog: true,
+            model_catalog_filename: Some(MODEL_CATALOG_FILENAME),
+            official_inference: false,
             requires_openai_auth: false,
             token_command: "csw",
         };
@@ -274,7 +275,8 @@ model_reasoning_effort = "xhigh"
         let provider_options = LocalProxyConfigOptions {
             name: "DeepSeek",
             model: Some("deepseek-v4-flash"),
-            include_model_catalog: true,
+            model_catalog_filename: Some(MODEL_CATALOG_FILENAME),
+            official_inference: false,
             requires_openai_auth: false,
             token_command: "csw",
         };

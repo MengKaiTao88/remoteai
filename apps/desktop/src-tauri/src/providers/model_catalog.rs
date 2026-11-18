@@ -279,7 +279,8 @@ fn write_local_proxy_config(
     paths: &Paths,
     name: &str,
     model: Option<&str>,
-    include_model_catalog: bool,
+    model_catalog_filename: Option<&str>,
+    official_inference: bool,
 ) -> Result<(), String> {
     let state = read_state(paths);
     let existing = if paths.current_config.exists() {
@@ -296,7 +297,8 @@ fn write_local_proxy_config(
     let options = LocalProxyConfigOptions {
         name,
         model,
-        include_model_catalog,
+        model_catalog_filename,
+        official_inference,
         requires_openai_auth,
         token_command: &token_command,
     };
@@ -307,7 +309,8 @@ fn write_local_proxy_config(
 struct LocalProxyConfigOptions<'a> {
     name: &'a str,
     model: Option<&'a str>,
-    include_model_catalog: bool,
+    model_catalog_filename: Option<&'a str>,
+    official_inference: bool,
     requires_openai_auth: bool,
     token_command: &'a str,
 }
@@ -321,9 +324,8 @@ fn merge_local_proxy_config(
         &LocalProxyConfig {
             name: options.name,
             model: options.model,
-            model_catalog_filename: options
-                .include_model_catalog
-                .then_some(MODEL_CATALOG_FILENAME),
+            model_catalog_filename: options.model_catalog_filename,
+            official_inference: options.official_inference,
             requires_openai_auth: options.requires_openai_auth,
             token_command: options.token_command,
         },

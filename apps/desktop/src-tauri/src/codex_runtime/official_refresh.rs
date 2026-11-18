@@ -105,8 +105,17 @@ fn apply_success(target: &OfficialRefreshTarget, loaded: LoadedOfficialCatalog) 
             },
         )
     });
-    if let Err(error) = saved {
-        eprintln!("Failed to save the official Codex model catalog: {error}");
+    match saved {
+        Ok(catalog) if is_current(target) => {
+            if let Some(app) = CODEX_RUNTIME_APP.get() {
+                if let Err(error) = crate::providers::install_official_proxy_catalog(app, &catalog)
+                {
+                    eprintln!("Failed to apply the official model catalog to Codex: {error}");
+                }
+            }
+        }
+        Ok(_) => (),
+        Err(error) => eprintln!("Failed to save the official Codex model catalog: {error}"),
     }
     if is_current(target) {
         apply_model_refresh(target.generation, loaded.request);

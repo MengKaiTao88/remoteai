@@ -2,6 +2,8 @@ mod catalog_storage;
 mod group_accounts;
 mod group_display_names;
 mod model_order;
+mod official_proxy_catalog;
+pub(crate) use official_proxy_catalog::install as install_official_proxy_catalog;
 mod script_balance;
 pub(crate) use group_accounts::refresh_labels as refresh_group_account_labels;
 mod reasoning_defaults;
