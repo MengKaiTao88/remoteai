@@ -2,7 +2,7 @@ import { uiText } from "../../../../../shared/localization/uiText";
 import { guiApi } from "../../../../../shared/conversation/api";
 import { resumedConversationSnapshot as conversation } from './conversationSnapshot';
 import { withSentMessage } from "../../../../../shared/conversation/sentMessages";
-import { queueSendError } from "./queueSendError";
+import { queueSendError, wasNotSubmitted } from "./queueSendError";
 import { modelSelectionError } from "../../../../../shared/conversation/modelSelection";
 import type { GuiState, MessageInput, QueuedMessage, Settings, Thread, Turn } from "../../../../../shared/conversation/types";
 
@@ -99,7 +99,7 @@ export class MessageQueue {
   private fail = (threadId: string, ids: Set<string>, error: unknown, dispatched = true) => {
     this.host.report(error);
     this.update(threadId, this.list(threadId).map((item) => ids.has(item.id)
-      ? { ...item, needsReview: dispatched,
+      ? { ...item, needsReview: dispatched && !wasNotSubmitted(error),
         error: queueSendError(error, dispatched) } : item));
   };
   private completeSend = (threadId: string, turnId: string, messages: QueuedMessage[], userMessageIndex: number) => {
@@ -180,14 +180,16 @@ export class MessageQueue {
     const userMessageIndex = state.conversations[threadId].turns.find((turn) => turn.id === turnId)
       ?.items.filter((entry) => entry.type === "userMessage").length ?? 0;
     this.markBusy(threadId, ids, true);
+    let dispatched = false;
     try {
       await this.host.saved();
+      dispatched = true;
       await guiApi.request({ operation: "steer", threadId, turnId,
         ...(item.transferMode ? { transferMode: item.transferMode } : {}),
         text: item.text, images: item.images, skills: item.skills,
         ...(item.attachments?.length ? { attachments: item.attachments } : {}) });
       this.completeSend(threadId, turnId, [item], userMessageIndex);
-    } catch (error) { this.fail(threadId, ids, error); }
+    } catch (error) { this.fail(threadId, ids, error, dispatched); }
     finally { this.pending.delete(threadId); this.markBusy(threadId, ids, false); }
     void this.flush(threadId);
   };

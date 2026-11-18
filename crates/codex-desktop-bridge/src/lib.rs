@@ -33,6 +33,8 @@ pub enum Error {
     Unsupported,
     #[error("client.desktopGuiErrors.couldNotConfirmWhetherTheLastMessageWasSentCheck")]
     UnknownWrite,
+    #[error("client.conversation.couldNotSendTheMessagePleaseTryAgain")]
+    NotSubmitted,
     #[error("client.errorsCodexGui.invalidChatRequestRefreshAndTryAgain")]
     Input,
     #[error("client.errors.yourSessionExpiredSignInAgainToConnectToYour")]

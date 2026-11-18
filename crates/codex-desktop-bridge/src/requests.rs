@@ -154,9 +154,16 @@ impl Client {
             .iter()
             .rev()
             .find(|turn| turn["status"] == "inProgress");
-        if request["operation"] == "steer" && active.map(|t| &t["id"]) != Some(&request["turnId"]) {
-            return Err(Error::Stale);
-        }
+        let steering = request["operation"] == "steer";
+        let steering_turn = if steering {
+            Some(
+                active
+                    .filter(|turn| turn["id"] == request["turnId"])
+                    .ok_or(Error::NotSubmitted)?,
+            )
+        } else {
+            None
+        };
         if request["operation"] == "send" {
             let initial_access = self.initial_access.lock().await.get(id).cloned();
             if let Some(access) = initial_access {
@@ -185,7 +192,7 @@ impl Client {
             attachments.push(upload_id);
         }
         let body = json!({"id": submission, "text": input.text, "attachments": attachments,
-            "mode": if request["operation"] == "steer" { "steer" } else { "send" }});
+            "mode": if steering { "steer" } else { "send" }});
         let result = self
             .http
             .post(&format!("/api/sessions/{id}/send?host=local"), &body)
@@ -194,6 +201,15 @@ impl Client {
             return Err(Error::UnknownWrite);
         }
         self.watch(id).await?;
+        // Steering appends to the validated active turn. The owner can acknowledge the
+        // submission before its user item is visible in the projected history window.
+        if let Some(turn) =
+            steering_turn.filter(|_| result["id"].as_str() == Some(submission.as_str()))
+        {
+            return Ok(
+                json!({"turn": projection::turn(turn), "submissionId": submission, "accepted": true}),
+            );
+        }
         let turn = self.confirm_turn(id, &submission, &result).await?;
         Ok(json!({"turn": turn, "submissionId": submission, "accepted": true}))
     }

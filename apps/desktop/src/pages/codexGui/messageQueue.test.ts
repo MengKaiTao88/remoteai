@@ -293,6 +293,20 @@ it.each(['sendBatch', 'steer'])('shows image validation errors from %s and retai
     expect(vi.mocked(guiApi.request).mock.calls.filter(([request]) => request.operation === operation)).toHaveLength(1);
   });
 
+it('keeps the image draft and distinguishes a confirmed pre-submission failure from an unknown send', async () => {
+  await controller.send('keep my picture', ['fixture-image']);
+  const original = vi.mocked(guiApi.request).getMockImplementation()!;
+  vi.mocked(guiApi.request).mockImplementation(async request => {
+    if (request.operation === 'steer') throw 'client.conversation.couldNotSendTheMessagePleaseTryAgain';
+    return original(request);
+  });
+  await controller.queue.steer('one', messages()[0].id);
+  expect(messages()[0]).toMatchObject({ text: 'keep my picture', images: ['fixture-image'],
+    error: '发送失败，请重试。', needsReview: false, busy: false });
+  await controller.queue.flush('one');
+  expect(vi.mocked(guiApi.request).mock.calls.filter(([request]) => request.operation === 'steer')).toHaveLength(1);
+});
+
 it("merges acknowledgement items after an earlier turn event without reviving a completed turn", async () => {
   await controller.send("continue", []);
   const original = vi.mocked(guiApi.request).getMockImplementation()!;

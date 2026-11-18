@@ -223,8 +223,14 @@ impl Transport {
             .header("X-CSRF-Token", csrf)
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .body(bytes);
-        let (status, value) = Self::receive(request.send().await, true).await?;
-        checked(status, value, true)
+        let result = Self::receive(request.send().await, true)
+            .await
+            .and_then(|(status, value)| checked(status, value, true));
+        // An uncertain upload cannot have submitted the message. The caller has not sent it yet.
+        result.map_err(|error| match error {
+            Error::UnknownWrite => Error::NotSubmitted,
+            other => other,
+        })
     }
 }
 
@@ -238,8 +244,12 @@ fn checked(status: StatusCode, value: Value, write: bool) -> Result<Value> {
     if status == StatusCode::NOT_FOUND {
         return Err(Error::Stale);
     }
-    if write && value["code"] != "send_not_submitted" {
-        return Err(Error::UnknownWrite);
+    if write {
+        return Err(if value["code"] == "send_not_submitted" {
+            Error::NotSubmitted
+        } else {
+            Error::UnknownWrite
+        });
     }
     Err(Error::Disconnected)
 }
@@ -251,6 +261,22 @@ mod response_limit_tests {
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
     };
+
+    #[test]
+    fn explicit_rejections_and_uncertain_writes_are_distinct() {
+        assert!(matches!(
+            checked(
+                StatusCode::BAD_REQUEST,
+                json!({"code": "send_not_submitted"}),
+                true
+            ),
+            Err(Error::NotSubmitted)
+        ));
+        assert!(matches!(
+            checked(StatusCode::BAD_REQUEST, json!({"error": "other"}), true),
+            Err(Error::UnknownWrite)
+        ));
+    }
 
     #[tokio::test]
     async fn enlarged_snapshot_budget_still_rejects_an_oversized_declared_response() {

@@ -6,6 +6,11 @@ const IMAGE_INPUT_ERRORS = new Set([
   '图片过大，请缩小图片或减少图片后发送。',
 ]);
 
+export function wasNotSubmitted(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : error;
+  return message === 'client.conversation.couldNotSendTheMessagePleaseTryAgain';
+}
+
 export function queueSendError(error: unknown, dispatched: boolean): string {
   const message = error instanceof Error ? error.message : error;
   // Only known pre-send validation failures have a definite outcome and safe display text.
@@ -16,5 +21,5 @@ export function queueSendError(error: unknown, dispatched: boolean): string {
     || message === 'client.errors.yourSessionExpiredSignInAgainToConnectToYour'
     || message === 'Codex 已断开连接，请重新连接后继续。'
     || message === 'Codex 响应超时，请检查连接状态。')) return displayError(message);
-  return dispatched ? uiText("client.conversation.couldNotConfirmWhetherTheMessageWasSentCheckThe") : uiText("client.conversation.couldNotSendTheMessagePleaseTryAgain");
+  return dispatched && !wasNotSubmitted(error) ? uiText("client.conversation.couldNotConfirmWhetherTheMessageWasSentCheckThe") : uiText("client.conversation.couldNotSendTheMessagePleaseTryAgain");
 }

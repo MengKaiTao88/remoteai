@@ -291,14 +291,22 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
                         assert!(uuid::Uuid::parse_str(body["id"].as_str().unwrap()).is_ok());
                         assert!(body.get("access").is_none() && body.get("model").is_none());
-                        if !projection::rows(&body["attachments"]).is_empty() {
+                        let steering = body["mode"] == "steer";
+                        if steering {
+                            assert_eq!(projection::rows(&body["attachments"]).len(), 1);
+                            assert_eq!(body["text"], "Attached update");
+                        } else if !projection::rows(&body["attachments"]).is_empty() {
                             assert_eq!(projection::rows(&body["attachments"]).len(), 2);
                             assert_eq!(body["text"], "first\n\nsecond");
                         }
                         if drop_send {
                             return;
                         }
-                        json!({"status": "accepted", "result": {"turn": {"id": "turn-2", "status": "inProgress", "items": []}}})
+                        if steering {
+                            json!({"status": "accepted", "id": body["id"], "result": {}})
+                        } else {
+                            json!({"status": "accepted", "result": {"turn": {"id": "turn-2", "status": "inProgress", "items": []}}})
+                        }
                     } else if path.contains("/uploads?") {
                         assert!(headers.contains("content-type: application/octet-stream"));
                         assert!(content_length > 500_000);
@@ -466,6 +474,30 @@ async fn interrupted_write_is_reported_unknown_and_never_replayed() {
         .request(json!({"operation": "send", "threadId": THREAD, "text": "next"}))
         .await;
     assert!(matches!(result, Err(Error::UnknownWrite)));
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 1);
+    client.close().await;
+}
+
+#[tokio::test]
+async fn acknowledged_steering_with_an_image_does_not_wait_for_the_next_history_window() {
+    use base64::Engine;
+    let fixture = fixture(false).await;
+    let client = client(&fixture).await;
+    let mut bytes = b"\x89PNG\r\n\x1a\n".to_vec();
+    bytes.resize(600_000, 0);
+    let image = format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    );
+    let result = client
+        .request(
+            json!({"operation": "steer", "threadId": THREAD, "turnId": "turn-1",
+            "text": "Attached update", "images": [image]}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result["turn"]["id"], "turn-1");
+    assert_eq!(result["accepted"], true);
     assert_eq!(fixture.sends.load(Ordering::SeqCst), 1);
     client.close().await;
 }
