@@ -59,10 +59,16 @@ Use a single context rooted at `GLOSSARY.md` and `docs/adr/`. See `docs/agents/d
 - Preserve independent submodule dependency boundaries and pinned revisions. Initialize only the
   submodules needed for the task; respect the required shared/i18n initialization rules below. Do not
   recursively update optional submodules or reinstall their dependencies without a task-related need.
-- Use existing package scripts for builds and checks, including `build:desktop`, `check:rust` and
-  `build:app`, according to the affected scope and existing verification requirements. Do not weaken
-  required checks or Git hooks to save storage. Avoid full installer builds when the task does not need
-  an installer and existing validation rules do not require one.
+- For desktop bug reports, start with the installed Remote AI when it can reproduce the issue. If an
+  existing setting, refresh, or reconnect resolves it, retest the original scenario after the relevant
+  reload or restart. If the issue recurs, continue diagnosing the cause.
+- Choose builds and checks for the affected component. Use the web build for web-only changes. Rebuild
+  the desktop executable when a Rust fix or required verification needs a new executable. Use existing
+  package scripts, including `build:desktop`, `check:rust`, and `build:app`. Build a full installer when
+  delivery or verification requires one. Run the required checks and Git hooks.
+- Local commits limited to regular Markdown documents at the repository root or in `docs/` run a
+  staged diff check. Changes limited to the pre-commit hook and its integration test run that test.
+  Other commits run the project's existing checks.
 - Keep stable, project-specific Cargo output locations. Do not create a new `target` directory per task,
   globally override every project's `CARGO_TARGET_DIR`, or casually change toolchains, targets, features,
   profiles or compiler flags that invalidate reuse. Compatible build inputs are required for cache reuse.
