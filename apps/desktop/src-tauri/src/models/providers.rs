@@ -200,6 +200,8 @@ pub(crate) struct ProxySessionRequestSummary {
 pub(crate) struct ProxySessionLatencySummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) estimated_cost_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) conversation_counts: Option<crate::conversation_hub::activity::ConversationCounts>,
     pub(crate) total_first_token_time_ms: u64,
     pub(crate) first_token_request_count: u64,
     pub(crate) total_first_response_time_ms: u64,

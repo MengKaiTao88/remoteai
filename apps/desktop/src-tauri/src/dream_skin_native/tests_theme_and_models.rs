@@ -353,9 +353,13 @@
         assert!(expression.contains("window.__CODEX_SWITCH_REFRESH_SPEED_SELECTOR__?.()"));
         assert!(expression.contains("__CODEX_SWITCH_COMPOSER_STATUS_OBSERVER__"));
         assert!(expression.contains("patchState.unsubscribe?.()"));
-        assert!(expression.contains("if (matchesModelsQuery(event?.query)) syncComposerStatus()"));
+        assert!(expression.contains(
+            "if (matchesModelsQuery(event?.query) || isEffectiveLocalConfig(event?.query)) syncComposerStatus()"
+        ));
         assert!(expression.contains("__CODEX_SWITCH_FAST_MODE_ALLOWED__"));
-        assert!(expression.contains("const allowed = proxyRunning && hasActiveProxyModelQuery()"));
+        assert!(expression.contains(
+            "const allowed = proxyRunning && (hasActiveProxyModelQuery() || usesEffectiveProxyConfig())"
+        ));
         assert!(expression.contains(
             "const fastModeAllowed = allowed && fastModeModels.size > 0 && hasActiveProxyModelQuery(true)"
         ));

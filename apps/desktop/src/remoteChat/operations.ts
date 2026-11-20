@@ -311,13 +311,12 @@ export class ChatOperations {
       if (typeof body.threadId !== 'string') throw new Error('请选择聊天后重试。');
       const known = parseHistoryVersion(body.known);
       const window = parseHistoryWindow(body.window);
-      const requestedPageSize = (window as typeof window & { pageSize?: number }).pageSize;
       const threadId = body.threadId;
       let page: HistoryPage | undefined;
       const thread = await this.liveHistory.read(threadId, async () => {
         const result = await guiApi.request<{ thread: Thread; page?: HistoryPage }>({ operation: 'read', threadId,
           includeToolDetails: !this.views.deferred(owner),
-          window: { ...window, pageSize: requestedPageSize ?? getChatPolicy().historyPageSize } });
+          window: { ...window, pageSize: window.pageSize ?? getChatPolicy().historyPageSize } });
         page = result.page;
         return result;
       });

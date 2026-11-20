@@ -60,6 +60,33 @@ it('keeps page anchors stable when new messages arrive and recovers from a delet
   expect(reset.thread.turns!.flatMap((turn) => turn.items)).toHaveLength(10);
 });
 
+it('adds at most sixteen older records from a long active turn without replaying its existing tail', async () => {
+  const items = Array.from({ length: 200 }, (_, index) => ({
+    id: `activity-${index}`, type: 'commandExecution', command: `echo ${index}`, status: 'completed',
+  }));
+  const remote: Thread = { ...conversation(0), turns: [{ id: 'active', status: 'inProgress', items }] };
+  vi.mocked(guiApi.request).mockImplementation(async request => {
+    if (request.operation !== 'read') throw new Error('Unexpected request');
+    expect(request.window).toMatchObject({ pageSize: 16, deferProcesses: false });
+    return sliceHistory(remote, request.window);
+  });
+  const operations = new ChatOperations();
+  let selected: Thread = { ...remote, turns: [] };
+  let page: PagedHistoryDelta['page'];
+  for (let index = 0; index < 4; index++) {
+    const response = await operations.execute({ kind: 'request', id: `active-page-${index}`, method: 'request',
+      body: { operation: 'syncHistory', threadId: remote.id, known: historyVersion(selected),
+        window: { start: page?.start, older: index > 0, pageSize: 16, deferProcesses: false } } });
+    expect(response.error).toBeUndefined();
+    const delta = response.data as PagedHistoryDelta;
+    expect(delta.turns.flatMap(turn => turn.items)).toHaveLength(16);
+    selected = applyHistoryDelta(selected, delta);
+    expect(selected.turns?.[0].items.map(item => item.id)).toEqual(items.slice(-16 * (index + 1)).map(item => item.id));
+    page = delta.page;
+    expect(page?.hasMore).toBe(true);
+  }
+});
+
 async function connected(remote: Thread) {
   const operations = new ChatOperations();
   vi.mocked(guiApi.connect).mockResolvedValue([]);

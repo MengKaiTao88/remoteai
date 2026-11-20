@@ -17,13 +17,19 @@ fn first(view: &Value) -> Option<(&str, &str)> {
     })
 }
 
-fn contains(thread: &Value, cursor: &Value) -> bool {
-    rows(&thread["turns"]).iter().any(|turn| {
-        turn["id"] == cursor["turnId"]
-            && rows(&turn["items"])
+fn items_before(thread: &Value, cursor: &Value) -> Option<usize> {
+    let mut preceding = 0;
+    for turn in rows(&thread["turns"]) {
+        let items = rows(&turn["items"]);
+        if turn["id"] == cursor["turnId"] {
+            return items
                 .iter()
-                .any(|item| item["id"] == cursor["itemId"])
-    })
+                .position(|item| item["id"] == cursor["itemId"])
+                .map(|index| preceding + index);
+        }
+        preceding += items.len();
+    }
+    None
 }
 
 impl Client {
@@ -32,14 +38,21 @@ impl Client {
         let mut result = self.read(id).await?;
         // Forwarding a local display cursor lets a restarted gateway restore the
         // requested range instead of silently replacing it with the latest tail.
-        let anchor = &request["history"]["start"];
-        if request["history"]["older"] == true && result["historyMore"] == true {
+        let history = &request["history"];
+        let anchor = &history["start"];
+        let available = items_before(&result["thread"], anchor);
+        let covers_page = history["deferProcesses"] != true
+            && history["pageSize"]
+                .as_u64()
+                .zip(available)
+                .is_some_and(|(size, available)| available as u64 >= size);
+        if history["older"] == true && result["historyMore"] == true && !covers_page {
             self.extend_history(id).await?;
             result = self.read(id).await?;
         }
         for _ in 0..64 {
             if !anchor.is_object()
-                || contains(&result["thread"], anchor)
+                || items_before(&result["thread"], anchor).is_some()
                 || result["historyMore"] != true
             {
                 return Ok(result);
@@ -149,6 +162,23 @@ mod tests {
         assert_eq!(restored["thread"]["turns"][0]["items"][0]["id"], "saved-0");
         assert_eq!(restored["historyMore"], false);
         assert_eq!(fixture.posts.load(Ordering::SeqCst), 0);
+        client.close().await;
+    }
+
+    #[tokio::test]
+    async fn existing_raw_records_fill_a_small_older_page_without_extending_the_gateway() {
+        let fixture = fixture(false).await;
+        fixture.saved_total.store(165, Ordering::SeqCst);
+        fixture.connected.store(false, Ordering::SeqCst);
+        let client = client(&fixture).await;
+        let page = client
+            .request(json!({"operation":"read","threadId":THREAD,
+                "history":{"older":true,"pageSize":16,
+                    "start":{"turnId":"turn-1","itemId":"saved-149"}}}))
+            .await
+            .unwrap();
+        assert_eq!(fixture.saved_limit.load(Ordering::SeqCst), 40);
+        assert_eq!(page["historyMore"], true);
         client.close().await;
     }
 }

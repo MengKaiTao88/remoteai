@@ -5,7 +5,8 @@ const COMPOSER_SYNC_PROBE: &str = r#"Boolean(
     window.__CODEX_SWITCH_COMPOSER_STATUS_OBSERVER__ &&
     typeof window.__CODEX_SWITCH_REFRESH_SPEED_SELECTOR__ === "function" &&
     (window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ !== true ||
-        window.__CODEX_SWITCH_SPEED_SELECTOR__?.installed)
+        (window.__CODEX_SWITCH_SPEED_SELECTOR__?.installed &&
+         typeof window.__CODEX_SWITCH_USAGE_STATUSLINE__?.refresh === "function"))
 )"#;
 static RENDERER_BINDING_HEALTH: Mutex<Option<RendererBindingHealth>> = Mutex::new(None);
 static RENDERER_BINDING_INSTALL_LOCK: Mutex<()> = Mutex::new(());

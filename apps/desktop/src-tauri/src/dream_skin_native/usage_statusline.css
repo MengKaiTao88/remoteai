@@ -6,6 +6,18 @@
   color: var(--text-secondary, inherit); user-select: none;
 }
 [data-codex-switch-usage-statusline][hidden] { display: none !important; }
+[data-codex-switch-usage-statusline] [data-usage-group] {
+  display: inline-flex; align-items: center; justify-content: center;
+  max-width: 100%; min-width: 0;
+}
+[data-codex-switch-usage-statusline] [data-usage-group][hidden],
+[data-codex-switch-usage-statusline] [data-usage-metric][hidden] { display: none !important; }
+[data-codex-switch-usage-statusline] [data-usage-group="base"] {
+  flex-wrap: wrap; gap: 4px clamp(10px, 4cqi, 22px);
+}
+[data-codex-switch-usage-statusline] [data-usage-group="activity"] {
+  flex-wrap: wrap; gap: 4px clamp(10px, 4cqi, 22px);
+}
 [data-codex-switch-usage-statusline] [data-usage-metric] {
   display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
 }

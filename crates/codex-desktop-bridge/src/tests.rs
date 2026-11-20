@@ -58,6 +58,32 @@ async fn owner_queue_updates_and_clears_without_turn_changes_or_message_submissi
     client.close().await;
 }
 
+#[tokio::test]
+async fn saved_prefix_in_a_running_turn_is_paginated_without_becoming_a_live_append() {
+    let fixture = fixture(false).await;
+    let client = client(&fixture).await;
+    let mut events = client.subscribe();
+    let mut next = view("working");
+    client.accept(&next).await.unwrap();
+    while events.try_recv().is_ok() {}
+    next["sequence"] = json!(2);
+    let turns = next["turns"].as_array_mut().unwrap();
+    let messages = turns[0]["messages"].as_array_mut().unwrap();
+    messages.insert(0, json!({"id":"saved","kind":"agentMessage","text":"Earlier activity"}));
+    messages.push(json!({"id":"new","kind":"agentMessage","text":"Current activity"}));
+    turns.insert(0, json!({"id":"old","status":"completed","messages":[
+        {"id":"old-item","kind":"agentMessage","text":"Earlier turn"}]}));
+    client.accept(&next).await.unwrap();
+    let event = events.try_recv().unwrap();
+    assert_eq!(event["method"], "item/started");
+    assert_eq!(event["params"]["item"]["id"], "new");
+    assert!(events.try_recv().is_err());
+    let snapshots = client.snapshots.lock().await;
+    assert_eq!(snapshots[THREAD]["turns"][1]["messages"][0]["id"], "saved");
+    drop(snapshots);
+    client.close().await;
+}
+
 #[test]
 fn rejects_remote_urls_credentials_queries_and_paths() {
     for url in [

@@ -27,7 +27,7 @@ function setup(autoRespond = true, dailyEnabled = true) {
     <div data-composer-surface-variant="default"><div contenteditable="true"></div></div></section></div>`);
   const { window } = dom;
   const document = window.document;
-  Object.defineProperty(document, "hidden", { value: false });
+  Object.defineProperty(document, "hidden", { configurable: true, value: false });
   window.HTMLElement.prototype.getClientRects = () => [{}];
   const conversations = new Map(["one", "two"].map(id => [id, {
     resumeState: "resumed", threadRuntimeStatus: { type: "active" },
@@ -41,7 +41,8 @@ function setup(autoRespond = true, dailyEnabled = true) {
   window.__codexRoot = { _internalRoot: { current: { memoizedProps: { value: registry } } } };
   window.__CODEX_SWITCH_COMPOSER_STATUS_ALLOWED__ = true;
   window.__CODEX_SWITCH_SPEED_SELECTOR__ = { installed: true, language: "zh", usage: { enabled: dailyEnabled } };
-  const timing = { totalOutputTokens: 102, totalOutputTimeMs: 2000, outputRequestCount: 1 };
+  const timing = { totalOutputTokens: 102, totalOutputTimeMs: 2000, outputRequestCount: 1,
+    activity: { totalTokens: 1100, inputTokens: 1000, cachedInputTokens: 999 } };
   const requests = [];
   const respond = (request, value = timing) => window.__CODEX_SWITCH_USAGE_STATUSLINE__
     ?.receiveTiming(request.conversationId, request.requestId, value);
@@ -66,11 +67,11 @@ test("mounts below the active input and reuses proxy timings without app-server 
   const h = setup(); await drain();
   const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
   assert.equal(bar.previousElementSibling.getAttribute("data-composer-surface-variant"), "default");
-  assert.equal(bar.textContent, "51.0 tok/s缓存命中 99.9%19.0%");
+  assert.equal(bar.textContent, "51.0 tok/s缓存命中 99.9%19.0%1.1K— 轮 — 步—");
   assert.equal(h.requests.length, 1);
   h.conversations.get("one").latestTokenUsageInfo.total.outputTokens = 202;
   h.setNow(3000); await h.refresh();
-  assert.equal(bar.textContent, "51.0 tok/s缓存命中 99.9%19.0%");
+  assert.equal(bar.textContent, "51.0 tok/s缓存命中 99.9%19.0%1.1K— 轮 — 步—");
   assert.equal(h.requests.length, 2);
   h.run(); await drain();
   assert.equal(h.document.querySelectorAll("[data-codex-switch-usage-statusline]").length, 1);
@@ -85,7 +86,7 @@ test("switches identities, clears drafts and follows language independently of d
   h.document.querySelector("[data-above-composer-conversation-id]")
     .setAttribute("data-above-composer-conversation-id", "two");
   h.conversations.get("two").latestTokenUsageInfo.total.cachedInputTokens = 500;
-  await h.refresh(); assert.match(bar.textContent, /50.0%/);
+  await h.refresh(); assert.match(bar.textContent, /99.9%/);
   h.window.__CODEX_SWITCH_SPEED_SELECTOR__.language = "en";
   await h.refresh(); assert.match(bar.textContent, /Cache hit/);
   h.document.querySelector("[data-codex-composer-root]").setAttribute("data-composer-placement", "home");
@@ -94,6 +95,63 @@ test("switches identities, clears drafts and follows language independently of d
   await h.refresh(); assert.equal(bar.isConnected, true);
   assert.equal(bar.textContent, "— tok/sCache hit ——");
   assert.equal(h.timers.size, 1);
+  h.window.__CODEX_SWITCH_USAGE_STATUSLINE__.dispose();
+});
+
+test("keeps activity isolated across chats and clears it when no conversation is selected", async () => {
+  const h = setup(false);
+  await drain();
+  const group = h.document.querySelector('[data-usage-group="activity"]');
+  const original = h.requests.at(-1);
+  assert.equal(h.document.querySelector('[data-usage-metric="1"]').textContent, "缓存命中 —");
+  assert.equal(h.document.querySelector('[data-usage-metric="2"]').textContent, "19.0%");
+  assert.equal(group.hidden, false);
+  assert.equal(group.querySelector('[data-usage-metric="3"]').textContent, "—",
+    "inherited totals never flash while the branch statistics load");
+  h.respond(original, { ...h.timing, activity: null });
+  await drain();
+  assert.equal(group.querySelector('[data-usage-metric="3"]').textContent, "—");
+  h.setNow(3000); await h.refresh();
+  h.respond(h.requests.at(-1), { ...h.timing, activity: { turns: 2, steps: 7, successfulCommandCount: 2,
+    completedCommandCount: 3 } });
+  await drain();
+  const value = (index) => group.querySelector(`[data-usage-metric="${index}"]`).textContent;
+  assert.equal(value(4), "2 轮 7 步");
+  assert.equal(value(5), "66.7%");
+
+  h.document.querySelector("[data-above-composer-conversation-id]")
+    .setAttribute("data-above-composer-conversation-id", "two");
+  await h.refresh();
+  assert.equal(value(4), "— 轮 — 步");
+  h.respond(original, { ...h.timing, activity: { turns: 99, steps: 99 } });
+  await drain();
+  assert.equal(value(4), "— 轮 — 步");
+  h.respond(h.requests.at(-1), { ...h.timing, activity: { turns: 1, steps: 1,
+    successfulCommandCount: 0, completedCommandCount: 0 } });
+  await drain();
+  assert.equal(value(4), "1 轮 1 步");
+  assert.equal(value(5), "—");
+  h.document.querySelector("[data-codex-composer-root]").setAttribute("data-composer-placement", "home");
+  await h.refresh();
+  assert.equal(group.hidden, true);
+  h.window.__CODEX_SWITCH_USAGE_STATUSLINE__.dispose();
+});
+
+test("returning to the same composer keeps its six statistics during the refresh", async () => {
+  const h = setup(false);
+  await drain();
+  const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
+  h.respond(h.requests.at(-1), { ...h.timing, activity: { ...h.timing.activity, turns: 18, steps: 408,
+    successfulCommandCount: 8, completedCommandCount: 10 } });
+  await drain();
+  const remembered = bar.textContent;
+  assert.match(remembered, /18 轮 408 步80\.0%/);
+  for (const hidden of [true, false]) {
+    Object.defineProperty(h.document, "hidden", { configurable: true, value: hidden });
+    h.document.dispatchEvent(new h.window.Event("visibilitychange"));
+    await drain();
+    assert.equal(bar.textContent, remembered);
+  }
   h.window.__CODEX_SWITCH_USAGE_STATUSLINE__.dispose();
 });
 
@@ -106,7 +164,7 @@ test("conversation metrics start before a daily summary arrives, including when 
     }
     await drain();
     const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
-    assert.equal(bar.textContent, "51.0 tok/s缓存命中 99.9%19.0%");
+    assert.equal(bar.textContent, "51.0 tok/s缓存命中 99.9%19.0%1.1K— 轮 — 步—");
     assert.equal(h.requests.length, 1);
     h.window.__CODEX_SWITCH_USAGE_STATUSLINE__.dispose();
   }
@@ -218,7 +276,7 @@ test("proxy output speed remains available when the native conversation registry
   delete h.window.__codexRoot; h.run(); await drain();
   const bar = h.document.querySelector("[data-codex-switch-usage-statusline]");
   assert.equal(bar.querySelector('[data-usage-metric="0"]').textContent, "51.0 tok/s");
-  assert.equal(bar.querySelector('[data-usage-metric="1"]').textContent, "缓存命中 —");
+  assert.equal(bar.querySelector('[data-usage-metric="1"]').textContent, "缓存命中 99.9%");
   assert.equal(bar.querySelector('[data-usage-metric="2"]').textContent, "—");
   h.window.__CODEX_SWITCH_USAGE_STATUSLINE__.dispose();
 });

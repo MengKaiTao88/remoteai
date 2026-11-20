@@ -1,9 +1,18 @@
 use super::{projection, Client, Error, Result, Watched, MAX_WATCHES};
 use serde_json::{json, Value};
 use std::{
+    collections::HashSet,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+fn first_known_position(previous: &[Value], current: &[Value]) -> usize {
+    let ids: HashSet<_> = previous.iter().filter_map(|row| row["id"].as_str()).collect();
+    current
+        .iter()
+        .position(|row| row["id"].as_str().is_some_and(|id| ids.contains(id)))
+        .unwrap_or(0)
+}
 
 impl Client {
     pub(super) async fn with_metadata(&self, mut view: Value) -> Value {
@@ -199,12 +208,14 @@ impl Client {
         if previous["title"] != view["title"] {
             self.emit(json!({"method": "thread/name/updated", "params": {"threadId": id, "threadName": view["title"]}}));
         }
-        if projection::rows(&view["turns"]).iter().any(|turn| {
+        let previous_turns = projection::rows(&previous["turns"]);
+        let current_turns = projection::rows(&view["turns"]);
+        // Earlier turns belong to cursor-based reads, not to the live event stream.
+        let live_turns = &current_turns[first_known_position(previous_turns, current_turns)..];
+        if live_turns.iter().any(|turn| {
             turn["status"] != "inProgress"
                 && !projection::provisional(turn)
-                && !projection::rows(&previous["turns"])
-                    .iter()
-                    .any(|old| old["id"] == turn["id"])
+                && !previous_turns.iter().any(|old| old["id"] == turn["id"])
         }) {
             // Hydrating old completed turns is a history snapshot, not a new
             // completion now. Lifecycle events would fabricate today's finish
@@ -214,13 +225,11 @@ impl Client {
             );
             return;
         }
-        for turn in projection::rows(&view["turns"]) {
+        for turn in live_turns {
             if projection::provisional(turn) {
                 continue;
             }
-            let before = projection::rows(&previous["turns"])
-                .iter()
-                .find(|t| t["id"] == turn["id"]);
+            let before = previous_turns.iter().find(|t| t["id"] == turn["id"]);
             if before == Some(turn) {
                 continue;
             }
@@ -245,10 +254,12 @@ impl Client {
     }
 
     fn publish_items(&self, thread: &Value, before: &Value, turn: &Value) {
-        for item in projection::rows(&turn["items"]) {
-            let old = projection::rows(&before["items"])
-                .iter()
-                .find(|old| old["id"] == item["id"]);
+        let previous = projection::rows(&before["items"]);
+        let current = projection::rows(&turn["items"]);
+        // Extending the saved prefix exposes older items within the same running turn.
+        // Sending them as live events would append them to the client before the page arrives.
+        for item in &current[first_known_position(previous, current)..] {
+            let old = previous.iter().find(|old| old["id"] == item["id"]);
             if old == Some(item) {
                 continue;
             }

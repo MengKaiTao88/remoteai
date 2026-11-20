@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { after, before, test } from "node:test";
 import { chromium, expect } from "@playwright/test";
 import { composerUsageOverlay } from "./fixtures/usage-statusline-source.mjs";
+import { testBrowserLaunchOptions } from "./test-browser.mjs";
 
 const root = new URL("../apps/desktop/src-tauri/src/dream_skin_native/", import.meta.url);
 const [sync, queryClient, status] = await Promise.all([
@@ -22,19 +23,23 @@ const restore = (proxyRunning = true) => template.replace(/\{\{|\}\}|\{([a-z_]+)
   return substitutions[key];
 });
 let browser;
-before(async () => { browser = await chromium.launch({ headless: true }); });
+before(async () => { browser = await chromium.launch(testBrowserLaunchOptions({ headless: true })); });
 after(async () => { await browser?.close(); });
 
 async function loadComposer(page, options = {}) {
   await page.setContent(`<section data-composer-surface-variant="default">
     <div contenteditable="true" aria-label="Message"></div>
     <div><div><div><button data-composer-navigation-target="reasoning">Model</button></div></div></div></section>`);
-  await page.evaluate(({ authMethod = "no-auth", provider, host = "local", active = true }) => {
+  await page.evaluate(({ authMethod = "no-auth", provider, host = "local", active = true, effectiveProvider }) => {
     window.subscriptions = new Set();
     const query = { queryKey: ["models", "list", host, authMethod, 100, provider], isActive: () => active };
     window.modelQuery = query;
+    window.configQuery = effectiveProvider && {
+      queryKey: ["config", "effective", "local"], isActive: () => true,
+      state: { data: { config: { model_provider: effectiveProvider } } },
+    };
     const cache = {
-      getAll: () => [query],
+      getAll: () => window.configQuery ? [query, window.configQuery] : [query],
       subscribe: listener => {
         window.subscriptions.add(listener);
         return () => window.subscriptions.delete(listener);
@@ -88,6 +93,21 @@ test("logged-in proxy usage survives reattachment and reload without duplicate s
         assert.equal(await page.evaluate(() => window.subscriptions.size), 1);
       }
     }
+  } finally { await page.close(); }
+});
+
+test("checks the effective provider when the updated Codex lists ChatGPT models", async () => {
+  const page = await browser.newPage();
+  try {
+    await loadComposer(page, { authMethod: "chatgpt", effectiveProvider: "codex-switch-local" });
+    assert.equal(await page.evaluate(restore()), true);
+    await expect(page.locator("[data-codex-switch-usage-statusline]")).toBeVisible();
+    await expect(page.locator("[data-speed-controls]")).toBeHidden();
+    await page.evaluate(() => {
+      window.configQuery.state.data.config.model_provider = "openai";
+      for (const notify of window.subscriptions) notify({ query: window.configQuery });
+    });
+    await expect(page.locator("[data-codex-switch-usage-statusline]")).toHaveCount(0);
   } finally { await page.close(); }
 });
 

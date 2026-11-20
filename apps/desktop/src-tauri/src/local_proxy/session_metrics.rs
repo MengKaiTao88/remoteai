@@ -22,7 +22,13 @@ pub(crate) async fn get_proxy_session_metrics<R: tauri::Runtime>(
         if let Err(error) = super::session_cost::initialize(&app, &thread_id) {
             log_proxy_error!("failed to initialize conversation cost: {error}");
         }
-        load_session_metrics(&thread_id)
+        let mut metrics = load_session_metrics(&thread_id)?;
+        if crate::codex_gui::uses_official_desktop() {
+            metrics.conversation_counts =
+                crate::conversation_hub::activity::poll_official(&thread_id)
+                    .and_then(crate::conversation_hub::activity::ActivityTotals::counts);
+        }
+        Ok(metrics)
     })
     .await
     .map_err(|_| MetricsError::Unavailable.to_string())?

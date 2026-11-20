@@ -14,6 +14,13 @@ fn conversation_metrics_response(payload: &str) -> Result<String, String> {
         .ok_or_else(|| "Invalid metrics request identity.".to_string())?;
     // This runs on the existing renderer worker and reuses the original request timing calculation.
     let metrics = crate::local_proxy::session_metrics::load_session_metrics(thread_id).ok();
+    let mut metrics = match metrics {
+        Some(metrics) => serde_json::to_value(metrics).map_err(|error| error.to_string())?,
+        None => json!({}),
+    };
+    metrics["activity"] =
+        serde_json::to_value(crate::conversation_hub::activity::poll_official(thread_id))
+            .map_err(|error| error.to_string())?;
     let thread_id = serde_json::to_string(thread_id).map_err(|error| error.to_string())?;
     let metrics = serde_json::to_string(&metrics).map_err(|error| error.to_string())?;
     Ok(format!(
