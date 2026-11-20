@@ -18,6 +18,12 @@ state validation and permissions continue through the original handler. Unknown
 versions and malformed envelopes retain its rejection behavior. The wrapper is loaded
 by the existing runtime launcher and included by both packaging scripts.
 
+On Windows, Codex 26.1117.3838.0 can run with its follower pipe absent. When the
+registered Store app is already running and the transport confirms Windows error
+2, the gateway stops activation before invoking the system deep link. Saved
+history remains readable and the pending message stays in the outbox. Live
+sending requires the original desktop to expose a working connection.
+
 Failed queue preparations now retain their specific safe connection/authentication
 message and require deliberate retry. The automatic flush guard also recognizes older
 failed entries, preserving their classification, IDs, drafts and attachments without
