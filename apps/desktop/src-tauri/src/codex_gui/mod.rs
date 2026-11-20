@@ -240,7 +240,7 @@ pub(crate) async fn codex_gui_request(
 async fn execute_request(state: &GuiState, request: GuiRequest) -> Result<GuiResponse> {
     if official_bridge::enabled() {
         return official_files::request(Arc::clone(&state.downloads.0), request, |request| {
-            state.official_bridge.request(request)
+            state.official_bridge.request(request, &state.upload_policy)
         })
         .await;
     }

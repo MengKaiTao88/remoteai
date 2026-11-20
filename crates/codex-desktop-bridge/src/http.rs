@@ -151,7 +151,11 @@ impl Transport {
             .content_length()
             .is_some_and(|n| n > MAX_RESPONSE as u64)
         {
-            return Err(Error::Invalid);
+            return Err(if write {
+                Error::UnknownWrite
+            } else {
+                Error::Invalid
+            });
         }
         let mut data = Vec::new();
         while let Some(chunk) = response.chunk().await.map_err(|_| {
@@ -162,7 +166,11 @@ impl Transport {
             }
         })? {
             if data.len() + chunk.len() > MAX_RESPONSE {
-                return Err(Error::Invalid);
+                return Err(if write {
+                    Error::UnknownWrite
+                } else {
+                    Error::Invalid
+                });
             }
             data.extend_from_slice(&chunk);
         }

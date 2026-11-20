@@ -5,10 +5,25 @@ import unittest
 from pathlib import Path
 from contextlib import closing
 
-from native_history import install, saved_index
+from native_history import CONTEXT_ONLY_PART, install, saved_index, without_project_context
 
 
 class NativeHistoryTests(unittest.TestCase):
+    def test_rollout_uses_native_kinds_and_preserves_real_pastes_and_attachments(self):
+        text = {'type': 'input_text', 'text': '# AGENTS.md instructions for test\n<INSTRUCTIONS>sample</INSTRUCTIONS>'}
+        image = {'type': 'input_image', 'image_url': 'data:image/png;base64,cGlj'}
+
+        def message(parts, kinds):
+            return {'type': 'response_item', 'payload': {'type': 'message', 'role': 'user',
+                    'content': parts, 'internal_chat_message_metadata_passthrough': {'content_item_kinds': kinds}}}
+
+        rows = [message([text], ['agents_md.instructions']), message([text, image], ['user.message', 'user.image']),
+                message([text, image], ['agents_md.instructions', 'user.image'])]
+        raw = b''.join((json.dumps(row) + '\n').encode() for row in rows)
+        filtered = [json.loads(line) for line in without_project_context(raw).splitlines()]
+        self.assertEqual([entry['payload']['content'] for entry in filtered],
+                         [[CONTEXT_ONLY_PART], [text, image], [image]])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

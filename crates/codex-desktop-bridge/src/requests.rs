@@ -5,6 +5,13 @@ use std::sync::Arc;
 const ATTACH_RECOVERY_ATTEMPTS: usize = 40;
 const ATTACH_RECOVERY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
+fn before_submission(error: Error) -> Error {
+    match error {
+        Error::UnknownWrite => Error::NotSubmitted,
+        other => other,
+    }
+}
+
 impl Client {
     /// Closed chat operation set. No native RPC, arbitrary URL or filesystem proxy is exposed.
     pub async fn request(self: &Arc<Self>, request: Value) -> Result<Value> {
@@ -167,10 +174,14 @@ impl Client {
         if request["operation"] == "send" {
             let initial_access = self.initial_access.lock().await.get(id).cloned();
             if let Some(access) = initial_access {
-                self.apply_access(id, &access).await?;
+                self.apply_access(id, &access)
+                    .await
+                    .map_err(before_submission)?;
                 self.initial_access.lock().await.remove(id);
             }
-            self.apply_send_model(request, &before).await?;
+            self.apply_send_model(request, &before)
+                .await
+                .map_err(before_submission)?;
         }
         let submission = request["submissionId"]
             .as_str()
@@ -193,14 +204,28 @@ impl Client {
         }
         let body = json!({"id": submission, "text": input.text, "attachments": attachments,
             "mode": if steering { "steer" } else { "send" }});
-        let result = self
+        let reply = self
             .http
             .post(&format!("/api/sessions/{id}/send?host=local"), &body)
-            .await?;
-        if result["status"] != "accepted" {
-            return Err(Error::UnknownWrite);
-        }
-        self.watch(id).await?;
+            .await;
+        let result = match reply {
+            Ok(result) if result["status"] == "accepted" => result,
+            Ok(_) | Err(Error::UnknownWrite) => {
+                // Only a matching native submission identity can resolve a lost acknowledgement.
+                let turn = tokio::time::timeout(
+                    std::time::Duration::from_secs(3),
+                    self.confirm_turn(id, &submission, &Value::Null),
+                )
+                .await
+                .ok()
+                .and_then(Result::ok)
+                .ok_or(Error::UnknownWrite)?;
+                return Ok(json!({"turn": turn, "submissionId": submission, "accepted": true}));
+            }
+            Err(error) => return Err(error),
+        };
+        // A subsequent subscription failure cannot undo the owner's acknowledgement.
+        let _ = self.watch(id).await;
         // Steering appends to the validated active turn. The owner can acknowledge the
         // submission before its user item is visible in the projected history window.
         if let Some(turn) =
@@ -210,7 +235,10 @@ impl Client {
                 json!({"turn": projection::turn(turn), "submissionId": submission, "accepted": true}),
             );
         }
-        let turn = self.confirm_turn(id, &submission, &result).await?;
+        let turn = self
+            .confirm_turn(id, &submission, &result)
+            .await
+            .map_err(|_| Error::UnknownWrite)?;
         Ok(json!({"turn": turn, "submissionId": submission, "accepted": true}))
     }
 

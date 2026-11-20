@@ -3,14 +3,19 @@ use super::{
     error::{GuiError, Result},
     protocol::{ApprovalReply, GuiEvent, GuiRequest, GuiResponse},
 };
-use csw_codex_desktop_bridge::Client;
+use csw_codex_desktop_bridge::{Client, Error};
 use serde_json::{json, Value};
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use tauri::AppHandle;
 use tokio::sync::OnceCell;
 
 #[derive(Default)]
-pub(super) struct State(OnceCell<Arc<Client>>);
+pub(super) struct State(OnceCell<Connection>);
+
+struct Connection {
+    client: Arc<Client>,
+    upload_root: PathBuf,
+}
 
 pub(super) fn enabled() -> bool {
     super::backend::current() == super::backend::Backend::Official
@@ -18,9 +23,15 @@ pub(super) fn enabled() -> bool {
 
 impl State {
     pub(super) async fn connect(&self, app: AppHandle) -> Result<Vec<GuiEvent>> {
-        let client = self
+        let connection = self
             .0
             .get_or_try_init(|| async move {
+                let paths_app = app.clone();
+                let upload_root = tauri::async_runtime::spawn_blocking(move || {
+                    super::workspaces::prepare_root(&paths_app)
+                })
+                .await
+                .map_err(|_| GuiError::Workspace)??;
                 let config = super::gateway_runtime::config(app.clone()).await?;
                 let client = Client::connect(config)
                     .await
@@ -56,10 +67,14 @@ impl State {
                         }
                     }
                 });
-                Ok::<_, GuiError>(client)
+                Ok::<_, GuiError>(Connection {
+                    client,
+                    upload_root,
+                })
             })
             .await?;
-        client
+        connection
+            .client
             .pending()
             .await
             .into_iter()
@@ -68,10 +83,17 @@ impl State {
     }
 
     fn client(&self) -> Result<&Arc<Client>> {
-        self.0.get().ok_or(GuiError::Disconnected)
+        self.0
+            .get()
+            .map(|connection| &connection.client)
+            .ok_or(GuiError::Disconnected)
     }
 
-    pub(super) async fn request(&self, request: GuiRequest) -> Result<GuiResponse> {
+    pub(super) async fn request(
+        &self,
+        request: GuiRequest,
+        policy: &super::upload_policy::UploadPolicyStore,
+    ) -> Result<GuiResponse> {
         if let GuiRequest::ProcessDetails(target) = request {
             for id in [
                 &target.thread_id,
@@ -145,7 +167,17 @@ impl State {
             }
             request @ (GuiRequest::Send { .. }
             | GuiRequest::SendBatch { .. }
-            | GuiRequest::Steer { .. }) => super::official_bridge_inputs::request(request)?,
+            | GuiRequest::Steer { .. }) => {
+                let not_submitted = || GuiError::OfficialBridge(Error::NotSubmitted);
+                let root = self.0.get().ok_or_else(not_submitted)?.upload_root.clone();
+                let limits = policy.snapshot().map_err(|_| not_submitted())?;
+                tauri::async_runtime::spawn_blocking(move || {
+                    super::official_bridge_inputs::prepare(request, &root, limits)
+                })
+                .await
+                .map_err(|_| not_submitted())?
+                .map_err(|_| not_submitted())?
+            }
             GuiRequest::Interrupt { thread_id, turn_id } => {
                 json!({"operation": "interrupt", "threadId": thread_id, "turnId": turn_id})
             }
@@ -164,11 +196,16 @@ impl State {
                 ))
             }
         };
+        let sends_message = matches!(body["operation"].as_str(), Some("send" | "steer"));
         let mut data = self
             .client()?
             .request(body)
             .await
-            .map_err(GuiError::OfficialBridge)?;
+            .map_err(|error| match error {
+                Error::UnknownWrite => GuiError::OfficialBridge(error),
+                _ if sends_message => GuiError::OfficialBridge(Error::NotSubmitted),
+                _ => GuiError::OfficialBridge(error),
+            })?;
         super::official_sidebar::apply(&mut data).await;
         if let Some(window) = window {
             super::history_page::apply(&mut data, &window)?;
@@ -227,8 +264,8 @@ impl State {
     }
 
     pub(super) async fn close(&self) {
-        if let Some(client) = self.0.get() {
-            client.close().await;
+        if let Some(connection) = self.0.get() {
+            connection.client.close().await;
         }
     }
 }

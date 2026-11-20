@@ -3,8 +3,19 @@ use super::{
     error::{GuiError, Result},
     prompt::{batch_params, PromptInput, TurnOptions},
     protocol::GuiRequest,
+    upload_policy::UploadLimits,
 };
 use serde_json::{json, Value};
+use std::path::Path;
+
+pub(super) fn prepare(
+    mut request: GuiRequest,
+    upload_root: &Path,
+    limits: UploadLimits,
+) -> Result<Value> {
+    super::attachment_uploads::prepare_request(&mut request, upload_root, limits)?;
+    self::request(request)
+}
 
 pub(super) fn start(request: GuiRequest) -> Result<Value> {
     let GuiRequest::Start { cwd, model, access } = request else {
@@ -94,6 +105,30 @@ pub(super) fn request(request: GuiRequest) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn phone_file_bytes_are_saved_before_official_steering() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path().canonicalize().unwrap();
+        let request: GuiRequest = serde_json::from_value(json!({
+            "operation": "steer", "threadId": "thread-1", "turnId": "active-1",
+            "text": "review this", "images": [], "attachments": [
+                {"kind":"file", "name":"notes.txt", "path":"", "data":"aGVsbG8="}
+            ]
+        }))
+        .unwrap();
+        let input = prepare(request, &root, UploadLimits::default()).unwrap();
+        assert_eq!(input["turnId"], "active-1");
+        assert_eq!(input["input"][0]["text"], "review this");
+        let path = input["input"][1]["text"]
+            .as_str()
+            .unwrap()
+            .strip_prefix("文件：")
+            .unwrap();
+        let saved = Path::new(path).canonicalize().unwrap();
+        assert!(saved.starts_with(root.join("attachments")));
+        assert_eq!(std::fs::read(saved).unwrap(), b"hello");
+    }
 
     #[test]
     fn new_official_chat_keeps_independent_or_saved_project_scope_and_permissions() {

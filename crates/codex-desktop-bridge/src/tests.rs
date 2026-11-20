@@ -69,10 +69,16 @@ async fn saved_prefix_in_a_running_turn_is_paginated_without_becoming_a_live_app
     next["sequence"] = json!(2);
     let turns = next["turns"].as_array_mut().unwrap();
     let messages = turns[0]["messages"].as_array_mut().unwrap();
-    messages.insert(0, json!({"id":"saved","kind":"agentMessage","text":"Earlier activity"}));
+    messages.insert(
+        0,
+        json!({"id":"saved","kind":"agentMessage","text":"Earlier activity"}),
+    );
     messages.push(json!({"id":"new","kind":"agentMessage","text":"Current activity"}));
-    turns.insert(0, json!({"id":"old","status":"completed","messages":[
-        {"id":"old-item","kind":"agentMessage","text":"Earlier turn"}]}));
+    turns.insert(
+        0,
+        json!({"id":"old","status":"completed","messages":[
+        {"id":"old-item","kind":"agentMessage","text":"Earlier turn"}]}),
+    );
     client.accept(&next).await.unwrap();
     let event = events.try_recv().unwrap();
     assert_eq!(event["method"], "item/started");
@@ -199,6 +205,7 @@ pub(super) struct Fixture {
     url: String,
     pub(super) sessions: Arc<tokio::sync::Mutex<Vec<Value>>>,
     pub(super) sends: Arc<AtomicUsize>,
+    pub(super) recover_receipt: Arc<std::sync::atomic::AtomicBool>,
     pub(super) posts: Arc<AtomicUsize>,
     pub(super) model_confirmed: Arc<std::sync::atomic::AtomicBool>,
     pub(super) permission_confirmed: Arc<std::sync::atomic::AtomicBool>,
@@ -227,6 +234,9 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
     let posts = Arc::new(AtomicUsize::new(0));
     let send_count = sends.clone();
     let post_count = posts.clone();
+    let recover_receipt = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let recover = recover_receipt.clone();
+    let native_receipt = Arc::new(tokio::sync::Mutex::new(None::<Value>));
     let model = Arc::new(tokio::sync::Mutex::new(Value::Null));
     let model_confirmed = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let confirmation = model_confirmed.clone();
@@ -251,6 +261,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
             let (mut socket, _) = listener.accept().await.unwrap();
             let sends = send_count.clone();
             let posts = post_count.clone();
+            let recover_receipt = recover.clone();
+            let native_receipt = native_receipt.clone();
             let model = model.clone();
             let confirmation = confirmation.clone();
             let permission_confirmation = permission_confirmation.clone();
@@ -326,6 +338,12 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                             assert_eq!(body["text"], "first\n\nsecond");
                         }
                         if drop_send {
+                            if recover_receipt.load(Ordering::SeqCst) {
+                                *native_receipt.lock().await = Some(
+                                    json!({"id":"saved-submission",
+                                    "kind":"userMessage", "text":body["text"], "requestId":body["id"]}),
+                                );
+                            }
                             return;
                         }
                         if steering {
@@ -436,6 +454,12 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                             state["effort"] = selected["effort"].clone();
                             state["sequence"] = json!(2);
                         }
+                        if let Some(receipt) = native_receipt.lock().await.clone() {
+                            state["turns"][0]["messages"]
+                                .as_array_mut()
+                                .unwrap()
+                                .push(receipt);
+                        }
                         state
                     } else {
                         status = "404 Not Found";
@@ -454,6 +478,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
         url,
         sessions,
         sends,
+        recover_receipt,
         posts,
         model_confirmed,
         permission_confirmed,
@@ -500,6 +525,23 @@ async fn interrupted_write_is_reported_unknown_and_never_replayed() {
         .request(json!({"operation": "send", "threadId": THREAD, "text": "next"}))
         .await;
     assert!(matches!(result, Err(Error::UnknownWrite)));
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 1);
+    client.close().await;
+}
+
+#[tokio::test]
+async fn lost_reply_is_confirmed_from_the_existing_native_submission_without_replaying() {
+    let fixture = fixture(true).await;
+    fixture.recover_receipt.store(true, Ordering::SeqCst);
+    let client = client(&fixture).await;
+    let submission = uuid::Uuid::new_v4().to_string();
+    let result = client
+        .request(json!({"operation": "send", "threadId": THREAD,
+        "text": "next", "submissionId": submission}))
+        .await
+        .unwrap();
+    assert_eq!(result["accepted"], true);
+    assert_eq!(result["submissionId"], submission);
     assert_eq!(fixture.sends.load(Ordering::SeqCst), 1);
     client.close().await;
 }

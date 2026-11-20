@@ -8,6 +8,37 @@ from native_usage import saved_usage, token_usage
 
 DEFAULT_ITEMS = 5_000
 MAX_ITEMS = 50_000
+PROJECT_INSTRUCTIONS_KIND = 'agents_md.instructions'
+CONTEXT_ONLY_PART = {'type': 'remoteai_context_only'}
+
+
+def without_project_context(raw):
+    """Use the native content kinds to distinguish injected context from actual chat input."""
+    if b'"agents_md.instructions"' not in raw:
+        return raw
+    lines = raw.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if b'"agents_md.instructions"' not in line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        payload = record.get('payload') or {}
+        if (record.get('type') != 'response_item' or payload.get('type') != 'message'
+                or payload.get('role') != 'user'):
+            continue
+        metadata = payload.get('internal_chat_message_metadata_passthrough') or {}
+        kinds = metadata.get('content_item_kinds') if isinstance(metadata, dict) else None
+        content = payload.get('content')
+        if not isinstance(kinds, list) or not isinstance(content, list) or len(kinds) != len(content):
+            continue
+        parts = [part for part, kind in zip(content, kinds) if kind != PROJECT_INSTRUCTIONS_KIND]
+        if len(parts) != len(content):
+            # Keep the fallback parser's synthetic ordinal for every subsequent item.
+            payload['content'] = parts or [CONTEXT_ONLY_PART]
+            lines[index] = (json.dumps(record, ensure_ascii=False) + '\n').encode('utf-8')
+    return b''.join(lines)
 
 
 def _open_index(home):
@@ -71,6 +102,13 @@ def install(store_class):
     if getattr(store_class.history, '_remoteai_retained_history', False):
         return
     original = store_class.history
+    original_recent_lines = getattr(store_class, '_recent_lines', None)
+    if original_recent_lines is not None:
+        def recent_lines(path, turn_limit):
+            raw, complete = original_recent_lines(path, turn_limit)
+            return without_project_context(raw), complete
+
+        store_class._recent_lines = staticmethod(recent_lines)
 
     def history(store, thread_id, turn_limit=None, item_limit=None):
         meta = store.get(thread_id)
@@ -94,6 +132,9 @@ def install(store_class):
             if usage is not None:
                 result['latestTokenUsageInfo'] = usage
                 result['tokenUsageFromHistory'] = True
+        for turn in result.get('turns', []):
+            turn['items'] = [item for item in turn.get('items', [])
+                             if item.get('content') != [CONTEXT_ONLY_PART]]
         capture_history(store.home, thread_id, result)
         return result
 

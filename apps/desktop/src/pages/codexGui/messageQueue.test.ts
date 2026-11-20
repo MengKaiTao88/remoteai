@@ -307,6 +307,24 @@ it('keeps the image draft and distinguishes a confirmed pre-submission failure f
   expect(vi.mocked(guiApi.request).mock.calls.filter(([request]) => request.operation === 'steer')).toHaveLength(1);
 });
 
+it('retries the same image and uploaded text file after a confirmed pre-submission failure', async () => {
+  const attachments = [{ kind: 'file' as const, name: 'notes.txt', path: '', data: 'aGVsbG8=' }];
+  await controller.send('keep both files', ['fixture-image'], [], attachments);
+  const original = vi.mocked(guiApi.request).getMockImplementation()!;
+  const attempts = vi.fn().mockRejectedValueOnce('client.conversation.couldNotSendTheMessagePleaseTryAgain')
+    .mockResolvedValueOnce({});
+  vi.mocked(guiApi.request).mockImplementation(async request => request.operation === 'steer'
+    ? attempts(request) : original(request));
+  const id = messages()[0].id;
+  await controller.queue.steer('one', id);
+  expect(messages()[0]).toMatchObject({ id, attachments, needsReview: false, busy: false });
+  await controller.queue.steer('one', id);
+  expect(messages()).toEqual([]);
+  expect(attempts.mock.calls).toEqual(Array.from({ length: 2 }, () => [expect.objectContaining({
+    text: 'keep both files', images: ['fixture-image'], attachments,
+  })]));
+});
+
 it("merges acknowledgement items after an earlier turn event without reviving a completed turn", async () => {
   await controller.send("continue", []);
   const original = vi.mocked(guiApi.request).getMockImplementation()!;
