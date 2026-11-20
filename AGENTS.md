@@ -24,7 +24,8 @@ Keep all instructions in this `AGENTS.md` file in English.
 
 ### Issue tracker
 
-Use local Markdown in `.scratch/`. See `docs/agents/issue-tracker.md`.
+Track issues and specs in GitHub Issues for `MengKaiTao88/remoteai`.
+Read `docs/agents/issue-tracker.md` when working with tickets.
 
 ### Triage labels
 

@@ -1,6 +1,6 @@
 # Triage Labels
 
-| Skill role | Local status | When to use |
+| Skill role | GitHub label | When to use |
 | --- | --- | --- |
 | `needs-triage` | `needs-triage` | A maintainer needs to evaluate the issue. |
 | `needs-info` | `needs-info` | More information is needed. |
