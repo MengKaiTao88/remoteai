@@ -1,4 +1,26 @@
+# Read the commit's index before clearing Git's repository environment.
+staged_changes=$(git diff --cached --raw --no-renames --ignore-submodules=none) || exit "$?"
+
+only_changes_to() {
+  git diff --cached --quiet --no-renames --ignore-submodules=none -- . "$@"
+}
+
+if [ -n "$staged_changes" ] &&
+  printf '%s\n' "$staged_changes" | awk '$1 !~ /^:(000000|100644)$/ || $2 !~ /^(000000|100644)$/ { exit 1 }' &&
+  only_changes_to ':(exclude,glob)*.md' ':(exclude,glob)docs/**/*.md'; then
+  printf '%s\n' 'Checking staged Markdown.'
+  exec git diff --cached --check
+fi
+
+if [ -n "$staged_changes" ] &&
+  only_changes_to ':(exclude,glob).husky/pre-commit' ':(exclude,glob)scripts/git-hook-environment.test.mjs'; then
+  git diff --cached --check || exit "$?"
+  set -- node --test scripts/git-hook-environment.test.mjs
+else
+  set -- npm run check
+fi
+
 # Tests create foreign Git repositories; keep the committing repository out of their environment.
 # https://git-scm.com/docs/githooks#_description
 unset $(git rev-parse --local-env-vars)
-npm run check
+exec "$@"
