@@ -130,7 +130,22 @@ fn proxy_refresh_preserves_upstream_defaults_across_saved_catalog_reloads() {
 }
 
 #[test]
-fn failure_after_switch_reuses_persisted_models_and_capabilities() {
+fn successful_refresh_leaves_the_official_picker_with_codex() {
+    let fetched = json!({"models": [{
+        "slug": "gpt-5.6-sol",
+        "additional_speed_tiers": ["fast"]
+    }]});
+    let request = model_refresh_from_value(&fetched, "gpt-6.2-sol".to_string()).unwrap();
+    assert_eq!(request.models, vec!["gpt-5.6-sol"]);
+
+    let request = use_native_model_list(request);
+    assert!(request.models.is_empty());
+    assert_eq!(request.selected_model, "gpt-6.2-sol");
+    assert_eq!(request.fast_mode_models, vec!["gpt-5.6-sol"]);
+}
+
+#[test]
+fn failure_after_switch_reuses_cached_capabilities_without_replacing_the_picker() {
     let fixture = CacheFixture::new();
     fixture.save(successful_catalog()).unwrap();
 
@@ -139,8 +154,8 @@ fn failure_after_switch_reuses_persisted_models_and_capabilities() {
     let (request, using_cached_catalog) = fallback_request(cached, "gpt-6-astra");
 
     assert!(using_cached_catalog);
-    assert_eq!(request.models, vec!["gpt-5.6-sol", "gpt-6-astra"]);
-    assert_eq!(request.fast_mode_models, request.models);
+    assert!(request.models.is_empty());
+    assert_eq!(request.fast_mode_models, vec!["gpt-5.6-sol", "gpt-6-astra"]);
     assert_eq!(request.image_input_models, vec!["gpt-6-astra"]);
     assert_eq!(request.selected_model, "gpt-6-astra");
     assert_eq!(

@@ -343,21 +343,26 @@ test("an upstream catalog replaces the stale single-model picker list", async ()
   assert.deepEqual(harness.observer.modelIds(), upstreamModels);
 });
 
-test("an empty fallback request removes an old single-model patch and reloads the upstream", async () => {
+test("returning to the native model list releases an old single-model override", async () => {
   const harness = createHarness();
   await harness.refresh([defaultModel]);
+  const selectedModel = "gpt-6.2-sol";
+  const officialModels = [selectedModel, ...upstreamModels];
+  harness.client.upstreamModels = officialModels;
+  await harness.client.refetch(harness.query);
+  assert.deepEqual(harness.query.modelIds(), officialModels);
   assert.deepEqual(harness.observer.modelIds(), [defaultModel]);
 
-  await harness.refresh([]);
+  await harness.refresh([], { selectedModel });
 
   assert.equal(harness.client.resetCount, 1);
   assert.equal(harness.window[patchStateKey], undefined);
   assert.equal(Object.hasOwn(harness.query, "addObserver"), false);
   assert.equal(Object.hasOwn(harness.observer, "setOptions"), false);
-  assert.deepEqual(harness.query.modelIds(), upstreamModels);
-  assert.deepEqual(harness.observer.modelIds(), upstreamModels);
+  assert.deepEqual(harness.query.modelIds(), officialModels);
+  assert.deepEqual(harness.observer.modelIds(), officialModels);
   const laterObserver = harness.addObserver();
-  harness.client.upstreamModels = [...upstreamModels, "upstream-new-model"];
+  harness.client.upstreamModels = [...officialModels, "upstream-new-model"];
   await harness.client.refetch(harness.query);
   assert.deepEqual(laterObserver.modelIds(), harness.client.upstreamModels);
   assert.deepEqual(harness.observer.modelIds(), harness.client.upstreamModels);
@@ -410,7 +415,7 @@ test("a pending poll does not narrow an already refreshed upstream picker", asyn
   assert.deepEqual(harness.observer.modelIds(), upstreamModels);
 });
 
-test("a cached official catalog survives failed switch refreshes, pending polls, and picker reopening", async () => {
+test("an explicitly supplied catalog survives pending polls and picker reopening", async () => {
   const harness = createHarness({ select: selectDefaultModel });
   await harness.refresh(upstreamModels, cachedOfficialCapabilities);
   assertVisibleCatalog(harness.observer, upstreamModels, cachedOfficialCapabilities);
@@ -418,7 +423,7 @@ test("a cached official catalog survives failed switch refreshes, pending polls,
   harness.client.fetchGate = new Promise(resolve => { releaseFetch = resolve; });
   harness.client.upstreamModels = [defaultModel];
   const pendingPoll = harness.client.refetch(harness.query);
-  // The Rust request builder supplies the last successful catalog when the account-switch fetch fails.
+  // A Provider refresh can explicitly supply models while an upstream poll is in progress.
   const fallbackRefresh = harness.refresh(upstreamModels, cachedOfficialCapabilities);
   assert.equal(harness.client.pendingRequests, 2);
   assertVisibleCatalog(harness.observer, upstreamModels, cachedOfficialCapabilities);
@@ -439,7 +444,7 @@ test("a cached official catalog survives failed switch refreshes, pending polls,
   assertVisibleCatalog(harness.addObserver(), upstreamModels, cachedOfficialCapabilities);
 });
 
-test("a successful official refresh replaces the cached catalog and its capabilities", async () => {
+test("a configured catalog refresh replaces cached models and their capabilities", async () => {
   const harness = createHarness({ select: selectDefaultModel });
   await harness.refresh(upstreamModels, cachedOfficialCapabilities);
   await harness.refresh(upstreamModels, cachedOfficialCapabilities);

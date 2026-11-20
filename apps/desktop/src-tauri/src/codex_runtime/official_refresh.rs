@@ -118,8 +118,15 @@ fn apply_success(target: &OfficialRefreshTarget, loaded: LoadedOfficialCatalog) 
         Err(error) => eprintln!("Failed to save the official Codex model catalog: {error}"),
     }
     if is_current(target) {
-        apply_model_refresh(target.generation, loaded.request);
+        apply_model_refresh(target.generation, use_native_model_list(loaded.request));
     }
+}
+
+fn use_native_model_list(mut request: ModelRefreshRequest) -> ModelRefreshRequest {
+    // An empty list restores Codex's native model query. Keep the catalog's composer
+    // capabilities without pinning the picker to a model list from an earlier refresh.
+    request.models.clear();
+    request
 }
 
 fn cached_request(paths: &Paths, selected_model: &str) -> Result<ModelRefreshRequest, String> {
@@ -144,9 +151,9 @@ fn fallback_request(
     selected_model: &str,
 ) -> (ModelRefreshRequest, bool) {
     let using_cached_catalog = cached.is_ok();
-    // With no previous success, remove the override instead of pinning the picker to one model.
-    let request =
-        cached.unwrap_or_else(|_| upstream_model_refresh_reset(selected_model.to_string()));
+    let request = cached
+        .map(use_native_model_list)
+        .unwrap_or_else(|_| upstream_model_refresh_reset(selected_model.to_string()));
     (request, using_cached_catalog)
 }
 

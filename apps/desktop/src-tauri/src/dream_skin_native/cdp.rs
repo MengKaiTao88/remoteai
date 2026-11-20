@@ -331,17 +331,46 @@ pub(crate) fn refresh_codex_models(
             reason: Some("runtime-not-initialized".to_string()),
         });
     };
-    let target = list_targets(port)?
+    let mut targets = list_targets(port)?
         .into_iter()
-        .find(|target| target.url == "app://-/index.html")
+        .filter(|target| target.url == "app://-/index.html");
+    let mut target = targets
+        .next()
         .ok_or_else(|| "The Codex main window is not available.".to_string())?;
     let expression = codex_model_refresh_expression(request)?;
-    let mut session = CdpSession::connect(&target, port)?;
-    session.enable()?;
-    let result = session.evaluate(&expression)?;
-    if result.get("refreshed").and_then(Value::as_bool) == Some(true) {
+    let mut result = refresh_model_query(&target, port, &expression);
+    // Each main window has its own query cache. Leaving a Provider or restoring
+    // the official list must also clear overrides in previously focused windows.
+    if request.models.is_empty() {
+        for other in targets {
+            match refresh_model_query(&other, port, &expression) {
+                Ok(other_result)
+                    if other_result.refreshed
+                        && !result.as_ref().is_ok_and(|result| result.refreshed) =>
+                {
+                    target = other;
+                    result = Ok(other_result);
+                }
+                Err(error) => eprintln!("Failed to restore a Codex window's model list: {error}"),
+                _ => {}
+            }
+        }
+    }
+    let result = result?;
+    if result.refreshed {
         install_renderer_bindings(&target, port)?;
     }
+    Ok(result)
+}
+
+fn refresh_model_query(
+    target: &CdpTarget,
+    port: u16,
+    expression: &str,
+) -> Result<CodexModelRefreshResult, String> {
+    let mut session = CdpSession::connect(target, port)?;
+    session.enable()?;
+    let result = session.evaluate(expression)?;
     Ok(CodexModelRefreshResult {
         refreshed: result
             .get("refreshed")
