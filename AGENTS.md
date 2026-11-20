@@ -20,6 +20,20 @@ Keep all instructions in this `AGENTS.md` file in English.
 - Opening Codex keeps Remote AI's main navigation visible by default. Hide the application navigation
   only when the user explicitly enters the existing focus/fullscreen mode.
 
+## Agent skills
+
+### Issue tracker
+
+Use local Markdown in `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default Matt Pocock triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use a single context rooted at `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
 ## Workspace, Dependency Reuse, and Storage Lifecycle
 
 - Use this existing checkout as the primary workspace for sequential tasks. Store code versions in Git

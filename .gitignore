@@ -23,6 +23,7 @@ apps/desktop/src-tauri/.updater/
 .codex-tmp
 /.codex-tmp-*
 /.artifacts/
+/.scratch/
 .worktrees/
 apps/desktop/src-tauri/resources/remote-desktop/runtime/
 apps/desktop/src-tauri/resources/desktop-service/*
