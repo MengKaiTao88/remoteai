@@ -1,453 +1,350 @@
-# Agent Notes
+# 智能体协作说明
 
-Keep all instructions in this `AGENTS.md` file in English.
+本仓库的 `AGENTS.md`、`docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md` 和 `docs/agents/domain.md` 默认使用简体中文。今后在这四个文件新增或修改的标题、正文、注释和表格内容，默认使用简体中文。命令、路径、API 名称、标签、配置键和协议值保留原文。
 
-## Local-Only Workspace Policy (User Instruction)
+## 本地工作区约定（用户指令）
 
-- The user authorized backing up this customized source to `MengKaiTao88` GitHub repositories on
-  2026-11-06. Push the parent customization branch and its modified submodules only to that account.
-  Do not open or update upstream pull requests or upload private runtime state, logs or credentials.
-- Maintain this customized Codex integration locally. Do not push code, submodule changes, or release
-  artifacts to Remote AI repositories unless the user explicitly authorizes uploads again.
-- This user instruction overrides automatic-push requirements elsewhere in these notes for the parent
-  repository and its submodules. Preserve existing local commits and uncommitted work.
-- Keep automatic Remote AI application updates disabled. Preserve empty application updater endpoints
-  in local packages so upstream releases cannot replace this customized build automatically.
-- Apply Codex styling only inside the GUI chat workspace, including its conversation sidebar, messages,
-  disclosures, composer, pickers, menus and dialogs. Use neutral light/dark colors in that scope.
-  Preserve Remote AI's original application shell, account management, token summary, settings and other
-  application pages. Keep semantic diff/status colors where useful. Do not apply chat styling globally.
-- Opening Codex keeps Remote AI's main navigation visible by default. Hide the application navigation
-  only when the user explicitly enters the existing focus/fullscreen mode.
+- 用户于 2026-11-06 授权将定制源码备份到 `MengKaiTao88` 名下的 GitHub 仓库。父仓库的定制分支及修改过的子模块只可推送到该账号。禁止创建或更新上游拉取请求，禁止上传私有运行状态、日志或凭据。
+- 在本地维护这套 Codex 定制集成。再次向 Remote AI 仓库推送代码、子模块变更或发布产物前，须取得用户明确授权。
+- 父仓库和子模块均以这条用户指令为准，优先于本文其他自动推送条款。保留既有本地提交和未提交的工作。
+- 关闭 Remote AI 应用自动更新。本地安装包的更新端点列表保持为空，避免上游版本自动替换定制版本。
+- Codex 样式仅用于图形聊天工作区，包括会话侧栏、消息、展开和折叠控件、输入区、选择器、菜单和对话框。该范围内的浅色和深色主题均使用中性色。
+  保留 Remote AI 的原有应用框架、账号管理、Token 汇总、设置等页面，并按需保留差异和状态的语义颜色。
+- 打开 Codex 时默认显示 Remote AI 主导航。仅在用户主动进入现有专注或全屏模式时隐藏应用导航。
 
-## Agent skills
+## 智能体技能配置
 
-### Issue tracker
+此处是 Matt Pocock 技能的 `Agent skills` 配置入口。更新技能配置时沿用以下小节。
 
-Track issues and specs in GitHub Issues for `MengKaiTao88/remoteai`.
-Read `docs/agents/issue-tracker.md` when working with tickets.
+### 工单跟踪
 
-### Triage labels
+在 `MengKaiTao88/remoteai` 的 GitHub Issues 中跟踪工单和需求规格。处理工单时读取 `docs/agents/issue-tracker.md`。
 
-Use the default Matt Pocock triage labels. See `docs/agents/triage-labels.md`.
+### 工单分流标签
 
-### Domain docs
+使用 Matt Pocock 的默认分流标签。分流工单时读取 `docs/agents/triage-labels.md`。
 
-Use a single context rooted at `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
+### 领域文档
 
-## Workspace, Dependency Reuse, and Storage Lifecycle
+使用单一领域文档布局。探索代码或查阅术语和架构决策时，按 `docs/agents/domain.md` 指引读取根目录的 `GLOSSARY.md` 和 `docs/adr/` 中的相关记录。
 
-- Use this existing checkout as the primary workspace for sequential tasks. Store code versions in Git
-  commits, branches and tags. Do not clone or copy the project into a new date/task directory by default.
-- Before changing branches, installing dependencies, building shared outputs or cleaning files, inspect
-  the current branch, existing changes and active conversations. Do not let concurrent tasks independently
-  switch branches, replace dependencies or delete outputs in the same working directory. If conversation
-  visibility is unavailable, report that limitation and preserve other tasks' work and shared outputs.
-- Create a temporary Git worktree only when parallel or isolated work requires it. Record its owner,
-  purpose, branch and completion condition. Default to at most two active temporary worktrees in addition
-  to the primary checkout; explain a task-specific need before exceeding that working set.
+## 工作区、依赖复用与存储生命周期
 
-### Dependency and Build Reuse
+- 按顺序处理任务时，将现有检出目录作为主工作区。通过 Git 提交、分支和标签保存版本。默认在现有目录工作，避免按日期或任务另行克隆或复制项目。
+- 切换分支、安装依赖、构建共享产物或清理文件前，检查当前分支、已有变更和运行中的会话。
+  同一工作目录中的并行任务须协调分支切换、依赖替换和产物删除。如果无法查询会话，报告该限制并保留其他任务的工作和共享产物。
+- 仅在并行或隔离确有需要时创建临时 Git 工作树，记录其负责人、用途、分支及完成条件。
+  主检出目录之外默认最多同时使用两个临时工作树。超过时先说明本任务的具体需要。
 
-- Reuse installed dependencies when they satisfy the current lockfile, toolchain, platform and workspace
-  requirements. Check their state before installing. Install only for missing, inconsistent, damaged or
-  intentionally changed dependencies, or an explicitly required clean reproducible installation. State
-  the concrete reason before reinstalling; do not infer that every new conversation needs a fresh install.
-- Preserve the existing npm version policy, lockfiles and npm workspace layout. Do not routinely run
-  `npm ci`: it removes and recreates `node_modules`. Do not switch package managers or point multiple
-  writable checkouts at one shared `node_modules` directory merely to save space.
-- Preserve independent submodule dependency boundaries and pinned revisions. Initialize only the
-  submodules needed for the task; respect the required shared/i18n initialization rules below. Do not
-  recursively update optional submodules or reinstall their dependencies without a task-related need.
-- For desktop bug reports, start with the installed Remote AI when it can reproduce the issue. If an
-  existing setting, refresh, or reconnect resolves it, retest the original scenario after the relevant
-  reload or restart. If the issue recurs, continue diagnosing the cause.
-- Choose builds and checks for the affected component. Use the web build for web-only changes. Rebuild
-  the desktop executable when a Rust fix or required verification needs a new executable. Use existing
-  package scripts, including `build:desktop`, `check:rust`, and `build:app`. Build a full installer when
-  delivery or verification requires one. Run the required checks and Git hooks.
-- Local commits limited to regular Markdown documents at the repository root or in `docs/` run a
-  staged diff check. Changes limited to the pre-commit hook and its integration test run that test.
-  Other commits run the project's existing checks.
-- Keep stable, project-specific Cargo output locations. Do not create a new `target` directory per task,
-  globally override every project's `CARGO_TARGET_DIR`, or casually change toolchains, targets, features,
-  profiles or compiler flags that invalidate reuse. Compatible build inputs are required for cache reuse.
-- Preserve intentional output isolation in installer-helper and fixture scripts, and the package-level
-  release cleanup in `scripts/build-desktop-app.mjs` that prevents stale Tauri executables. Do not replace
-  that targeted step with unrestricted `cargo clean` or remove it solely to preserve caches.
-- Worktrees share Git metadata, not automatically dependency installations or compiled outputs. Do not
-  run concurrent builds that overwrite one shared output directory. Any centralized cache change must
-  account for build coordination, target/profile compatibility and paths expected by existing scripts.
+### 复用依赖与构建产物
 
-### Cleanup Inspection and Task Completion
+- 已安装的依赖符合当前锁文件、工具链、平台和工作区要求时直接复用。安装前检查状态。
+  仅在依赖缺失、不一致、损坏、因任务有意变更，或明确要求进行干净且可复现的安装时重新安装。重新安装前说明具体原因。
+- 保留现有 npm 版本策略、锁文件和 npm 工作区布局。`npm ci` 会删除并重建 `node_modules`，仅在确有需要时使用。
+  保留现有包管理器。不要仅为节省空间让多个可写检出目录共用一个 `node_modules`。
+- 保留各子模块独立的依赖边界和固定版本。只初始化任务所需的子模块，并遵循下文对 `shared` 和 `packages/i18n` 的初始化要求。
+  递归更新可选子模块或重装其依赖需要明确的任务理由。
+- 能用已安装的 Remote AI 复现桌面问题时，先用它排查。若既有设置、刷新或重连解决了问题，在对应的重新加载或重启后用原场景复测。复发时继续定位原因。
+- 根据受影响的组件选择构建和检查。仅涉及 Web 的变更运行 Web 构建。Rust 修复或必要验证需要新可执行文件时重建桌面端。
+  使用现有脚本，包括 `build:desktop`、`check:rust` 和 `build:app`。交付或验证需要时构建完整安装包。运行规定的检查和 Git 钩子。
+- 本地提交仅涉及根目录或 `docs/` 中的普通 Markdown 文件时，检查暂存区差异。仅改动提交前钩子及其集成测试时，运行该测试。其他提交运行项目现有检查。
+- 为各项目使用稳定的 Cargo 输出路径。避免按任务新建 `target` 目录、统一覆盖所有项目的 `CARGO_TARGET_DIR`，
+  或随意更改工具链、目标平台、功能特性、构建配置和编译参数。复用缓存时须确保构建输入兼容。
+- 保留安装程序辅助工具与测试夹具脚本中有意隔离的输出路径。保留 `scripts/build-desktop-app.mjs` 针对当前包的发布构建清理，防止使用旧的 Tauri 可执行文件。
+  禁止将它换成无范围限制的 `cargo clean`，也不要仅为保留缓存而移除它。
+- 工作树共享 Git 元数据。只有明确配置并验证后，依赖安装和编译产物才可复用。
+  避免让并行构建覆盖同一输出目录。调整集中缓存时，考虑构建协调、目标平台和构建配置的兼容性，以及现有脚本期望的路径。
 
-- Treat `%USERPROFILE%/.codex/remoteai-image-archive` as durable chat attachment data, not a
-  rebuildable cache. Preserve it during storage cleanup and application replacement. Official-bridge
-  clipboard images must be retained per chat before Temp cleanup can invalidate their history references;
-  cached bytes must still require a matching attachment in the currently requested chat when read.
+### 清理检查与任务收尾
 
-- For a cleanup inspection request, produce a read-only inventory first: exact paths, estimated bytes,
-  reproducibility, ownership, active-use checks, local Git state and a keep/review/cleanup classification.
-  A preview entry, `.gitignore` match or old timestamp alone does not establish that a file is disposable.
-- Prefer `npm run clean:preview` or `npm run clean -- --ai --dry-run` for inspection. The default
-  `npm run clean` and its `--build` mode remove Rust targets and other build caches; never use them as
-  automatic end-of-task cleanup. Even `--ai` includes `.artifacts` and may remove screenshots, installers,
-  recovery files or verification evidence that still need to be retained.
-- Preserve source, Git metadata, dependency lockfiles, useful primary-checkout dependencies/build caches,
-  uncommitted or unpushed work, stashes, submodule changes, configuration, credentials and important data.
-  Preserve nested repositories, links, recovery copies, patches and required evidence until their
-  ownership and retention needs are resolved. Do not assume an ignored file is backed up on GitHub.
-- Before removing an old checkout or worktree, inspect all local branches, upstream status, local-only
-  commits, staged/unstaged/untracked files, stashes, submodules and shared worktree dependencies. Refresh
-  or otherwise verify relevant remote state before claiming the code is backed up; stale remote-tracking
-  references and a clean working tree are not sufficient. Never use forced removal to bypass findings.
-- Execute deletion only within the user's authorized scope, after preserving required deliverables and
-  confirming that builds, development servers and other tasks no longer use the paths. Use allowlisted
-  cleanup tooling or verified absolute paths; preserve and report uncertain items instead of sweeping
-  all ignored files. Routine task cleanup applies only to verified disposable outputs owned by that task.
-- Retain useful primary-checkout dependencies and compilation caches. Temporary worktrees and their
-  dedicated outputs should be retired once their task is completed and their code/data are preserved.
-  Store retained release packages and verification evidence in deliberate delivery locations; do not
-  copy an entire runtime into a new artifact directory for every check unless that isolation is required.
-- Use soft storage budgets to trigger inspection, not silent deletion or hard build failures. Initial
-  review thresholds are about 40 GiB for primary-checkout compilation outputs and 10 GiB for scratch or
-  artifact outputs; adjust them to measured project needs. Inspect known output paths rather than
-  repeatedly scanning the whole disk. Retain designated baseline releases when rotating old packages.
-- At task completion, follow existing commit/push authorization and conversation-review rules, and report
-  any newly created worktrees, dependency reinstallations, nonstandard cache paths, significant retained
-  artifacts and pending cleanup. Separate successfully completed work from unrelated or unverified work.
+- 将 `%USERPROFILE%/.codex/remoteai-image-archive` 视为需长期保留的聊天附件数据。清理存储或替换应用时保留它。
+  通过官方桥接保存剪贴板图片时，在 `Temp` 清理使历史引用失效之前按会话保留图片。
+  读取缓存图片时，须在当前请求的会话中找到对应附件。
+- 接到清理检查请求时先做只读清单，列出精确路径、估算大小、可重建性、归属、是否正在使用、本地 Git 状态，以及保留、复核或清理的判断。
+  仅凭预览结果、命中 `.gitignore` 或时间戳较旧，无法确定文件可丢弃。
+- 优先用 `npm run clean:preview` 或 `npm run clean -- --ai --dry-run` 检查。
+  默认的 `npm run clean` 及其 `--build` 模式会删除 Rust 构建输出和其他构建缓存，禁止作为自动收尾清理。
+  `--ai` 也会涉及 `.artifacts`，其中可能存有需保留的截图、安装包、恢复文件或验证证据。
+- 保留源码、Git 元数据、依赖锁文件、主工作区中有用的依赖和构建缓存、未提交或未推送的工作、暂存记录（stash）、子模块变更、配置、凭据和重要数据。
+  嵌套仓库、链接、恢复副本、补丁和必要证据在确认归属及保留需求之前也须保留。核实忽略的文件是否有实际备份。
+- 删除旧检出目录或工作树前，检查全部本地分支、上游状态、仅本地提交、暂存及未暂存改动、未跟踪文件、stash、子模块和共享工作树依赖。
+  确认代码已备份之前，先刷新或以其他方式核实相关远端状态。旧的远端跟踪引用和干净的工作树不足以证明已备份。禁止使用强制移除绕过检查结果。
+- 只在用户授权范围内删除，先保留必要交付物，并确认构建、开发服务器和其他任务已停止使用相关路径。
+  使用允许列表内的清理工具或核实过的绝对路径。对归属不明的文件予以保留并报告。例行收尾只清理已确认可丢弃且属于本任务的产物。
+- 保留主工作区中有用的依赖和编译缓存。临时工作树的任务完成并妥善保留代码和数据后，退役该工作树及其专用产物。
+  将需保留的发布包和验证证据存到明确的交付位置。只有确需隔离时，才为验证另存完整运行环境。
+- 用弹性存储预算触发检查。达到阈值时进行审查，禁止静默删除或因此直接阻止构建。
+  初始审查阈值为主工作区编译产物约 40 GiB、临时文件或交付产物约 10 GiB，按项目实测情况调整。
+  优先检查已知的输出路径。轮换旧安装包时保留指定的基线版本。
+- 任务完成时遵循现有提交、推送授权和会话复核规则。报告新建的工作树、重装的依赖、非标准缓存路径、重要保留产物和待清理事项，并注明已完成事项及有关的未验证事项。
 
-### Selected Retention Policy: Balance Speed and Storage
+### 用户选定的保留策略：平衡速度与存储
 
-- The user selected this policy on 2026-11-11: retain one useful set of primary-workspace dependencies and
-  compilation caches; retire verified inactive temporary-checkout caches instead of cleaning every build.
-- `npm run build:app` automatically removes only its temporary packaging frontend after successful completion.
-  Packaging runs must share the existing output lock. Preserve failed-build inputs for diagnosis.
-- At task completion, run `npm run clean:task` after packaging and evidence collection have finished. This
-  narrow cleanup preserves Cargo dependencies, application outputs, installers, test reports and recovery files.
-  Do not substitute the broad default cleanup or `--ai` for this task-completion command.
-- Before creating another temporary checkout, reuse the primary workspace when possible. Record temporary
-  checkout ownership and remove its reproducible Rust caches when its task is finished and no process or
-  conversation still needs them: `npm run clean:retired -- --checkout <absolute retired checkout> --dry-run`,
-  then repeat without `--dry-run` after checking the plan. The command must refuse the primary workspace.
-- Retiring caches does not authorize deleting the checkout, Git metadata, unpushed commits, stashes, source,
-  dependencies, credentials or retained deliverables. Do not delete files merely because they are large.
+- 用户于 2026-11-11 选定此策略。主工作区保留一套有用的依赖和编译缓存。只有确认临时检出目录停用后才清理其缓存。
+- `npm run build:app` 成功时只自动移除该次打包的临时前端产物。打包任务必须共用现有输出锁。构建失败时保留输入以便诊断。
+- 打包和证据收集结束后，用 `npm run clean:task` 收尾。该命令保留 Cargo 依赖、应用产物、安装包、测试报告和恢复文件。收尾仅使用此命令。
+- 新建临时检出目录前优先考虑复用主工作区。记录临时检出目录的归属。任务结束，且没有进程或会话继续使用该目录时，可清理其可重建的 Rust 缓存。
+  先运行 `npm run clean:retired -- --checkout <absolute retired checkout> --dry-run`，核对计划后再去掉 `--dry-run` 执行。该命令必须拒绝对主工作区执行。
+- 退役缓存的授权范围仅限缓存。保留检出目录、Git 元数据、未推送提交、stash、源码、依赖、凭据和需保留的交付物。文件体积本身不构成删除依据。
 
-## Internationalization Submodule
+## 国际化子模块
 
-- `packages/i18n` is the required `https://github.com/piperhex/remoteai-i18n.git` submodule.
-  Initialize it before npm installs. Follow its own `AGENTS.md`; push child changes before updating the gitlink.
-- The child owns source resources, language metadata, package validation and immutable releases. Source
-  exports remain a parent workspace; independent consumers can install the versioned GitHub release archive.
-- Parent `generate:i18n` and `check:i18n` also generate/check application platform files and scan ownership.
-  Keep those integration checks when changing CI; the child's standalone checks do not scan a parent implicitly.
-- Preserve admin and Coze submodule boundaries. Never modify their pinned dependency snapshots implicitly.
+- `packages/i18n` 是必需的子模块，仓库为 `https://github.com/piperhex/remoteai-i18n.git`。
+  安装 npm 依赖前先初始化，遵循子模块的 `AGENTS.md`。先推送子模块变更，再更新父仓库的子模块指针。
+- 子模块负责语言资源源码、语言元数据、包校验和不可变的发布版本。源码导出仍在父工作区完成。
+  独立使用方可以安装有版本号的 GitHub 发布归档。
+- 父仓库的 `generate:i18n` 和 `check:i18n` 还负责生成或检查应用平台文件，并扫描资源归属。
+  修改 CI 时保留这些集成检查。子模块独立运行检查时不会自动扫描父仓库。
+- 保持 Admin 和 Coze 的子模块边界。只有任务明确要求时才修改它们固定的依赖快照。
 
-## Native Submodule
+## Native 子模块
 
-- `apps/native` is the optional `https://github.com/piperhex/remoteai-native.git` submodule.
-  Follow its `AGENTS.md`; commit and push child changes before updating the parent gitlink.
-- Native owns its dependencies, tests, Android/iOS builds, versions and CI releases. Keep it out of the
-  parent npm workspaces and build jobs; parent installs and checks must work without initializing it.
-  Parent releases mirror verified, published Native packages for downloads and legacy Android updates.
-  Preserve their original versions and bytes; never rebuild or relabel them as desktop versions.
-- Export shared/application/Rust dependency snapshots with `npm run export:native`. Do not hand-edit
-  generated vendor files. Native uses the independent published `@remoteai/i18n` package.
-- See `docs/native-submodule.md` for development, release and update-mirror integration.
+- `apps/native` 是可选子模块，仓库为 `https://github.com/piperhex/remoteai-native.git`。
+  遵循其 `AGENTS.md`，先在子模块提交和推送变更，再更新父仓库的子模块指针。
+- Native 自行维护依赖、测试、Android 和 iOS 构建、版本与 CI 发布。
+  父仓库的 npm 工作区和构建任务不纳入 Native，安装和检查须能在该子模块未初始化时运行。
+- 父仓库发布时镜像经验证且已发布的 Native 包，供下载和旧版 Android 更新使用。
+  保留原始版本号和文件字节，禁止重新构建或标记为桌面版本。
+- 用 `npm run export:native` 导出共享代码、应用和 Rust 依赖的快照。生成的 vendor 文件由导出脚本维护。
+  Native 使用独立发布的 `@remoteai/i18n` 包。
+- 开发、发布和更新镜像的集成说明见 `docs/native-submodule.md`。
 
-## Coze Submodule
+## Coze 子模块
 
-- `apps/coze` is the independent `https://github.com/piperhex/remoteai-coze.git` Git submodule.
-  Follow its own `AGENTS.md`. Commit and push Coze changes there before updating the parent gitlink.
-- Coze owns its dependencies, localization package, tests, build scripts and CI releases. Do not add it
-  back to the parent's npm workspaces or rebuild it as part of Remote AI releases.
-- The parent owns the desktop integration and `shared/coze/runtime.json`, which pins a published,
-  compatible signed runtime. Parent builds must work without initializing the optional submodule.
-- Coze translations live only in its `packages/i18n`; the parent's package owns desktop integration copy.
+- `apps/coze` 是独立 Git 子模块，仓库为 `https://github.com/piperhex/remoteai-coze.git`。
+  遵循其 `AGENTS.md`，先在子模块提交和推送变更，再更新父仓库的子模块指针。
+- Coze 自行维护依赖、本地化包、测试、构建脚本与 CI 发布。
+  父仓库的 npm 工作区和 Remote AI 发布流程不纳入 Coze 构建。
+- 父仓库负责桌面集成和 `shared/coze/runtime.json`，该文件固定已发布且兼容的签名运行时版本。
+  父仓库须能在该可选子模块未初始化时构建。
+- Coze 的翻译只存于其 `packages/i18n`。父仓库的语言包负责桌面集成用语。
 
-## Admin Submodules
+## Admin 子模块
 
-- `apps/admin` is the Go backend submodule from `https://github.com/piperhex/remoteai-admin.git`.
-- `apps/admin-ui` is the independent interface submodule from `https://github.com/piperhex/remoteai-admin-ui.git`.
-  Follow each repository's `AGENTS.md`. Commit and push child changes before updating parent gitlinks.
-- The retired NestJS backend has been removed. Historical API contracts and validation fixtures live in
-  the Go repository; do not restore the NestJS implementation or deployment targets.
-- Each child owns its dependencies, tests, build and CI. Parent installs and releases must work without
-  initializing either optional submodule. Never add them back to the parent's npm workspaces.
-- Shared UI sources live in the required `shared` submodule; translation sources live in `packages/i18n`.
-  Export shared-component artifacts with `npm run export:admin-ui`; language dependencies stay pinned to a
-  published i18n archive. Commit artifacts, provenance and lockfiles in the child. Never edit generated contents.
-  Backend platform translation sources live in `remoteai-i18n`; its `admin` profile generates the Go copy.
-- Production deployments use `apps/admin/DEPLOYMENT.md` and the `check`, `up`, and `verify` commands in
-  `apps/admin/scripts/deployment_compose.py`. Preserve the recorded Compose files, relay networking,
-  production service names and environment variables. Do not redeploy merely because paths changed.
-- Database upgrades live in `apps/admin/sql`. New endpoints require Kong route and authentication coverage;
-  `go -C apps/admin test ./internal/server -run TestKong` must pass.
+- `apps/admin` 是 Go 后端子模块，仓库为 `https://github.com/piperhex/remoteai-admin.git`。
+- `apps/admin-ui` 是独立界面子模块，仓库为 `https://github.com/piperhex/remoteai-admin-ui.git`。
+  遵循两个子模块各自的 `AGENTS.md`，先在子模块提交和推送变更，再更新父仓库的子模块指针。
+- NestJS 后端已退役并移除。历史 API 契约和验证用的测试数据位于 Go 仓库。禁止恢复 NestJS 实现或部署目标。
+- 各子模块自行维护依赖、测试、构建与 CI。父仓库的安装和发布须能在这两个可选子模块未初始化时完成，父仓库的 npm 工作区不纳入二者。
+- 共享 UI 源码位于必需的 `shared` 子模块，翻译源码位于 `packages/i18n`。
+  使用 `npm run export:admin-ui` 导出共享组件产物。语言依赖继续固定在已发布的 i18n 归档版本。
+  在子模块内提交产物、来源记录和锁文件。由生成脚本维护生成内容。
+  后端平台翻译源码位于 `remoteai-i18n`，使用其 `admin` 配置生成 Go 副本。
+- 生产部署遵循 `apps/admin/DEPLOYMENT.md`，并使用 `apps/admin/scripts/deployment_compose.py` 的 `check`、`up` 和 `verify` 命令。
+  保留记录的 Compose 文件、中继网络、生产服务名称和环境变量。仅路径变化时无需重新部署。
+- 数据库升级文件位于 `apps/admin/sql`。新端点必须有 Kong 路由和身份验证覆盖。
+  `go -C apps/admin test ./internal/server -run TestKong` 必须通过。
 
-## Browser Tests on Windows
+## Windows 浏览器测试
 
-- Default to Playwright's bundled Chromium. Install it with `npx playwright install chromium`;
-  never fall back to system Edge or Chrome when the bundled browser is missing.
-- Repeated system-browser launches with fresh profiles can trigger Windows password checks and lock
-  the signed-in account. Keep Windows account-lockout policy intact.
-- Route test browser environment overrides through `scripts/test-browser.mjs`, which rejects system
-  browser overrides on Windows. See `docs/browser-tests.md` for setup and verification.
-- Use its `testBrowserLaunchOptions` for Chromium Playwright configurations and full-browser launches,
-  or `testBrowserArguments` for raw Chromium launches. Bundled full Chromium can also trigger the
-  password probe; preserve the workaround and existing launch flags, and keep them out of WebKit projects.
+- 默认使用 Playwright 自带的 Chromium。缺失时运行 `npx playwright install chromium`，禁止改用系统 Edge 或 Chrome。
+- 反复用全新的配置目录启动系统浏览器，可能触发 Windows 密码检查并锁定登录账号。保留 Windows 的账号锁定策略。
+- 通过 `scripts/test-browser.mjs` 处理测试浏览器的环境变量覆盖。该脚本会拒绝在 Windows 上使用系统浏览器覆盖。
+  安装与验证见 `docs/browser-tests.md`。
+- 在 Chromium Playwright 配置及完整浏览器启动中使用 `testBrowserLaunchOptions`。直接启动 Chromium 时使用 `testBrowserArguments`。
+  完整的内置 Chromium 也可能触发密码检查。保留已有规避方式和启动参数，并仅用于 Chromium，避免带入 WebKit 项目。
 
-## Automatic Commit and Push
+## 自动提交与推送
 
-- After completing the requested changes and verifying them successfully, automatically commit the changes made for the current task and push the current branch to its configured upstream. Do not wait for a separate request to commit or push.
-- Never include unrelated existing changes in the commit, except for verified task cleanup explicitly allowed by the End-of-Conversation Review below. If verification fails, the branch has no configured upstream, or the push is blocked for a reason other than remote updates, report the issue instead of bypassing checks or rewriting history.
-- If remote updates are detected before or during a push, fetch the configured upstream and attempt to merge it into the current branch. After a successful merge, rerun the relevant checks and push again.
-- If the merge produces conflicts, immediately abort it with `git merge --abort`, preserve local commits and existing work, and stop the push. Report the conflict instead of resolving it automatically or forcing the push.
-- Also include tracked files changed only by line-ending differences rather than leaving them uncommitted.
+- 完成并验证用户要求的变更后，自动提交本任务改动。按本文开头的本地工作区约定，已有相应推送授权时，直接将当前分支推送到其配置的上游。
+- 每个提交只纳入本任务变更。经下文会话结束复核明确允许的已验证收尾工作可按其规则处理。
+  如果验证失败、分支未配置上游，或推送因远端更新以外的原因受阻，报告原因并保留历史，执行检查仍是提交或推送的前提。
+- 推送前或推送时发现远端更新，获取配置的上游并尝试合并到当前分支。成功合并后重新运行相关检查，再推送。
+- 合并发生冲突时立即执行 `git merge --abort`，保留本地提交与工作，停止推送并报告冲突。禁止擅自解冲突或强制推送。
+- 按本节和会话结束复核的范围要求，将仅有行尾变化的已跟踪文件也纳入提交。
 
-## End-of-Conversation Review
+## 会话结束复核
 
-- Before ending a conversation and sending the final response, query active conversations to determine
-  whether the current conversation is the only active one. Prefer `gui_list_running_conversations` and read every page;
-  running conversations waiting for input or approval also count as active.
-  If the query is unavailable or the result is inconclusive, state that limitation instead of assuming exclusivity.
-- If other conversations are still active, finalize and commit only completed, verified changes for the current task.
-  Do not take over uncommitted work from other conversations.
-- If the current conversation is confirmed to be the only active one, inspect all local uncommitted changes
-  in this repository, including staged, unstaged, untracked, and line-ending-only changes.
-  Match each change to its conversation, original requirements, implementation status, and verification results;
-  use `gui_read_conversation` for known conversations. An idle conversation or a final response is not proof
-  of completion: assess the actual changes and verification evidence.
-- For tasks with clear ownership and fully implemented requirements, finish necessary cleanup and run relevant checks.
-  After verification passes, create a separate commit for each task and push under the rules above.
-  This explicitly allows finalizing completed work from other ended conversations, while excluding unrelated
-  or incomplete changes from each commit.
-- If tests or checks previously failed because concurrent conversations made interfering changes, first confirm
-  that the current conversation is the only active one. Review the affected requirements and current code together,
-  eliminate concurrent interference, and rerun both task-specific checks and checks covering their combined impact.
-  Use the new results to assess completion. Separately commit and push each fully implemented, verified task;
-  do not leave it pending solely because earlier checks failed.
-  Do not attribute failures to concurrency without evidence or skip checks. Report tasks that still fail verification
-  or remain incomplete as described below.
-- For incomplete tasks, failed or missing verification, or uncertain ownership or completion, preserve the changes
-  and their staging state. Do not commit prematurely, discard work, or create temporary commits to clear the workspace.
-  Include a report table in the final response with these columns:
-  `Conversation/task | Files | Completed work | Remaining work or uncertainties | Verification | Reason not committed and next steps`.
-- Recheck that no other conversations are active before taking over work from ended conversations and before
-  committing that work. Stop cross-conversation cleanup if activity changes.
-  Preserve and report mixed changes that cannot be reliably separated; never stage everything indiscriminately
-  and include unverified work in a commit.
+- 发送最终回复前查询运行中的会话，确认当前会话是否为唯一活跃会话。优先使用 `gui_list_running_conversations` 并读取所有分页。
+  等待输入或批准的运行中会话也视为活跃。无法查询或结果不明确时，报告该限制。
+- 若还有其他活跃会话，只完成和提交本任务中已通过验证的改动。保留其他会话的未提交工作。
+- 确认只有当前会话活跃时，检查本仓库所有本地未提交变更，包括已暂存、未暂存、未跟踪及只有行尾差异的文件。
+  将每项改动对应到会话、原始要求、实现进度和验证结果。已知会话使用 `gui_read_conversation` 查询。
+  按实际改动与验证证据判断是否完成，不能仅凭会话空闲或已有最终回复。
+- 归属明确且要求已完整实现的任务，完成必要清理并运行相关检查。
+  验证通过后按上述规则分别提交各任务并推送。可以收尾已结束会话中满足上述条件的任务，每个提交只纳入该任务已完成的相关改动。
+- 若此前测试或检查因并行改动干扰而失败，先确认只有当前会话活跃。对照受影响的要求和当前代码，消除并行干扰，
+  重跑任务专属检查及覆盖叠加影响的检查。依据新结果判断完成情况，分别提交并推送已完整实现且验证通过的任务。
+  以证据判断并行干扰原因，运行所有相关检查。仍未通过验证或尚未完成的任务按下文报告。
+- 对未完成、验证失败或缺失、归属或完成状态不明的任务，保留变更及原有暂存状态。
+  确认完成并通过验证后再提交。禁止丢弃改动或用临时提交清空工作区。
+  最终回复中的报告表格使用以下列名。
+  `会话或任务 | 文件 | 已完成工作 | 尚待完成或不确定事项 | 验证 | 未提交原因和后续步骤`。
+- 接手已结束会话的工作前及提交该工作前，重新确认没有其他活跃会话。若活跃状态变化，停止跨会话清理。
+  无法可靠区分的混合变更应保留并报告。只暂存确属相应已验证任务的文件。
 
-## UI Design and Screenshot Evidence
+## 界面设计与截图证据
 
-- Every UI change must include screenshots of the updated interface captured from the running application.
-  Inspect the screenshots before delivery and include them, or direct links to them, in the final response.
-  Cover the affected screens and interaction states across the platforms, modes, and viewport sizes required
-  by the parity rules below. Label each screenshot with its platform, mode, and state.
-  If screenshots cannot be captured, report the blocker and the missing visual verification;
-  do not claim that the UI change is fully verified.
-- All UI changes must preserve the project's established visual identity while applying modern, clean,
-  and polished design principles. Reuse existing components and design tokens to keep typography, colors,
-  spacing, and interaction patterns consistent. Use clear visual hierarchy, balanced layouts, and restrained
-  effects or motion that improve usability without compromising readability, accessibility, or performance.
+- 每次界面变更都须从运行中的应用截取更新后的界面。交付前检查截图，并在最终回复中附上截图或直接链接。
+  覆盖下文一致性要求涉及的平台、模式、视口尺寸、页面和交互状态。给每张截图标注平台、模式和状态。
+  如果无法获取截图，说明阻碍和缺失的视觉验证，按实际验证范围报告结果。
+- 界面变更须延续项目现有的视觉风格，保持现代、整洁、细致。复用现有组件和设计变量，使排版、颜色、间距和交互一致。
+  使用清晰的视觉层级、均衡的布局和克制的效果或动效，兼顾易用性、可读性、无障碍和性能。
 
-## Unified UI Typography
+## 统一界面排版
 
-- For desktop local mode, desktop remote mode, and web application UI, the shared font preference defaults
-  to **14 CSS px**. `shared/appearance/fontSize.ts` owns `DEFAULT_FONT_SIZE = 14` and the supported global
-  preference range of **12-24 px**. The preference is a theme input, not every component's rendered size.
-- Desktop `DashboardApp.tsx` uses Ant Design's `compactAlgorithm` in both light and dark modes; web
-  `WebLocaleProvider.tsx` uses the default/dark algorithm without compact mode. Preserve these existing
-  host themes. At the default preference, ordinary application dialogs, forms, and tables use this hierarchy:
+- 桌面本地模式、桌面远程模式和 Web 应用界面共用字体偏好，默认 **14 CSS px**。
+  `shared/appearance/fontSize.ts` 定义 `DEFAULT_FONT_SIZE = 14` 和 **12–24 px** 的全局偏好范围。此偏好作为主题输入，组件的实际字号由主题计算。
+- 桌面 `DashboardApp.tsx` 的浅色和深色主题均使用 Ant Design 的 `compactAlgorithm`。
+  Web 的 `WebLocaleProvider.tsx` 使用默认和深色算法。紧凑算法仅用于桌面端。默认字体偏好下，常规应用对话框、表单和表格采用下表字号。
 
-  | Role | Desktop local / remote | Web desktop | Implementation |
+  | 用途 | 桌面本地与远程 | 桌面 Web | 实现方式 |
   | --- | --- | --- | --- |
-  | Body, form labels, inputs, buttons, tabs, table headers and cells, empty states | 12 px | 14 px | Inherit the host component's `fontSize`; emphasize table headers with weight. |
-  | Standard modal titles | 14 px | 16 px | Reuse the Modal title style (`fontSizeHeading5` and its matching line height). |
-  | Secondary text token | 10 px | 12 px | Use `token.fontSizeSM` where appropriate; preserve existing shared metadata styles. |
-  | Compact sidebar and navigation text | Existing 12-13 px styles | Existing corresponding styles | Preserve the shared component's hierarchy. |
+  | 正文、表单标签、输入框、按钮、标签页、表头、表格单元格和空状态 | 12 px | 14 px | 继承宿主组件的 `fontSize`，用字重强调表头。 |
+  | 标准弹窗标题 | 14 px | 16 px | 复用 Modal 标题的 `fontSizeHeading5` 及对应行高。 |
+  | 次要文字 | 10 px | 12 px | 适当使用 `token.fontSizeSM`，保留现有共享元数据样式。 |
+  | 紧凑侧栏和导航文字 | 现有 12–13 px 样式 | 现有对应样式 | 保持共享组件的排版层级。 |
 
-- These values describe the default hierarchy, not fixed overrides. Prefer Ant Design's existing component
-  typography and `theme.useToken()` over hardcoded sizes. Standard management dialogs, including Manage Groups,
-  must not introduce independent 24 px titles, 18 px tabs, or 16 px body/control text to imitate a screenshot.
-  Do not replace the desktop compact theme with web defaults to make their computed sizes identical.
-  Use spacing, font weight, and theme colors for emphasis; keep controls and icons proportionate to nearby UI.
-- Both application roots use `shared/appearance/ApplicationTypography.tsx` to pass the global preference to
-  Ant Design. `useApplicationFontSize.ts` sets `--app-font-scale`, and `fontSizePlugin.ts` scales CSS/LESS pixel
-  typography. Preserve this pipeline: do not bypass it with fixed inline sizes or scale a theme-derived size
-  a second time. Prefer inherited or relative sizing for custom controls; reuse the host's font family.
-- Codex GUI conversation text follows the global preference by default and may have its own saved size.
-  Reuse `useGuiFontSize()` and `guiFontStyle()` for that existing scope. General management dialogs follow
-  application typography; do not copy a conversation's custom font size into unrelated controls.
-- Treat screenshots as layout and hierarchy references. OS display scaling, browser zoom, image resizing,
-  and user font preferences can all change apparent size. Inspect the running UI's computed styles and the
-  corresponding existing components before choosing sizes; never infer CSS pixels from screenshot pixels.
-- Verify typography changes at the default setting and an enlarged global setting, including narrow desktop
-  windows, both dialog tabs where applicable, and desktop local, remote, and web entry points. Inspect running
-  screenshots for clipping, wrapping, and consistency with surrounding UI as required above.
-- Native apps retain their platform typography and must use `textMetrics()` and the physical-device checks
-  below. Preserve established mobile layouts and dedicated marketing/page-heading hierarchies; the standard
-  dialog scale does not authorize flattening all headings or copying CSS pixel values into native text styles.
+- 表中数值表示默认层级。优先用 Ant Design 现有组件样式和 `theme.useToken()`，避免硬编码。
+  包括分组管理在内的标准管理对话框遵循现有层级，避免为了模仿截图单独设置 24 px 标题、18 px 标签页或 16 px 正文和控件。
+  保留桌面紧凑主题和 Web 主题各自的计算字号。通过间距、字重及主题色来强调信息，保持控件和图标与附近界面元素的比例。
+- 两端应用根组件通过 `shared/appearance/ApplicationTypography.tsx` 将全局字体偏好传给 Ant Design。
+  `useApplicationFontSize.ts` 设置 `--app-font-scale`，`fontSizePlugin.ts` 缩放 CSS 和 LESS 中以 px 表示的字号。
+  保留此流程，避免用固定内联字号绕过缩放或对主题字号重复缩放。自定义控件优先使用继承或相对字号，并沿用宿主字体。
+- Codex 图形界面的会话文字默认跟随全局偏好，也可以使用会话独立保存的字号。
+  在该范围内复用 `useGuiFontSize()` 和 `guiFontStyle()`。通用管理对话框与其他无关控件继续使用应用排版。
+- 截图用于参考布局和层级。系统显示缩放、浏览器缩放、图片缩放及用户字体偏好都会影响视觉大小。
+  选字号前检查运行界面的计算样式及对应现有组件，禁止用截图像素直接推断 CSS 像素。
+- 在默认和调大的全局字号下验证排版变更，覆盖窄桌面窗口、适用对话框的两个标签页，以及桌面本地、远程和 Web 入口。
+  按上文要求检查运行截图中的裁切、换行和与周围界面的一致性。
+- Native 应用保留平台排版，使用 `textMetrics()` 和下文的真机检查。
+  保留既有移动端布局与营销页或页面标题的专用层级。标准对话框字号仅适用于相应范围，原生文本样式遵循平台度量。
 
-## User-Facing Prompts and Copy
+## 面向用户的提示与文案
 
-- Write all user-facing prompts and copy in natural, clear, and easy-to-understand language. Do not mention implementation details, internal processes, or other technical details.
-- Whenever a user request involves writing prompts or copy, proactively refine and improve the wording so it is concise, friendly, and accurate instead of simply repeating the user's original wording.
-- Keep temporary messages, including hover tooltips, popovers, and confirmation prompts shown after a click, visually compact. Limit the text area to a maximum width of `400px`, which is roughly one line of 25 full-width Chinese characters at the standard body-text size. Wrap longer copy onto additional lines instead of widening the message.
+- 用自然、清楚、易懂的语言编写面向用户的提示和文案。面向用户的文案聚焦用户需要的信息，省去实现细节、内部流程和其他技术细节。
+- 用户要求撰写提示或文案时，主动提炼表达，使内容简洁、友好、准确。
+- 保持悬浮提示、气泡卡片和点击后出现的确认提示等临时消息紧凑。文字区域最大宽度为 `400px`，约相当于标准正文字号下 25 个全角汉字。较长文字换行显示。
 
-## Context Menus: Right-Click and Touch Long-Press
+## 上下文菜单的右键和触摸长按
 
-- Whenever a menu can be opened with a right-click, also support opening the same menu with a touch long-press.
-  Apply this requirement when adding or modifying context menu interactions across all applicable platforms and entry points.
-  Preserve right-click behavior and verify that both gestures expose the same menu actions.
+- 支持右键打开菜单时，同时支持触摸长按打开同一菜单。
+  新增或修改上下文菜单交互时，在所有适用平台和入口落实这一点。保留右键行为，并验证两种操作提供相同的菜单项。
 
-## Internationalization: Single Package
+## 国际化资源统一管理
 
-- Use the standalone `packages/i18n` package (`@remoteai/i18n`) as the single source of truth
-  for translation resources and language metadata. This applies to all apps, shared modules, Rust and native
-  platform resources, browser extensions, and build scripts. Respect existing maintenance boundaries
-  for frozen code and third-party sources.
-- Put all new or modified translatable user-facing content in the language package, including default and fallback
-  text, status and error messages, accessibility labels, permission explanations, user agreements, and structured content.
-  Do not add separate translation tables, inline multilingual objects, language-dependent copy branches,
-  or hardcoded translatable interface text to business code.
-- Access copy through public `@remoteai/i18n` entry points and existing app adapters. Prefer semantic keys for new copy
-  and interpolate parameters into complete sentences instead of concatenating translated fragments.
-  Language selection, preference persistence, subscriptions, and platform integration may stay in apps,
-  but must not cause translation resources to become scattered again.
-- Language files or copy sections that must remain in platform directories, such as Rust resources, system permissions,
-  extension manifests, and embedded scripts, must be generated artifacts only.
-  Maintain their sources in `packages/i18n/platform/` and register generation mappings in `packages/i18n/platform.json`.
-  Do not maintain or manually edit generated copies.
-- When adding or modifying copy, update keys and parameters for every released language of the affected module.
-  Preserve the package's declared language availability and fallback policies; centralizing resources does not authorize
-  releasing additional languages. Follow `packages/i18n/README.md` for resource organization and exceptions.
-- Translate display text only. Preserve the original semantics of protocol values, status identifiers, database values,
-  and user content. Decode existing service error text at the display boundary using the package's error formatting API;
-  never determine business state from translated text.
-- After changing resources or language metadata, run `npm run generate:i18n` and ensure `npm run check:i18n` passes
-  before committing. Check language switching, fallback behavior, and offline resources at affected entry points.
-  Do not bypass resource ownership requirements by weakening checks, adding unjustified exemptions, or copying translations.
+- 将独立的 `packages/i18n`（`@remoteai/i18n`）作为翻译资源和语言元数据的唯一来源。
+  覆盖所有应用、共享模块、Rust 和原生平台资源、浏览器扩展及构建脚本。遵守冻结代码和第三方源码的现有维护边界。
+- 新增或修改的可翻译用户文案全部放入语言包，包括默认及回退内容、状态和错误提示、无障碍标签、权限说明、用户协议和结构化内容。
+  业务代码统一从语言包取文案，禁止新增独立翻译表、内联多语言对象、按语言分支的文案或写死的可翻译文案。
+- 通过 `@remoteai/i18n` 公共入口和现有应用适配器读取文案。新文案优先用语义化键，并向完整句子插入参数。
+  语言选择、偏好持久化、订阅和平台集成可留在应用内，翻译资源仍集中在语言包。
+- Rust 资源、系统权限、扩展清单和嵌入脚本等必须留在平台目录的语言文件或文案，只能以生成产物的形式存在。
+  在 `packages/i18n/platform/` 维护源文件，并在 `packages/i18n/platform.json` 登记生成映射。由生成流程维护平台副本。
+- 新增或修改文案时，更新受影响模块所有已发布语言的键和参数。遵循语言包声明的语言可用性及回退策略。
+  新增发布语言需要单独授权。资源组织及例外见 `packages/i18n/README.md`。
+- 仅翻译显示文案，保留协议值、状态标识、数据库值和用户内容的原有语义。
+  在显示边界用语言包的错误格式化 API 解析服务返回的错误文本。业务状态依据原始数据判断。
+- 修改资源或语言元数据后，运行 `npm run generate:i18n` 并确保提交前 `npm run check:i18n` 通过。
+  检查受影响入口的语言切换、回退和离线资源。保持归属检查的强度，禁止无依据地新增例外或复制翻译来绕过检查。
 
-## Desktop Local, Remote, and Web Parity
+## 桌面本地、远程与 Web 一致性
 
-- By default, desktop changes must cover local and remote modes in `apps/desktop` and the desktop pages in `apps/web`
-  within the same task. Keep corresponding features, appearance, interactions, and copy consistent without waiting
-  for a reminder. An explicit user scope restriction takes precedence.
-- When changing a feature or fixing an issue at any entry point, inspect the corresponding implementations at the other two.
-  Prefer shared modules for reusable business logic, components, and styles to prevent future omissions.
-- Keep layout, visual styling, interaction feedback, and status displays consistent across all three entry points,
-  adapting to their window and desktop browser widths. Where platform capabilities prevent full parity,
-  provide an appropriate adaptation and explain the differences and reasons at delivery.
-- Before completion, verify affected functionality and appearance separately in desktop local mode, desktop remote mode,
-  and web desktop pages. Report the parity results at delivery; changing or verifying only one entry point is insufficient.
+- 桌面变更默认在同一任务中覆盖 `apps/desktop` 的本地和远程模式，以及 `apps/web` 的桌面网页。
+  主动保持对应功能、外观、交互和文案一致。用户明确限定的范围优先。
+- 在任一入口改功能或修问题时，检查另两处的对应实现。可复用的业务逻辑、组件和样式优先放在共享模块。
+- 三个入口保持布局、视觉样式、交互反馈和状态显示一致，并按窗口或桌面浏览器的宽度适配。
+  平台能力限制一致性时，提供合适的适配方案，交付时说明区别和原因。
+- 完成前分别验证桌面本地、桌面远程和桌面网页的相关功能与外观。交付时报告三个入口的验证结果。
 
-## Mobile and Web Parity
+## 移动端与 Web 一致性
 
-- By default, mobile or phone changes must cover `apps/native` and the corresponding features in `apps/web`
-  at mobile viewport sizes within the same task. Keep appearance, interactions, and copy consistent without waiting
-  for a reminder. An explicit user scope restriction takes precedence.
-- Web parity for mobile requests covers mobile viewport sizes only, excluding wide desktop layouts.
-  Keep native and mobile web behavior consistent while adapting to each layout.
-  Prefer shared modules for reusable business logic to prevent future omissions on either platform.
-- Platform-specific changes, such as Android or iOS system capabilities, need not be copied directly into the browser.
-  Check whether mobile web needs an appropriate adaptation and explain any unsynchronized parts and reasons at delivery.
-- Before completion, verify affected functionality and appearance separately in the native app and at mobile web sizes.
-  Report the parity results at delivery; changing only the native app does not complete a mobile request.
+- 手机或移动端变更默认在同一任务覆盖 `apps/native` 与 `apps/web` 的移动视口。主动保持对应外观、交互和文案一致。
+  用户明确限定的范围优先。
+- 套用移动端要求时，Web 验证范围为移动视口。原生与移动 Web 保持行为一致，并按各自布局适配。
+  可复用的业务逻辑宜放在共享模块。
+- Android 或 iOS 系统能力等平台特性按各端能力实现。检查移动 Web 是否需要相应适配，交付时说明差异和原因。
+- 完成前分别验证原生应用和移动视口网页受影响的功能及外观。交付时报告两端验证结果。
 
-## Native Text Layout: Prevent Glyph Clipping
+## 原生文字布局与字形裁切
 
-- When adding or modifying standalone native `Text` elements, such as titles, list entries, back buttons,
-  navigation labels, or status messages, reuse `textMetrics(fontSize, lineHeight)` from `apps/native/src/theme/text.ts`.
-  Reserve enough space above and below glyphs for Chinese, system fonts, and fallback fonts; do not set only `fontSize`.
-- On Android, do not replace this helper with a fixed `lineHeight`. React Native's explicit line height can override
-  font metrics and clip some vendor fonts. Retain the helper's `includeFontPadding`, vertical spacing, and minimum height
-  so the system font determines the actual height needed. Use the helper's existing platform adaptation for iOS.
-- Do not hide clipping by disabling font scaling, reducing font size, fixing text container heights, or hiding overflow.
-  Parent containers must grow with larger fonts or wrapping; allow horizontal text to shrink and wrap as needed
-  without squeezing icons. Where icon fonts or nested rich text require special layout, verify them separately
-  and explain why the helper cannot be reused directly.
-- When fixing clipping, also inspect the feature's page titles, entry points, back navigation bars, and related messages
-  instead of fixing only the location shown in a screenshot. Check line height, vertical spacing, and wrapping
-  on corresponding mobile web pages, following the mobile and web parity requirements.
-- Before completion, test on a physical Android device with default and enlarged fonts, including system font scales
-  of at least 1.0 and 1.3. Inspect screenshots to confirm complete Chinese glyphs and verify entry and back navigation.
-  Passing type checks or builds, or observing normal text box dimensions, cannot replace visual verification.
-  If physical-device testing is unavailable, explicitly state what remains unverified.
+- 新增或修改独立的原生 `Text` 元素时，复用 `apps/native/src/theme/text.ts` 的 `textMetrics(fontSize, lineHeight)`。
+  适用范围包括标题、列表项、返回按钮、导航标签和状态消息。给中文、系统字体和回退字体的字形上方和下方留足空间，字号与文本度量一起设置。
+- 在 Android 上保留该辅助函数的 `includeFontPadding`、垂直间距和最小高度，由系统字体决定真实高度。
+  React Native 的固定 `lineHeight` 会覆盖字体度量，并可能裁切部分厂商字体。iOS 沿用该辅助函数已有的平台适配。
+- 容器应随字体放大和文字换行增高，允许文字横向收缩或换行并为图标留足空间。
+  保持字体缩放正常，使用自适应容器尺寸处理裁切。禁止通过缩小字号、固定文字容器高度或隐藏溢出来遮掩裁切。
+  图标字体或嵌套富文本需要特殊布局时，单独验证并说明无法直接复用辅助函数的原因。
+- 修复裁切时，同时检查功能的页面标题、入口、返回导航栏和相关消息。
+  按移动端与 Web 一致性要求，检查对应移动网页的行高、垂直间距和换行。
+- 完成前在实体 Android 设备以默认和增大字体测试，系统字体缩放至少覆盖 1.0 和 1.3。
+  检查截图中的中文字形是否完整，并验证进入和返回导航。以真实视觉结果为准，类型检查、构建和文本框尺寸只能作辅助。
+  无法进行真机测试时，明确说明尚未验证的内容。
 
-## Tauri 2 WebView Window Creation On Windows
+## Windows 上创建 Tauri 2 WebView 窗口
 
-- Do not create a `WebviewWindowBuilder` from a synchronous Tauri command on Windows. In this repo, opening the Token Usage window from a sync `#[tauri::command]` produced a native window shell, but the WebView content stayed white, the close button did not work reliably, and DevTools could not be opened.
-- Use an `async fn` command for window creation instead. The working fix was changing `show_token_usage_window` from a synchronous command to `pub(crate) async fn show_token_usage_window(...) -> Result<(), String>`.
-- If adding a new Tauri window label, also add it to `apps/desktop/src-tauri/capabilities/default.json`. For Token Usage, the label is `token-usage`.
-- Prefer hash routing for single-page subwindows loaded from packaged assets, for example `WebviewUrl::App("index.html#token-usage".into())`, and keep the frontend route parser compatible with both query and hash routes.
-- For auxiliary windows that previously got stuck, add a Rust-side close fallback in `on_window_event` that destroys the specific window label instead of hiding the main app.
+- Windows 上使用异步 Tauri 命令创建 `WebviewWindowBuilder`。
+  本项目从同步 `#[tauri::command]` 打开 Token 用量窗口时，虽显示了原生窗口外壳，WebView 仍白屏，关闭按钮有时失效，也无法打开 DevTools。
+- 窗口创建命令使用 `async fn`。已验证的修复是将 `show_token_usage_window` 改为 `pub(crate) async fn show_token_usage_window(...) -> Result<(), String>`。
+- 新增 Tauri 窗口标签时，也在 `apps/desktop/src-tauri/capabilities/default.json` 登记。Token 用量窗口的标签为 `token-usage`。
+- 从打包资源加载的单页子窗口优先用哈希路由，例如 `WebviewUrl::App("index.html#token-usage".into())`。前端路由解析须兼容查询参数和哈希路由。
+- 辅助窗口曾卡住时，在 Rust 的 `on_window_event` 中添加关闭回退，通过窗口标签销毁指定窗口，保持主应用正常显示。
 
-## Tauri UI Responsiveness and Polling
+## Tauri 界面响应与轮询
 
-- Do not expose blocking work through a synchronous `#[tauri::command]` when the frontend can call it during rendering, loading, polling, automatic refresh, or event handling. A synchronous command can block the Windows UI message thread and make the application appear frozen.
-- Implement commands as `async fn` and move blocking work to `tauri::async_runtime::spawn_blocking` whenever the operation can wait on a `Mutex` or `RwLock`, access SQLite, read or write files, call blocking network APIs, inspect processes, or perform other potentially slow system work. Use native asynchronous I/O when it is already available.
-- Never wait for a shared lock on the UI thread. This is especially important when another task can hold the lock across a network request, SQLite busy timeout, database migration, or filesystem scan.
-- Keep database serialization guards alive for the complete read or write operation, not only while opening the connection or initializing the schema. UI callers must await the asynchronous command without performing database work themselves.
-- Polling callbacks must be single-flight. If the previous refresh is still running, skip the next interval instead of starting an overlapping request. Clear timers and subscriptions when the component unmounts or the feature becomes inactive.
-- High-frequency polling, such as the two-second proxy session refresh, must not synchronously scan conversation metadata, Provider files, model catalogs, or token-usage databases. Move the complete operation off the UI thread, including any helper functions it calls.
-- If the headless web compatibility layer needs to call an asynchronous Tauri command, adapt it explicitly in its request worker, for example with the existing `block_on` helper. Do not change the desktop command back to a synchronous function for web compatibility.
-- For changes to proxy, Provider, concurrent-routing, cloud-sync, or token-usage UI flows, verify responsiveness while requests are active and while the relevant polling view is open. Run Rust formatting and tests plus the desktop TypeScript/Vite production build before handing off the change.
+- 前端渲染、加载、轮询、自动刷新和事件处理可能调用的阻塞工作，禁止通过同步 `#[tauri::command]` 暴露。
+  同步命令可能阻塞 Windows 界面消息线程，使应用表现为卡死。
+- 实现 `async fn` 命令。操作可能等待 `Mutex` 或 `RwLock`、访问 SQLite、读写文件、调用阻塞网络 API、检查进程或执行其他耗时系统工作时，
+  将阻塞部分交给 `tauri::async_runtime::spawn_blocking`。已有原生异步 I/O 时直接使用。
+- 禁止在界面线程等待共享锁，尤其是其他任务可能在网络请求、SQLite 忙等待、数据库迁移或文件系统扫描期间持锁时。
+- 数据库串行化保护须覆盖完整的读写过程。界面调用方等待异步命令完成，数据库操作由后台执行。
+- 轮询回调同一时间只允许一个请求。上次刷新尚未结束时跳过本轮。组件卸载或功能停用时清除定时器和订阅。
+- 两秒一次的代理会话刷新等高频轮询，禁止在界面线程同步扫描会话元数据、Provider 文件、模型目录或 Token 用量数据库。
+  完整操作及其调用的辅助函数都移出界面线程。
+- 无界面 Web 兼容层需要调用异步 Tauri 命令时，在请求工作线程中明确适配，例如复用 `block_on`。桌面命令保持异步。
+- 调整代理、Provider、并发路由、云同步或 Token 用量界面流程时，在请求进行且相关轮询页面打开的场景下验证响应性。
+  交付前运行 Rust 格式检查和测试，以及桌面 TypeScript/Vite 生产构建。
 
+## Web 子模块
 
-## Web Submodule
+- `apps/web` 是独立子模块，仓库为 `https://github.com/piperhex/remoteai-web.git`。
+  遵循其 `AGENTS.md`，先在子模块提交和推送变更，再更新父仓库的子模块指针。
+- Web 自行维护 npm 依赖、检查、构建产物、Docker 上下文和 CI。
+  父仓库 npm 工作区不纳入 Web。显式使用 `dev:web`、`build:web`、`check:web` 和 `export:web` 命令。
+- 复用的会话、远程桌面和下载组件放在 `shared`。
+  桌面生产构建只需 `shared` 和 `packages/i18n`。进行 Web 开发或跨应用集成测试时再初始化 Web。保留宿主模块去重机制。
+- Web 独立命令使用生成的依赖快照，快照记录仓库版本和源码哈希。
+  用 `npm run export:web` 刷新快照，禁止手工编辑 `vendor/` 或 `.workspace/` 中的内容。
+- 保留现有 Web 服务、网关别名、镜像变量和网络配置。仅源码仓库或 Docker 构建上下文变化时，生产环境无需部署或重启。
 
-- `apps/web` is the independent `https://github.com/piperhex/remoteai-web.git` submodule.
-  Follow its own `AGENTS.md`; commit and push child changes before updating the parent gitlink.
-- Web owns its npm dependencies, checks, build output, Docker context and CI. Keep it out of parent
-  npm workspaces; use the explicit `dev:web`, `build:web`, `check:web` and `export:web` commands.
-- Reused conversation, remote-desktop and download components belong to `shared`. Desktop production
-  builds require only `shared` and `packages/i18n`; initialize Web for Web development or cross-application
-  integration tests. Preserve host module deduplication.
-- Web standalone commands use generated dependency snapshots with repository revisions and source hashes.
-  Refresh them through `npm run export:web`; never edit `vendor/` or `.workspace/` contents manually.
-- Keep the existing Web service, gateway alias, image variable and network configuration. Do not deploy
-  or restart production merely because the source repository or Docker build context changed.
+## 共享源码子模块
 
-## Shared Source Submodule
+- `shared` 是必需的源码子模块，仓库为 `https://github.com/piperhex/remoteai-shared.git`。
+  构建或检查应用源码前，运行 `git submodule update --init shared`。
+- 遵循 `shared/AGENTS.md`。先在子模块提交和推送改动，再更新父仓库的子模块指针。
+  保留现有导入路径、跨平台行为和 `@remoteai/i18n` 公共入口的导入方式。
+- 依赖方向为应用依赖共享源码。可复用契约和平台传输实现放在共享模块，应用专用服务使用类型明确的接口。
+  运行 `npm run check:boundaries`，并在使用这些源码的桌面端、原生端和 Web 验证。
+- 应用 CI 须初始化指定版本的共享子模块。翻译归属检查覆盖共享模块中已跟踪和未跟踪的源码，依赖导出记录其仓库和版本。
 
-- `shared` is the required `https://github.com/piperhex/remoteai-shared.git` source submodule.
-  Initialize it with `git submodule update --init shared` before building or checking application sources.
-- Follow `shared/AGENTS.md`. Commit and push shared changes before updating the parent gitlink.
-  Preserve existing import paths, cross-platform behavior and public `@remoteai/i18n` imports.
-- Applications depend on shared sources, never the reverse. Reusable contracts and platform transports
-  belong in shared; application-specific services use typed interfaces. Run `npm run check:boundaries`
-  and validate with the consuming desktop, native and web applications.
-- Application CI must initialize the pinned shared revision. Translation ownership checks must include
-  shared tracked and untracked source files, and dependency exports must record its repository and revision.
+## 代码质量约束
 
-## Clean Code Constraints
-
-1. A single source file should generally not exceed **500 lines**. If it does, split it by responsibility.
-2. A single function should generally not exceed **50 lines**.
-3. A single React component should generally not exceed **200 lines**.
-4. A single custom Hook should generally not exceed **150 lines**.
-5. A function should have no more than **4 parameters**. Use an options object when more parameters are needed.
-6. Control-flow nesting should not exceed **3 levels**. Prefer early returns to reduce nesting.
-7. The cyclomatic complexity of a single function should not exceed **10**.
-8. A single line of code should not exceed **120 characters**.
-9. Each module should have one clear responsibility. Avoid God Objects and God Functions.
-10. Avoid using `any`. If its use is truly necessary, the reason must be documented. Prefer `unknown` where appropriate.
-11. Avoid magic numbers and magic strings. Extract them into meaningful constants.
-12. Avoid duplicated code, but do not introduce unnecessary abstractions solely for the sake of DRY.
-13. In React, separate business logic from presentation logic. Extract complex logic into custom Hooks or standalone functions.
-14. Each `useEffect` should handle one clearly defined side effect or synchronization responsibility.
-15. Avoid deeply nested ternary expressions and overly complex conditional logic in JSX.
-16. Variable, function, and type names must clearly express their business meaning. Avoid meaningless abbreviations.
-17. Comments should explain design decisions, constraints, and exceptional cases rather than restating what the code already does.
-18. Do not keep commented-out code, dead code, unused variables, or unused dependencies.
-19. Modules should communicate through public interfaces. Do not depend on another module's internal implementation details.
-20. When modifying existing code, prioritize local consistency and avoid unrelated large-scale refactoring for small changes.
-21. Rust source files should generally not exceed **500 lines**. Split large files by domain or responsibility.
-22. A single Rust function should generally not exceed **50 lines**. Complex logic should be extracted into smaller functions or dedicated modules.
-23. Tauri `command` functions should remain thin. They should primarily handle input validation, permission checks, state access, and delegation to service-layer logic.
-24. Do not place complex business logic directly inside `#[tauri::command]` functions.
-25. `main.rs` and `lib.rs` should only contain application bootstrap, plugin registration, command registration, and high-level module wiring. Avoid business logic in these files.
-26. Organize Rust code by responsibility, for example:
+1. 单个源码文件一般不超过 **500 行**。超出时按职责拆分。
+2. 单个函数一般不超过 **50 行**。
+3. 单个 React 组件一般不超过 **200 行**。
+4. 单个自定义 Hook 一般不超过 **150 行**。
+5. 函数最多 **4 个参数**。需要更多参数时使用选项对象。
+6. 控制流嵌套最多 **3 层**。优先提前返回以减少嵌套。
+7. 单个函数的圈复杂度不超过 **10**。
+8. 单行代码不超过 **120 个字符**。
+9. 每个模块应有一个清晰的职责，避免让一个对象或函数承担过多职责。
+10. 优先考虑 `unknown`。确需使用 `any` 时记录理由。
+11. 将含义不直观的数字和字符串提取为有明确含义的常量。
+12. 减少重复代码。抽象须有维护价值，避免仅为去重增加抽象。
+13. 在 React 中分离业务逻辑和展示逻辑。将复杂逻辑提取到自定义 Hook 或独立函数。
+14. 每个 `useEffect` 处理一个定义清晰的副作用或同步职责。
+15. JSX 中避免深层嵌套的三元表达式和过于复杂的条件逻辑。
+16. 变量、函数和类型的命名应清楚表达业务含义，避免无意义的缩写。
+17. 注释用于解释设计决定、约束和异常情况，代码自身负责表达直接行为。
+18. 移除注释掉的代码、不可达代码、未使用的变量和依赖。
+19. 模块通过公共接口通信，避免依赖其他模块的内部实现细节。
+20. 修改现有代码时优先保持局部一致性。小改动避免牵连无关的大规模重构。
+21. 单个 Rust 源码文件一般不超过 **500 行**。大文件按领域或职责拆分。
+22. 单个 Rust 函数一般不超过 **50 行**。将复杂逻辑提取到较小的函数或专用模块。
+23. Tauri `command` 函数保持简短，主要负责输入验证、权限检查、访问状态与委派服务层逻辑。
+24. 将复杂业务逻辑放在独立模块，由 `#[tauri::command]` 函数委派。
+25. `main.rs` 和 `lib.rs` 只负责应用启动、插件和命令注册及顶层模块组装。业务逻辑放在对应模块。
+26. 按职责组织 Rust 源码。以下为目录示例。
 
 ```text
 src-tauri/src/
@@ -462,28 +359,24 @@ src-tauri/src/
 └── main.rs
 ```
 
-27. Avoid large catch-all files such as `commands.rs`, `utils.rs`, or `models.rs`. Split them into domain-specific modules when they grow significantly.
-28. Avoid `unwrap()` and `expect()` in production code unless failure represents a truly unrecoverable invariant. Prefer proper error propagation with `Result`.
-29. Do not silently discard errors using patterns such as:
+27. `commands.rs`、`utils.rs` 或 `models.rs` 等文件显著膨胀时，按具体领域拆分，避免职责集中在一个文件。
+28. 生产代码使用 `Result` 传播错误。仅在不变量被破坏且确实无法恢复时才使用 `unwrap()` 或 `expect()`。
+29. 仅在有意忽略错误且记录了理由时，才采用下面的写法。
 
 ```rust
 let _ = some_fallible_operation();
 ```
 
-unless ignoring the error is intentional and documented.
-
-30. Define meaningful application error types instead of returning arbitrary strings from internal Rust APIs.
-31. Use `thiserror`-style typed errors for internal application logic where appropriate. Convert errors into frontend-safe representations only at the Tauri boundary.
-32. Do not expose sensitive internal error details, filesystem paths, credentials, tokens, or stack information directly to the frontend.
-33. Shared mutable state must have a clearly defined ownership model. Avoid unnecessary global mutable state.
-34. When using `Mutex`, `RwLock`, or other synchronization primitives, keep lock scopes as short as possible.
-35. Never hold a synchronous lock across an `.await` point.
-36. Avoid blocking operations inside async Tauri commands. CPU-intensive or blocking I/O operations should be delegated to appropriate blocking tasks or worker threads.
-37. Avoid unnecessary `clone()` calls. Prefer borrowing when ownership does not need to be transferred.
-38. Avoid excessive use of `Arc<Mutex<T>>`. Use it only when shared ownership and mutation are actually required.
-39. Prefer enums and strongly typed structures over string-based state or mode identifiers.
-
-For example, prefer:
+30. Rust 内部 API 定义有明确含义的应用错误类型，避免返回任意字符串。
+31. 在适用场景中使用 `thiserror` 风格的类型化错误。仅在 Tauri 边界将错误转换为适合前端展示的形式。
+32. 禁止直接向前端暴露敏感内部错误细节、文件系统路径、凭据、Token 或堆栈信息。
+33. 为共享可变状态明确规定归属，避免不必要的全局可变状态。
+34. 使用 `Mutex`、`RwLock` 等同步原语时，尽量缩小持锁范围。
+35. 禁止持有同步锁跨越 `.await`。
+36. 避免在异步 Tauri 命令内执行阻塞操作。CPU 密集或阻塞 I/O 工作交给合适的阻塞任务或工作线程。
+37. 避免不必要的 `clone()`。无需转移所有权时优先借用。
+38. 仅在确需共享所有权和可变性时使用 `Arc<Mutex<T>>`。
+39. 状态和模式优先使用枚举和强类型结构。以下是推荐写法。
 
 ```rust
 enum AccountStatus {
@@ -493,19 +386,19 @@ enum AccountStatus {
 }
 ```
 
-over:
+单独使用字符串表示同一状态属于应避免的写法。
 
 ```rust
 let status = "active";
 ```
 
-40. All data crossing the Tauri IPC boundary should use explicit serializable request and response types.
-41. Do not expose large internal Rust structs directly through Tauri commands merely because they implement `Serialize`. Define dedicated DTOs when appropriate.
-42. Validate all data received from the frontend. Never assume IPC input is trusted.
-43. File paths received from the frontend must be validated before filesystem operations are performed.
-44. Shell commands, process execution, filesystem access, and network operations must follow the principle of least privilege.
-45. Never construct shell commands by directly concatenating untrusted frontend input.
-46. Avoid exposing generic commands such as:
+40. 穿过 Tauri IPC 边界的所有数据均使用显式、可序列化的请求与响应类型。
+41. Rust 内部大型结构体应通过适当的专用 DTO 暴露。实现了 `Serialize` 本身不足以作为直接经 Tauri 命令暴露的依据。
+42. 验证前端传入的所有数据。将 IPC 输入视为不可信。
+43. 执行文件系统操作前，先验证由前端传入的文件路径。
+44. Shell 命令、进程执行、文件系统访问和网络操作均遵循最小权限原则。
+45. 禁止将不可信的前端输入直接拼接成 Shell 命令。
+46. 暴露以下通用命令前，须实现严格的输入验证和权限限制。
 
 ```rust
 execute_command(command: String)
@@ -513,12 +406,8 @@ read_file(path: String)
 write_file(path: String, content: String)
 ```
 
-unless strict validation and permission restrictions are implemented.
-
-47. Tauri capabilities and permissions should follow the principle of least privilege. Only enable APIs and scopes actually required by the application.
-48. Platform-specific behavior should be isolated behind dedicated modules instead of scattering `#[cfg(...)]` blocks throughout business logic.
-
-Prefer:
+47. Tauri 能力与权限遵循最小权限原则。只启用应用实际需要的 API 和范围。
+48. 将平台专用行为集中在独立模块内，避免在业务逻辑各处散布 `#[cfg(...)]`。以下为示例。
 
 ```text
 platform/
@@ -527,11 +416,9 @@ platform/
 └── linux.rs
 ```
 
-rather than many unrelated platform checks across the codebase.
-
-49. Unsafe Rust is prohibited unless absolutely necessary. Every `unsafe` block must include a comment explaining the safety invariant.
-50. Run `cargo fmt` and ensure the code passes `cargo clippy` without unjustified warnings.
-51. Do not suppress Clippy warnings globally merely to make CI pass. Suppress individual warnings only when there is a documented reason.
-52. Public functions, complex domain types, and non-obvious invariants should have appropriate Rust documentation comments.
-53. Unit tests should cover important pure business logic independently from the Tauri command layer.
-54. Tauri commands should be testable indirectly by keeping business logic outside the IPC layer.
+49. 仅在确有必要时使用不安全 Rust。每个 `unsafe` 块都要用注释说明它依赖的安全不变量。
+50. 运行 `cargo fmt`，并确保 `cargo clippy` 通过且没有缺乏依据的警告。
+51. 为通过 CI 不得全局关闭 Clippy 警告。仅在记录理由后抑制个别警告。
+52. 为公共函数、复杂领域类型和不直观的不变量编写适当的 Rust 文档注释。
+53. 重要的纯业务逻辑应有独立于 Tauri 命令层的单元测试。
+54. 业务逻辑放在 IPC 层之外，使 Tauri 命令可通过验证底层逻辑间接测试。

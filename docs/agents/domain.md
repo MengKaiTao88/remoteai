@@ -1,7 +1,7 @@
-# Domain Docs
+# 领域文档
 
-Remote AI uses a single context. Keep shared terminology in `GLOSSARY.md` at the repository root and architecture decision records in `docs/adr/`.
+Remote AI 使用单一领域上下文。共享术语放在仓库根目录的 `GLOSSARY.md`，架构决策记录放在 `docs/adr/`。
 
-Before exploring the codebase, read the glossary and relevant decisions if they exist. Add or update records when a term or a decision is settled.
+探索代码前，先查阅已有的术语表和相关架构决策。术语或决策达成一致后，新增或更新相应记录。
 
-Use the glossary's vocabulary in tickets, design proposals, and tests. When a proposal conflicts with a recorded decision, cite the decision and explain what would need to be revisited.
+在工单、设计提案和测试中沿用术语表的用语。提案与既有决策冲突时，引用该决策并说明哪些内容需要重新审议。
