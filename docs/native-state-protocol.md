@@ -24,6 +24,11 @@ registered Store app is already running and the transport confirms Windows error
 history remains readable and the pending message stays in the outbox. Live
 sending requires the original desktop to expose a working connection.
 
+When the sole running Windows Store Codex uses the verified DreamSkin profile,
+an explicit open sends its thread link to that profile. Electron routes the link
+to the existing instance. The gateway then waits for the requested thread's
+native state before allowing sends.
+
 Failed queue preparations now retain their specific safe connection/authentication
 message and require deliberate retry. The automatic flush guard also recognizes older
 failed entries, preserving their classification, IDs, drafts and attachments without

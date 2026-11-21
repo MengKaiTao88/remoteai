@@ -3,7 +3,13 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from native_protocol import WINDOWS_DESKTOP_PIPE, _install_windows_activation, compatible_state, install
+from native_protocol import (
+    WINDOWS_DESKTOP_PIPE,
+    _install_windows_activation,
+    _windows_profile_desktop_open,
+    compatible_state,
+    install,
+)
 
 
 def message(change, version=13):
@@ -117,6 +123,42 @@ class WindowsActivationTests(unittest.TestCase):
                     self.assertEqual(bridge.activate('thread'), 'activated')
                 bridge.ipc.connect.assert_not_called()
                 bridge.open_desktop.assert_called_once_with('thread')
+
+
+class WindowsProfileActivationTests(unittest.TestCase):
+    THREAD = '01a1ed1d-3d24-7b40-ba95-fb5a856957c4'
+    DESKTOP = (r'C:\Program Files\WindowsApps\OpenAI.Codex\app\ChatGPT.exe',
+               r'C:\Users\Test User\AppData\Local\CodexDreamSkin\cdp-profile')
+
+    def test_existing_dreamskin_receives_the_thread_link(self):
+        open_default = Mock()
+        with patch('native_protocol._running_dreamskin_desktop', return_value=self.DESKTOP), \
+             patch('native_protocol.subprocess.Popen') as launch:
+            _windows_profile_desktop_open(open_default)(self.THREAD, 'local')
+        open_default.assert_not_called()
+        launch.assert_called_once()
+        executable, profile = self.DESKTOP
+        self.assertEqual(launch.call_args.args[0],
+                         [executable, f'--user-data-dir={profile}', f'codex://threads/{self.THREAD}'])
+
+    def test_default_and_remote_activation_still_use_the_original_entry(self):
+        for host, expected_lookup in (('local', 1), ('remote:test', 0)):
+            with self.subTest(host=host), \
+                 patch('native_protocol._running_dreamskin_desktop', return_value=None) as lookup, \
+                 patch('native_protocol.subprocess.Popen') as launch:
+                open_default = Mock()
+                _windows_profile_desktop_open(open_default)(self.THREAD, host)
+                open_default.assert_called_once_with(self.THREAD, host)
+                self.assertEqual(lookup.call_count, expected_lookup)
+                launch.assert_not_called()
+
+    def test_failed_existing_profile_launch_does_not_open_the_default_profile(self):
+        open_default = Mock()
+        with patch('native_protocol._running_dreamskin_desktop', return_value=self.DESKTOP), \
+             patch('native_protocol.subprocess.Popen', side_effect=OSError), \
+             self.assertRaises(OSError):
+            _windows_profile_desktop_open(open_default)(self.THREAD, 'local')
+        open_default.assert_not_called()
 
 
 if __name__ == '__main__':
