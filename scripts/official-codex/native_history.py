@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 from image_archive import capture_history
+from native_activity import restore_recorded_activity, with_recorded_activities
 from native_usage import saved_usage, token_usage
 
 DEFAULT_ITEMS = 5_000
@@ -106,7 +107,7 @@ def install(store_class):
     if original_recent_lines is not None:
         def recent_lines(path, turn_limit):
             raw, complete = original_recent_lines(path, turn_limit)
-            return without_project_context(raw), complete
+            return with_recorded_activities(without_project_context(raw)), complete
 
         store_class._recent_lines = staticmethod(recent_lines)
 
@@ -133,7 +134,7 @@ def install(store_class):
                 result['latestTokenUsageInfo'] = usage
                 result['tokenUsageFromHistory'] = True
         for turn in result.get('turns', []):
-            turn['items'] = [item for item in turn.get('items', [])
+            turn['items'] = [restore_recorded_activity(item) for item in turn.get('items', [])
                              if item.get('content') != [CONTEXT_ONLY_PART]]
         capture_history(store.home, thread_id, result)
         return result
