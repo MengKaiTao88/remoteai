@@ -208,6 +208,7 @@ pub(super) struct Fixture {
     pub(super) recover_receipt: Arc<std::sync::atomic::AtomicBool>,
     pub(super) posts: Arc<AtomicUsize>,
     pub(super) model_confirmed: Arc<std::sync::atomic::AtomicBool>,
+    pub(super) empty_without_effort: Arc<std::sync::atomic::AtomicBool>,
     pub(super) permission_confirmed: Arc<std::sync::atomic::AtomicBool>,
     pub(super) connected: Arc<std::sync::atomic::AtomicBool>,
     pub(super) hydration_reads: Arc<AtomicUsize>,
@@ -240,6 +241,8 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
     let model = Arc::new(tokio::sync::Mutex::new(Value::Null));
     let model_confirmed = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let confirmation = model_confirmed.clone();
+    let empty_without_effort = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let empty = empty_without_effort.clone();
     let permission_confirmed = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let permission_confirmation = permission_confirmed.clone();
     let permission = Arc::new(tokio::sync::Mutex::new("full-access".to_owned()));
@@ -265,6 +268,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
             let native_receipt = native_receipt.clone();
             let model = model.clone();
             let confirmation = confirmation.clone();
+            let empty = empty.clone();
             let permission_confirmation = permission_confirmation.clone();
             let permission = permission.clone();
             let connected = connection.clone();
@@ -449,6 +453,11 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                             state["historyComplete"] = json!(loaded == total);
                         }
                         let selected = model.lock().await;
+                        if empty.load(Ordering::SeqCst) {
+                            state["status"] = json!("idle");
+                            state["turns"] = json!([]);
+                            state["effort"] = Value::Null;
+                        }
                         if selected.is_object() {
                             state["model"] = selected["model"].clone();
                             state["effort"] = selected["effort"].clone();
@@ -481,6 +490,7 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
         recover_receipt,
         posts,
         model_confirmed,
+        empty_without_effort,
         permission_confirmed,
         connected,
         hydration_reads,

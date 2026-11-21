@@ -16,7 +16,16 @@ pub(super) fn selection(view: &Value) -> Option<Value> {
 }
 
 pub(super) fn snapshot(view: &Value) -> Option<Value> {
-    let selected = selection(view)?;
+    let selected = selection(view);
+    // The desktop can attach an empty chat before it reports a reasoning choice.
+    // Return an unset selection so the composer can save its draft's explicit choice.
+    if selected.is_none()
+        && !(view["connected"] == true
+            && view["loadingHistory"] != true
+            && view["turns"].as_array().is_some_and(Vec::is_empty))
+    {
+        return None;
+    }
     // Native sequence numbers reset with the gateway; clients also reject older settings revisions.
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)

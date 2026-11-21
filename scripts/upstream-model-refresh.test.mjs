@@ -34,6 +34,25 @@ const expressionTemplate = extractSource(
   /r#"(\(async \(\) => [\s\S]*?\}\}\)\(\))"#/,
   "the model refresh expression",
 );
+const restoreTemplate = readFileSync(new URL("renderer_sync.rs", sourcePath), "utf8")
+  .match(/r#"(\(\(\) => \{\{[\s\S]*?\}\}\)\(\))"#/)[1];
+
+function rendererRestoreExpression(officialPicker) {
+  const substitutions = {
+    proxy_running: "true",
+    use_native_model_picker: String(officialPicker),
+    query_client: readFileSync(new URL("composer_query_client.js", sourcePath), "utf8"),
+    overlay: "",
+    status: readFileSync(new URL("composer_status.js", sourcePath), "utf8"),
+    model_observer_helpers: observerHelpers,
+  };
+  return restoreTemplate.replace(/\{\{|\}\}|\{([a-z_]+)\}/g, (token, key) => {
+    if (token === "{{") return "{";
+    if (token === "}}") return "}";
+    assert.ok(Object.hasOwn(substitutions, key), `Unexpected Rust format placeholder: ${key}`);
+    return substitutions[key];
+  });
+}
 
 function modelRefreshExpression(models, capabilities = {}) {
   const defaultReasoningEfforts = Object.fromEntries(models.map(model => {
@@ -196,6 +215,7 @@ function createHarness({ models = upstreamModels, select = selectModels, queryKe
     client, query, observer, window,
     refresh: (modelsToInject, capabilities) =>
       runInNewContext(modelRefreshExpression(modelsToInject, capabilities), { window, Symbol }),
+    reattach: official => runInNewContext(rendererRestoreExpression(official), { window, Symbol }),
     addObserver(target = query, selector = selectModels) {
       const added = new ModelObserver(target, selector);
       target.addObserver(added);
@@ -203,6 +223,23 @@ function createHarness({ models = upstreamModels, select = selectModels, queryKe
     },
   };
 }
+
+test("reattaching under an official account releases the stale picker override", async () => {
+  const harness = createHarness({ queryKey: ["models", "list", "local", "chatgpt", 100] });
+  await harness.refresh([defaultModel]);
+  await harness.client.refetch(harness.query);
+  assert.deepEqual(harness.query.modelIds(), upstreamModels);
+  assert.deepEqual(harness.observer.modelIds(), [defaultModel]);
+
+  assert.equal(harness.reattach(false), true);
+  assert.deepEqual(harness.observer.modelIds(), [defaultModel]);
+  const polls = harness.client.invalidationCount;
+  assert.equal(harness.reattach(true), true);
+  assert.deepEqual(harness.observer.modelIds(), upstreamModels);
+  assert.deepEqual(harness.addObserver().modelIds(), upstreamModels);
+  assert.equal(harness.window[patchStateKey], undefined);
+  assert.equal(harness.client.invalidationCount, polls);
+});
 
 test("group aliases update injected and cached labels without changing routing during polling", async () => {
   const slug = "gpt-6-luna-account@example.test-9a4ad11234567890";

@@ -67,6 +67,8 @@ fn composer_restore_expression() -> Result<String, String> {
     let query_client = include_str!("composer_query_client.js");
     let status = include_str!("composer_status.js");
     let proxy_running = crate::local_proxy::is_running();
+    let use_native_model_picker = crate::codex_runtime::uses_native_official_model_picker();
+    let model_observer_helpers = CODEX_MODEL_OBSERVER_PATCH_HELPERS;
     Ok(format!(
         r#"(() => {{
         const proxyRunning = {proxy_running};
@@ -74,6 +76,13 @@ fn composer_restore_expression() -> Result<String, String> {
         if (!queryClient) return false;
         const matchesModelsQuery = query => Array.isArray(query?.queryKey) &&
             query.queryKey[0] === "models" && query.queryKey[1] === "list";
+        {model_observer_helpers}
+        if ({use_native_model_picker} && window[patchStateKey]?.active) {{
+            // Reattaching also restores the native picker when an old local override survived.
+            const key = "__CODEX_SWITCH_MODEL_REFRESH_SEQUENCE__";
+            window[key] = (window[key] ?? 0) + 1;
+            clearModelQueryPatch();
+        }}
         const fastAvailable = window.__CODEX_SWITCH_FAST_MODE_AVAILABLE__ ??
             window.__CODEX_SWITCH_FAST_MODE_ALLOWED__;
         const fastModeModels = new Set(fastAvailable ? ["available"] : []);
@@ -92,15 +101,21 @@ fn restore_composer(session: &mut CdpSession) -> Result<(), String> {
 }
 
 fn renderer_sync_healthy(target: &CdpTarget, port: u16) -> bool {
+    if !renderer_bindings_healthy(target) {
+        return false;
+    }
     // Proxy changes must refresh visibility even when the renderer's query cache is unchanged.
     let probe = format!(
-        "({COMPOSER_SYNC_PROBE}) && \
-         window.__CODEX_SWITCH_COMPOSER_STATUS_OBSERVER__?.proxyRunning === {}",
+        "({{healthy: ({COMPOSER_SYNC_PROBE}) && \
+         window.__CODEX_SWITCH_COMPOSER_STATUS_OBSERVER__?.proxyRunning === {}, \
+         modelOverride: window.__CODEX_SWITCH_MODEL_QUERY_PATCH__?.active === true}})",
         crate::local_proxy::is_running()
     );
-    renderer_bindings_healthy(target)
-        && evaluate_for_binding(target, port, &probe)
-            .is_ok_and(|value| value.as_bool() == Some(true))
+    evaluate_for_binding(target, port, &probe).is_ok_and(|value| {
+        value["healthy"] == true
+            && (value["modelOverride"] != true
+                || !crate::codex_runtime::uses_native_official_model_picker())
+    })
 }
 
 fn maintain_renderer_sync(targets: &[CdpTarget], port: u16, last_check: &mut Option<Instant>) {

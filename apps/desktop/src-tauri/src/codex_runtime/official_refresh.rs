@@ -33,10 +33,7 @@ struct OfficialRefreshTarget {
 
 /// Applies the live official catalog, or its last successful snapshot while retrying in the background.
 pub(super) fn refresh(generation: u64, selected_model: String) {
-    let Some(account_id) = runtime_paths()
-        .ok()
-        .and_then(|paths| official_account_id(&paths))
-    else {
+    let Some(account_id) = active_account_id() else {
         return;
     };
     let target = OfficialRefreshTarget {
@@ -76,10 +73,13 @@ fn official_account_id(paths: &Paths) -> Option<String> {
 fn is_current(target: &OfficialRefreshTarget) -> bool {
     MODEL_REFRESH_GENERATION.load(Ordering::Acquire) == target.generation
         && crate::local_proxy::is_running()
-        && runtime_paths()
-            .ok()
-            .and_then(|paths| official_account_id(&paths))
-            .is_some_and(|account_id| account_id == target.account_id)
+        && active_account_id().is_some_and(|account_id| account_id == target.account_id)
+}
+
+pub(super) fn active_account_id() -> Option<String> {
+    runtime_paths()
+        .ok()
+        .and_then(|paths| official_account_id(&paths))
 }
 
 fn runtime_paths() -> Result<Paths, String> {

@@ -84,7 +84,16 @@ fn serve_binding(stream: TcpStream, disconnected: Arc<AtomicBool>, stopped: Arc<
         };
         let request: Value = serde_json::from_str(&message).unwrap();
         is_binding |= request["method"] == "Runtime.addBinding";
-        let response = json!({ "id": request["id"], "result": { "result": { "value": true } } });
+        let is_sync_probe = request["method"] == "Runtime.evaluate"
+            && request["params"]["expression"]
+                .as_str()
+                .is_some_and(|expression| expression.contains("modelOverride:"));
+        let value = if is_sync_probe {
+            json!({ "healthy": true, "modelOverride": false })
+        } else {
+            json!(true)
+        };
+        let response = json!({ "id": request["id"], "result": { "result": { "value": value } } });
         if socket
             .send(Message::Text(response.to_string().into()))
             .is_err()

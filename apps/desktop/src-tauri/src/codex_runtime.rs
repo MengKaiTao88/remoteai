@@ -134,6 +134,11 @@ pub(crate) fn runtime_app_handle() -> Option<AppHandle> {
     CODEX_RUNTIME_APP.get().cloned()
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+pub(crate) fn uses_native_official_model_picker() -> bool {
+    crate::local_proxy::is_running() && official_refresh::active_account_id().is_some()
+}
+
 pub(crate) fn refresh_usage_summary() {
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     crate::dream_skin_native::notify_usage_summary_changed();

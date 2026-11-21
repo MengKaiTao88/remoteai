@@ -6,13 +6,15 @@ import { composerUsageOverlay } from "./fixtures/usage-statusline-source.mjs";
 import { testBrowserLaunchOptions } from "./test-browser.mjs";
 
 const root = new URL("../apps/desktop/src-tauri/src/dream_skin_native/", import.meta.url);
-const [sync, queryClient, status] = await Promise.all([
-  "renderer_sync.rs", "composer_query_client.js", "composer_status.js",
+const [sync, queryClient, status, modelRefresh] = await Promise.all([
+  "renderer_sync.rs", "composer_query_client.js", "composer_status.js", "model_refresh.rs",
 ].map(path => readFile(new URL(path, root), "utf8")));
 const substitutions = {
   query_client: queryClient,
   overlay: composerUsageOverlay,
   status,
+  use_native_model_picker: "false",
+  model_observer_helpers: modelRefresh.match(/const CODEX_MODEL_OBSERVER_PATCH_HELPERS: &str = r#"([\s\S]*?)"#;/)[1],
 };
 const template = sync.match(/r#"(\(\(\) => \{\{[\s\S]*?\}\}\)\(\))"#/)[1];
 const restore = (proxyRunning = true) => template.replace(/\{\{|\}\}|\{([a-z_]+)\}/g, (token, key) => {

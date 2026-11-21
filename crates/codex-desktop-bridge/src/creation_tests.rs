@@ -41,6 +41,38 @@ async fn independent_creation_waits_for_owner_and_sends_nothing_until_explicit_d
 }
 
 #[tokio::test]
+async fn new_chat_can_save_model_and_send_when_native_effort_is_unset() {
+    let fixture = tests::fixture(false).await;
+    fixture.empty_without_effort.store(true, Ordering::SeqCst);
+    let client = tests::client(&fixture).await;
+    client.request(start(None)).await.unwrap();
+
+    let settings = client.model_settings(tests::THREAD).await.unwrap();
+    assert_eq!(settings["threadId"], tests::THREAD);
+    assert!(settings["selection"].is_null());
+    assert_eq!(settings["access"], "danger-full-access");
+    let access = client
+        .set_access_settings(tests::THREAD, "read-only")
+        .await
+        .unwrap();
+    assert_eq!(access["access"], "read-only");
+
+    let selection = json!({"model":"model-b","effort":"low"});
+    let saved = client
+        .set_model_settings(tests::THREAD, &selection)
+        .await
+        .unwrap();
+    assert_eq!(saved["selection"], selection);
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 0);
+    let send = json!({"operation":"send","threadId":tests::THREAD,"text":"First message",
+        "model":"model-b","effort":"low"});
+    client.request(send).await.unwrap();
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 1);
+    assert_eq!(fixture.creations.lock().await.len(), 1);
+    client.close().await;
+}
+
+#[tokio::test]
 async fn saved_project_creation_resolves_membership_and_rejects_unknown_or_invalid_requests() {
     let fixture = tests::fixture(false).await;
     let client = tests::client(&fixture).await;
