@@ -1,9 +1,9 @@
-# Triage Labels
+# 工单分流标签
 
-| Skill role | GitHub label | When to use |
+| 技能中的角色 | GitHub 标签 | 使用时机 |
 | --- | --- | --- |
-| `needs-triage` | `needs-triage` | A maintainer needs to evaluate the issue. |
-| `needs-info` | `needs-info` | More information is needed. |
-| `ready-for-agent` | `ready-for-agent` | The issue is ready for an agent to implement. |
-| `ready-for-human` | `ready-for-human` | The issue requires human implementation. |
-| `wontfix` | `wontfix` | The maintainer has decided to close the issue without implementing it. |
+| `needs-triage` | `needs-triage` | 等待维护者评估工单。 |
+| `needs-info` | `needs-info` | 工单需要补充信息。 |
+| `ready-for-agent` | `ready-for-agent` | 工单已准备就绪，可交给智能体实现。 |
+| `ready-for-human` | `ready-for-human` | 需要由人工实现。 |
+| `wontfix` | `wontfix` | 维护者决定关闭该工单并放弃实现。 |
