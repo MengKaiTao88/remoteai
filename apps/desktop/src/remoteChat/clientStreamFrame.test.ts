@@ -20,22 +20,24 @@ const thread: Thread = { id: 'one', cwd: '', preview: '', updatedAt: 1, turns: [
 const textDelta = (delta: string): GuiEvent => ({ method: 'item/agentMessage/delta',
   params: { threadId: 'one', turnId: 'turn', itemId: 'answer', delta } });
 
-async function fixture() {
+async function fixture(initialThread = thread) {
   let events!: ConnectionEvents;
+  const request = vi.fn(async (_method: string, body?: unknown) => {
+    const operation = (body as { operation?: string })?.operation;
+    return operation === 'syncHistory' ? historyDelta(initialThread) : { data: [], nextCursor: null };
+  });
   const controller = new ChatController(callbacks => {
     events = callbacks;
-    return { start() {}, stop() {}, request: async <T>(_method: string, body?: unknown) => {
-      const operation = (body as { operation?: string })?.operation;
-      return (operation === 'syncHistory' ? historyDelta(thread) : { data: [], nextCursor: null }) as T;
-    } };
+    return { start() {}, stop() {}, request: async <T>(method: string, body?: unknown) =>
+      await request(method, body) as T };
   });
-  await controller.select(thread);
+  await controller.select(initialThread);
   vi.useFakeTimers();
   const changed = vi.fn(); controller.subscribe(changed);
   reductions.count = 0;
   const received = vi.fn(); controller.subscribeEvents(received);
   const text = () => controller.snapshot().selected?.turns?.[0].items[0].text;
-  return { controller, events, changed, received, text };
+  return { controller, events, changed, received, request, text };
 }
 
 it('reduces a burst once, notifies raw event subscribers in order and shows intermediate text', async () => {
@@ -94,4 +96,37 @@ it('flushes on cancellation, switching threads, reopening cached history and tea
   vi.advanceTimersByTime(100);
   expect(text()).toBe('before cancel before switch before stop');
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it('pauses the current turn after a late tool event from an older turn', async () => {
+  const older = '019a0000-0000-7000-8000-000000000001';
+  const current = '019a0000-0001-7000-8000-000000000002';
+  const { controller, events, request } = await fixture({ ...thread, turns: [
+    { id: current, status: 'inProgress', items: [] },
+  ] });
+  try {
+    events.event({ method: 'item/completed', params: { threadId: thread.id, turnId: older,
+      item: { id: 'command', type: 'commandExecution' } } });
+    expect(controller.snapshot().selected?.turns?.map(turn => turn.id)).toEqual([older, current]);
+    await controller.interrupt();
+    expect(request).toHaveBeenLastCalledWith('request', {
+      operation: 'interrupt', threadId: thread.id, turnId: current,
+    });
+  } finally { controller.stop(); }
+});
+
+it.each([false, true])('recovers a missed interruption event (rejected=%s)', async rejected => {
+  const { controller, request } = await fixture();
+  controller.start();
+  const interrupted = { ...thread, turns: thread.turns?.map(turn => ({ ...turn, status: 'interrupted' })) };
+  request.mockImplementation(async (_method, body) => {
+    if ((body as { operation: string }).operation === 'syncHistory') return historyDelta(interrupted);
+    if (rejected) throw new Error('The computer already stopped the turn.');
+    return { data: [], nextCursor: null };
+  });
+  try {
+    await controller.interrupt();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(controller.snapshot().selected?.turns?.at(-1)?.status).toBe('interrupted');
+  } finally { controller.stop(); }
 });

@@ -25,7 +25,7 @@ Copy-Item -LiteralPath (Join-Path $repositoryRoot 'apps/desktop/src-tauri/resour
 foreach ($name in @('Start.cmd', 'Start-OfficialCodex.ps1', 'initialize_gateway.py', 'run_gateway.py',
     'native_history.py', 'native_activity.py', 'image_archive.py', 'native_usage.py',
     'native_permissions.py', 'native_protocol.py', 'native_queue.py',
-    'native_questions.py')) {
+    'native_questions.py', 'native_interrupted_task.py')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $Destination -Force
 }
 $archive = Join-Path $Destination 'bridge-source.zip'

@@ -5,6 +5,13 @@ and phone Web UI to Codex Mobile Bridge on the same computer. Official Codex Des
 conversation owner. The adapter does not start a second inference runtime, change Codex credentials,
 rewrite providers, or change the native conversation's working directory or permissions.
 
+## 继续中断的任务
+
+网页「继续生成」调用电脑上的续跑操作。桥接确认目标仍是原会话最新的中断轮次后，向所属 Codex
+桌面进程请求启动空输入轮次，使用 `resume_interrupted_task` 标记并继承该会话的设置。
+此操作不进入待发送队列，也不在历史中追加用户消息。相同中断轮次的重复请求不会重复启动。
+网页和本机桥接都需要支持此操作。
+
 ## Test build scope
 
 Supported: discover existing **local desktop** conversations, read their history, stream message and

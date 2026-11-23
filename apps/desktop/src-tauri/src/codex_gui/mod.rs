@@ -269,6 +269,9 @@ async fn execute_gui_request(state: &GuiState, request: GuiRequest) -> Result<Gu
     };
     let client = connected(state).await?;
     match request {
+        GuiRequest::ContinueInterruptedTask { thread_id, turn_id } => {
+            return client.continue_interrupted_task(thread_id, turn_id).await;
+        }
         GuiRequest::RecoveryList => return client.recovery_list().await,
         GuiRequest::RecoveryDecide(decision) => return client.recovery_decide(decision).await,
         GuiRequest::ToolDetails(target) => return tool_details::read(client, target).await,

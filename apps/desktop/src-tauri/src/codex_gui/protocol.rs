@@ -134,6 +134,10 @@ pub(crate) enum GuiRequest {
         thread_id: String,
         turn_id: String,
     },
+    ContinueInterruptedTask {
+        thread_id: String,
+        turn_id: String,
+    },
     Steer {
         #[serde(default)]
         transfer_mode: super::upload_policy::TransferMode,
@@ -238,6 +242,7 @@ impl GuiRequest {
     pub(super) fn into_rpc(self) -> Result<(&'static str, Value)> {
         match self {
             Self::RecoveryList | Self::RecoveryDecide(_) => Err(GuiError::InvalidRequest),
+            Self::ContinueInterruptedTask { .. } => Err(GuiError::InvalidRequest),
             Self::ToolDetails(_) => Err(GuiError::InvalidRequest),
             Self::ProcessDetails(_) => Err(GuiError::InvalidRequest),
             Self::GroupMembersPage(_) | Self::GroupThreadSummaries(_) => {

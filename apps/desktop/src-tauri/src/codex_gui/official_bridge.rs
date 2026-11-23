@@ -181,6 +181,9 @@ impl State {
             GuiRequest::Interrupt { thread_id, turn_id } => {
                 json!({"operation": "interrupt", "threadId": thread_id, "turnId": turn_id})
             }
+            GuiRequest::ContinueInterruptedTask { thread_id, turn_id } => {
+                json!({"operation": "continueInterruptedTask", "threadId": thread_id, "turnId": turn_id})
+            }
             GuiRequest::Rename { thread_id, name } => {
                 json!({"operation": "rename", "threadId": thread_id, "name": name})
             }

@@ -26,6 +26,7 @@ impl Client {
             "start" => self.start(&request).await,
             "send" | "steer" => self.send(&request).await,
             "interrupt" => self.interrupt(&request).await,
+            "continueInterruptedTask" => self.continue_interrupted_task(&request).await,
             "toolDetails" => self.tool_details(&request).await,
             "rename" => self.rename(&request).await,
             _ => Err(Error::Unsupported),
@@ -266,6 +267,28 @@ impl Client {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
         Err(Error::UnknownWrite)
+    }
+
+    async fn continue_interrupted_task(self: &Arc<Self>, request: &Value) -> Result<Value> {
+        let _write = self.writes.lock().await;
+        let id = thread_id(request)?;
+        let turn_id = request["turnId"].as_str().ok_or(Error::Invalid)?;
+        if uuid::Uuid::parse_str(turn_id).is_err() {
+            return Err(Error::Invalid);
+        }
+        // The pinned gateway authenticates the shared write envelope before dispatching its mode.
+        let result = self
+            .http
+            .post(
+                &format!("/api/sessions/{id}/send?host=local"),
+                &json!({"id": turn_id, "mode": "resume-interrupted-task"}),
+            )
+            .await?;
+        if result["status"] != "accepted" || result["resumedFrom"] != turn_id {
+            return Err(Error::UnknownWrite);
+        }
+        let _ = self.watch(id).await;
+        Ok(result)
     }
 
     async fn interrupt(&self, request: &Value) -> Result<Value> {

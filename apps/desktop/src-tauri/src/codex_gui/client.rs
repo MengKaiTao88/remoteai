@@ -186,6 +186,31 @@ impl Client {
             .map_err(|_| GuiError::Disconnected)
     }
 
+    pub(super) async fn continue_interrupted_task(
+        &self,
+        thread_id: String,
+        turn_id: String,
+    ) -> Result<super::protocol::GuiResponse> {
+        super::protocol::id(&turn_id)?;
+        let mut params = super::protocol::thread_params(thread_id)?;
+        params["includeTurns"] = serde_json::json!(true);
+        let snapshot = self.request("thread/read", params).await?;
+        let thread = &snapshot["thread"];
+        let latest = thread["turns"].as_array().and_then(|turns| turns.last());
+        if thread["status"]["type"] == "active"
+            || !latest.is_some_and(|turn| turn["id"] == turn_id && turn["status"] == "interrupted")
+        {
+            return Err(GuiError::InvalidRequest);
+        }
+        let data = self
+            .request(
+                "turn/start",
+                serde_json::json!({"threadId": thread["id"], "input": []}),
+            )
+            .await?;
+        Ok(super::protocol::GuiResponse { data })
+    }
+
     pub(super) async fn request(&self, method: &str, params: Value) -> Result<Value> {
         let _subscription = self.idle_threads.request_guard(method, &params).await;
         let changed_thread = matches!(method, "thread/rollback" | "thread/revert")

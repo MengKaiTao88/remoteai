@@ -39,6 +39,33 @@ beforeEach(async () => {
 });
 afterEach(() => { controller.stop(); vi.restoreAllMocks(); });
 
+it('dispatches one interruption continuation while the message outbox is blocked', async () => {
+  const ack = deferred<unknown>();
+  const previous = request.getMockImplementation()!;
+  request.mockImplementation((method, body) => {
+    if (body?.operation === 'queueEnqueue') throw new Error('queue requires review');
+    if (body?.operation === 'continueInterruptedTask') return ack.promise;
+    return previous(method, body);
+  });
+  await send('existing draft');
+  await vi.waitFor(() => expect(pending()).toEqual([expect.objectContaining({ text: 'existing draft', busy: false })]));
+  const interrupted = { id: 'stopped', status: 'interrupted', items: [] };
+  events.event({ method: 'turn/completed', params: { threadId: thread.id, turn: interrupted } });
+  request.mockClear();
+
+  const proceeding = controller.continueInterrupted();
+  expect(await controller.continueInterrupted()).toBe(false);
+  expect(request).toHaveBeenCalledExactlyOnceWith('request', {
+    operation: 'continueInterruptedTask', threadId: thread.id, turnId: interrupted.id,
+  });
+  events.event({ method: 'turn/started', params: { threadId: thread.id,
+    turn: { id: 'continued', status: 'inProgress', items: [] } } });
+  ack.resolve({ status: 'accepted', resumedFrom: interrupted.id });
+  expect(await proceeding).toBe(true);
+  expect(pending().map(message => message.text)).toEqual(['existing draft']);
+  expect(controller.snapshot().selected?.turns?.at(-1)).toMatchObject({ id: 'continued', status: 'inProgress', items: [] });
+});
+
 it('accepts immediately, retains full attachments and serializes consecutive sends', async () => {
   const first = deferred<unknown>();
   const second = deferred<unknown>();

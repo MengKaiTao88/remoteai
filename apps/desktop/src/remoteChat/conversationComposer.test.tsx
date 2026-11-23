@@ -65,6 +65,18 @@ const key = (value: string) => act(async () => {
   input().dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }));
 });
 
+it('continues an interrupted task without creating an outbox message', async () => {
+  const send = vi.fn().mockResolvedValue(true);
+  const continueInterrupted = vi.fn().mockResolvedValue(true);
+  const interrupted = { interrupted: true, send, continueInterrupted };
+  await render(interrupted);
+
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="继续生成"]')!.click());
+
+  expect(send).not.toHaveBeenCalled();
+  expect(continueInterrupted).toHaveBeenCalledTimes(1);
+});
+
 it('excludes the current conversation, selects without sending and sends the remote reference', async () => {
   await type('@');
   expect(options().map(option => option.textContent)).toEqual([

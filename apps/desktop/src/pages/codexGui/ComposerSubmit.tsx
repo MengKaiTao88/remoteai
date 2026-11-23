@@ -4,7 +4,6 @@ import { ArrowUp, Play, Square } from "lucide-react";
 import type { GuiController } from "./controller";
 import type { GuiState } from "../../../../../shared/conversation/types";
 import styles from "./ComposerSubmit.module.less";
-import { CONTINUE_MESSAGE } from "../../../../../shared/conversation/continuation";
 import { modelSelectionError } from "../../../../../shared/conversation/modelSelection";
 import { useMessageQueueEnabled } from "../../../../../shared/chat/useMessageQueueEnabled";
 
@@ -21,10 +20,10 @@ export function ComposerSubmit({ state, controller, hasDraft, reading, onSend, g
   const interrupted = current?.turns[current.turns.length - 1]?.status === "interrupted";
   const continuing = interrupted && !hasDraft && !goalMode;
   const disabled = state.connection !== "ready" || state.sending || state.archived || reading
-    || Boolean(modelSelectionError(state.models, state.settings));
+    || (!continuing && Boolean(modelSelectionError(state.models, state.settings)));
   const submit = async () => {
     if (disabled) return;
-    if (continuing) await controller.send(CONTINUE_MESSAGE, []);
+    if (continuing) await controller.continueInterrupted();
     else if (hasDraft) await onSend();
   };
 

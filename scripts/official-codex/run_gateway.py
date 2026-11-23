@@ -10,6 +10,7 @@ from native_permissions import install as install_permissions
 from native_protocol import install as install_protocol
 from native_queue import install as install_queue
 from native_questions import install as install_questions
+from native_interrupted_task import install as install_task_continuation
 
 
 def main():
@@ -27,6 +28,7 @@ def main():
     install(SessionStore)
     install_labels(model)
     install_image_archive(Bridge)
+    install_task_continuation(Bridge, model.ordered_turns)
     sys.argv = [str(bridge / 'run.py'), *sys.argv[2:]]
     runpy.run_path(str(bridge / 'run.py'), run_name='__main__')
 

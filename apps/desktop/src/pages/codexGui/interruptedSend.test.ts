@@ -39,6 +39,19 @@ beforeEach(async () => {
 });
 afterEach(() => controller.dispose());
 
+it('continues a stopped local task through the direct desktop operation', async () => {
+  history = { ...thread, turns: [{ ...turn, status: 'interrupted', items: [user] }] };
+  await controller.select(thread.id);
+  vi.mocked(guiApi.request).mockClear();
+
+  expect(await controller.continueInterrupted()).toBe(true);
+  expect(guiApi.request).toHaveBeenCalledWith({ operation: 'continueInterruptedTask',
+    threadId: thread.id, turnId: turn.id });
+  expect(vi.mocked(guiApi.request).mock.calls.some(([request]) => request.operation === 'send')).toBe(false);
+  expect(controller.getSnapshot().queued[thread.id]).toBeUndefined();
+  expect(current().turns.flatMap(entry => entry.items).filter(item => item.type === 'userMessage')).toEqual([user]);
+});
+
 it('publishes a confirmed remote mid-turn message before its server history item arrives', async () => {
   history = { ...thread, turns: [{ ...turn, items: [user] }] };
   await controller.loadRemoteThread(thread.id);

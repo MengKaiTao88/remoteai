@@ -329,10 +329,17 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         posts.fetch_add(1, Ordering::SeqCst);
                     }
                     if path.contains("/send?") {
-                        sends.fetch_add(1, Ordering::SeqCst);
                         let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
                         assert!(uuid::Uuid::parse_str(body["id"].as_str().unwrap()).is_ok());
                         assert!(body.get("access").is_none() && body.get("model").is_none());
+                        if body["mode"] == "resume-interrupted-task" {
+                            assert_eq!(body.as_object().unwrap().len(), 2);
+                            let reply = json!({"status": "accepted", "resumedFrom": body["id"]})
+                                .to_string();
+                            socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len()).as_bytes()).await.unwrap();
+                            return;
+                        }
+                        sends.fetch_add(1, Ordering::SeqCst);
                         let steering = body["mode"] == "steer";
                         if steering {
                             assert_eq!(projection::rows(&body["attachments"]).len(), 1);
@@ -499,6 +506,24 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
         output_bytes,
         task,
     }
+}
+
+#[tokio::test]
+async fn continuation_crosses_the_bridge_without_a_message() {
+    let fixture = fixture(false).await;
+    let client = client(&fixture).await;
+    let turn = "00000000-0000-4000-8000-000000000009";
+    let result = client
+        .request(
+            json!({"operation":"continueInterruptedTask", "threadId": THREAD,
+        "turnId": turn}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result["resumedFrom"], turn);
+    assert_eq!(fixture.posts.load(Ordering::SeqCst), 1);
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 0);
+    client.close().await;
 }
 
 pub(super) async fn client(fixture: &Fixture) -> Arc<Client> {

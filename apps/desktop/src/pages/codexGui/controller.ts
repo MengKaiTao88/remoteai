@@ -424,6 +424,23 @@ export class GuiController {
     }
   };
 
+  continueInterrupted = async () => {
+    const { selected, conversations, connection, archived, sending, workspaceBusy } = this.state;
+    if (!selected || connection !== 'ready' || archived || sending || workspaceBusy) return false;
+    const current = conversations[selected];
+    const turn = current?.turns.at(-1);
+    if (current?.activeTurn || turn?.status !== 'interrupted') return false;
+    this.patch({ sending: true, error: '' });
+    try {
+      await guiApi.request({ operation: 'continueInterruptedTask', threadId: selected, turnId: turn.id });
+      return true;
+    } catch (error) { this.report(error); return false; }
+    finally {
+      this.patch({ sending: false });
+      if (this.state.selected === selected) void this.loadRemoteThread(selected).catch(() => undefined);
+    }
+  };
+
   answerAsyncQuestion = async (item: Item, answers: string[]): Promise<boolean> => {
     const state = this.state;
     const threadId = state.selected;
