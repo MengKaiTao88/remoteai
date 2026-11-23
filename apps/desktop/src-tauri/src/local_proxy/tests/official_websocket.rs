@@ -5,6 +5,9 @@ use tungstenite::Message;
 #[path = "official_websocket_safety.rs"]
 mod safety;
 
+#[path = "official_websocket_protocol.rs"]
+mod protocol;
+
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 #[test]
@@ -157,6 +160,7 @@ struct TurnHistory {
 fn wire_output(turn: &TurnHistory) -> Value {
     let mut reasoning = turn.reasoning.clone();
     reasoning["status"] = "completed".into();
+    reasoning["content"] = json!([{"type":"reasoning_text","text":"upstream-only reasoning"}]);
     let mut call = turn.call.clone();
     call["namespace"] = Value::Null;
     call["encrypted_function_args"] = Value::Null;
@@ -230,15 +234,29 @@ type MockSocket = tungstenite::WebSocket<TcpStream>;
 
 fn accept_official_socket(listener: &TcpListener, email: &str) -> MockSocket {
     let (stream, _) = listener.accept().unwrap();
+    accept_socket_with_turn_state(stream, email, None)
+}
+
+fn accept_socket_with_turn_state(
+    stream: TcpStream,
+    email: &str,
+    state: Option<&str>,
+) -> MockSocket {
     stream.set_read_timeout(Some(TIMEOUT)).unwrap();
     stream.set_write_timeout(Some(TIMEOUT)).unwrap();
-    let validate = |request: &tungstenite::handshake::server::Request, response| {
+    let validate = |request: &tungstenite::handshake::server::Request,
+                    mut response: tungstenite::handshake::server::Response| {
         assert_eq!(request.uri().path(), "/responses");
         assert_eq!(
             request.headers()["authorization"],
             format!("Bearer test-token-{email}")
         );
         assert_eq!(request.headers()["chatgpt-account-id"], "test-workspace");
+        if let Some(state) = state {
+            response
+                .headers_mut()
+                .insert("x-codex-turn-state", state.parse().unwrap());
+        }
         Ok(response)
     };
     tungstenite::accept_hdr(stream, validate)
@@ -274,6 +292,11 @@ struct OfficialResponsesFixture {
     app: tauri::App<tauri::test::MockRuntime>,
 }
 
+struct FixtureRoute {
+    enabled: bool,
+    origin: RequestOrigin,
+}
+
 impl OfficialResponsesFixture {
     fn new(upstream: &str, turns: usize, enabled: bool) -> Self {
         let app = gui_runtime_test_app();
@@ -287,7 +310,15 @@ impl OfficialResponsesFixture {
             },
         )
         .unwrap();
-        Self::start(app, upstream, turns, enabled, RequestOrigin::External)
+        Self::start(
+            app,
+            upstream,
+            turns,
+            FixtureRoute {
+                enabled,
+                origin: RequestOrigin::External,
+            },
+        )
     }
 
     fn concurrent(upstream: &str, turns: usize) -> (Self, [String; 2]) {
@@ -321,7 +352,15 @@ impl OfficialResponsesFixture {
         )
         .unwrap();
         (
-            Self::start(app, upstream, turns, true, RequestOrigin::External),
+            Self::start(
+                app,
+                upstream,
+                turns,
+                FixtureRoute {
+                    enabled: true,
+                    origin: RequestOrigin::External,
+                },
+            ),
             accounts,
         )
     }
@@ -340,16 +379,24 @@ impl OfficialResponsesFixture {
             &json!({"kind":"account","id":account}),
         )
         .unwrap();
-        Self::start(app, upstream, turns, true, RequestOrigin::Gui)
+        Self::start(
+            app,
+            upstream,
+            turns,
+            FixtureRoute {
+                enabled: true,
+                origin: RequestOrigin::Gui,
+            },
+        )
     }
 
     fn start(
         app: tauri::App<tauri::test::MockRuntime>,
         upstream: &str,
         turns: usize,
-        enabled: bool,
-        origin: RequestOrigin,
+        route: FixtureRoute,
     ) -> Self {
+        let FixtureRoute { enabled, origin } = route;
         crate::storage::write_json_atomic(
             &crate::storage::app_settings_path(app.handle()).unwrap(),
             &json!({"officialCodexWebsocketEnabled": enabled}),

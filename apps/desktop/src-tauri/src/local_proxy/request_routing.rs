@@ -241,12 +241,10 @@ fn handle_proxy_request<R: Runtime>(
                 session_id,
                 account_id_override: account_id_override.as_deref(),
             });
-            if let Ok(response) = result.as_ref() {
-                image_account_switched.set(advance_image_account_after_429(
-                    &mut image_account_pool,
-                    response,
-                ));
-            }
+            image_account_switched.set(result.as_ref().is_ok_and(|response| {
+                official_websocket::attempt_can_change_route()
+                    && advance_image_account_after_429(&mut image_account_pool, response)
+            }));
             result
         },
         |response, event| {

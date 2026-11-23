@@ -1,20 +1,19 @@
 use super::super::{
-    diagnostic_event, failover_transport, quota_sse, request_error, response_header_timeout,
-    sse_idle_timeout, UpstreamBody, UpstreamPayload,
+    diagnostic_event, failover_transport, json_payload, quota_sse, request_error,
+    response_header_timeout, sse_idle_timeout, UpstreamBody, UpstreamPayload,
 };
 use super::{
     cache::{Connection, Lease, Owner},
-    request::{item_fingerprint, ConfirmedHistory, Fingerprint, SentHistory},
+    metadata::{self, TURN_STATE},
+    outcome::{Reason, UploadMode},
+    rejection::opening_rejection,
+    request::{output_fingerprint, ConfirmedHistory, HistoryItem, SentHistory},
     socket::{Socket, READ_INTERVAL},
 };
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
     io::{self, Cursor, Read},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
     time::{Duration, Instant},
 };
 use tungstenite::{Error, Message};
@@ -32,47 +31,23 @@ pub(super) struct SentTurn {
 pub(super) fn send(
     mut turn: SentTurn,
     request: String,
-    mode: &'static str,
-    reason: &'static str,
+    mode: UploadMode,
+    reason: Reason,
 ) -> Result<UpstreamPayload, String> {
     diagnostic_event(json!({
         "event": "official_upstream_upload", "transport": "websocket",
         "mode": mode, "reason": reason, "bodyBytes": request.len()
     }));
-    // A write error may occur after the server has received all or part of the frame.
-    // It cannot use HTTP fallback or another account's socket.
+    // An interrupted write may still have delivered the generation frame.
     turn.socket
         .send(request)
-        .map_err(|_| ambiguous_delivery("send_failed"))?;
-    let streaming = Arc::new(AtomicBool::new(false));
-    let reader = Reader {
-        turn: Some(turn),
-        terminal: None,
-        bytes: Cursor::default(),
-        items: OutputItems::default(),
-        finished: false,
-        begun: Instant::now(),
-        last_received: Instant::now(),
-        header_timeout: response_header_timeout::current(),
-        idle_timeout: sse_idle_timeout::current(),
-        streaming: Arc::clone(&streaming),
-    };
-    let payload = quota_sse::inspect_initial_official_sse(UpstreamPayload {
-        status: 200,
-        content_type: Some("text/event-stream".into()),
-        response_headers: Vec::new(),
-        body: UpstreamBody::Streaming(Box::new(reader)),
-        token_usage_account: None,
-        token_usage_service_tier: None,
-    });
-    streaming.store(true, Ordering::Relaxed);
-    if payload.is_err() {
-        return Err(ambiguous_delivery("opening_failed"));
-    }
-    payload
+        .map_err(|_| ambiguous_delivery(Reason::SendFailed))?;
+    Reader::new(turn)
+        .open()
+        .map_err(|_| ambiguous_delivery(Reason::OpeningFailed))
 }
 
-fn ambiguous_delivery(reason: &'static str) -> String {
+fn ambiguous_delivery(reason: Reason) -> String {
     diagnostic_event(json!({
         "event": "official_websocket_interrupted", "reason": reason, "delivery": "unknown"
     }));
@@ -90,31 +65,82 @@ struct Reader {
     bytes: Cursor<Vec<u8>>,
     items: OutputItems,
     finished: bool,
+    account_recorded: bool,
     begun: Instant,
     last_received: Instant,
     header_timeout: Duration,
     idle_timeout: Option<Duration>,
-    streaming: Arc<AtomicBool>,
 }
 
 impl Reader {
-    fn next_frame(&mut self) -> io::Result<Vec<u8>> {
+    fn new(turn: SentTurn) -> Self {
+        Self {
+            turn: Some(turn),
+            terminal: None,
+            bytes: Cursor::default(),
+            items: OutputItems::default(),
+            finished: false,
+            account_recorded: false,
+            begun: Instant::now(),
+            last_received: Instant::now(),
+            header_timeout: response_header_timeout::current(),
+            idle_timeout: sse_idle_timeout::current(),
+        }
+    }
+
+    fn open(mut self) -> io::Result<UpstreamPayload> {
+        let mut prefix = Vec::new();
+        for _ in 0..quota_sse::MAX_OPENING_EVENTS {
+            let event = self
+                .next_event(false)?
+                .ok_or(io::ErrorKind::UnexpectedEof)?;
+            if let Some(rejection) = opening_rejection(&event.value) {
+                return Ok(rejection);
+            }
+            let opening = match quota_sse::classify_event(&event.value, None) {
+                quota_sse::EventOutcome::Opening => true,
+                quota_sse::EventOutcome::Forward => false,
+                quota_sse::EventOutcome::Quota(error) => {
+                    return Ok(json_payload(429, json!({"error":error})))
+                }
+            };
+            prefix.extend(self.encode_event(event));
+            if !opening || prefix.len() >= quota_sse::MAX_OPENING_BYTES {
+                break;
+            }
+        }
+        self.bytes = Cursor::new(prefix);
+        Ok(self.into_payload())
+    }
+
+    fn into_payload(self) -> UpstreamPayload {
+        UpstreamPayload {
+            status: 200,
+            content_type: Some("text/event-stream".into()),
+            response_headers: Vec::new(),
+            body: UpstreamBody::Streaming(Box::new(self)),
+            token_usage_account: None,
+            token_usage_service_tier: None,
+        }
+    }
+
+    fn next_event(&mut self, streaming: bool) -> io::Result<Option<Event>> {
         loop {
-            let streaming = self.streaming.load(Ordering::Relaxed);
             let wait = self.next_wait(streaming)?;
-            let turn = self
-                .turn
-                .as_mut()
-                .expect("in-progress stream must have a socket");
+            let turn = self.turn.as_mut().ok_or(io::ErrorKind::ConnectionAborted)?;
             match turn.socket.read(wait) {
                 Ok(Message::Text(text)) => {
                     self.last_received = Instant::now();
-                    return self.encode_event(&text);
+                    let mut event = Event::parse(text.to_string())?;
+                    if let Some(state) = event.take_private_turn_state() {
+                        turn.socket.observe_turn_state(state);
+                    }
+                    return Ok(Some(event));
                 }
                 Ok(Message::Ping(_) | Message::Pong(_)) => {}
                 Err(Error::Io(error)) if error.kind() == io::ErrorKind::TimedOut => {
                     if streaming && wait == READ_INTERVAL {
-                        return Ok(HEARTBEAT.to_vec());
+                        return Ok(None);
                     }
                 }
                 _ => return Err(io::ErrorKind::ConnectionAborted.into()),
@@ -136,37 +162,24 @@ impl Reader {
         }
     }
 
-    fn encode_event(&mut self, text: &str) -> io::Result<Vec<u8>> {
-        let value: Value = serde_json::from_str(text).map_err(|_| io::ErrorKind::InvalidData)?;
-        let kind = value
-            .get("type")
-            .and_then(Value::as_str)
-            .filter(|kind| {
-                !kind.is_empty()
-                    && kind.bytes().all(|c| {
-                        c.is_ascii_lowercase()
-                            || c.is_ascii_digit()
-                            || matches!(c, b'.' | b'_' | b'-')
-                    })
-            })
-            .ok_or(io::ErrorKind::InvalidData)?;
-        self.items.observe(kind, &value);
+    fn encode_event(&mut self, event: Event) -> Vec<u8> {
+        let kind = event.kind();
+        if event.acknowledges_generation() {
+            self.record_account();
+        }
+        self.items.observe(kind, &event.value);
         match kind {
-            "response.completed" => self.complete(&value),
+            "response.completed" => self.complete(&event.value),
             "response.failed" | "response.incomplete" | "response.cancelled" | "error" => {
                 self.finished = true;
                 if kind == "error" {
-                    return Ok(error_event(&value));
+                    return error_event(&event.value);
                 }
             }
             _ => {}
         }
-        let payload = if text.contains(['\r', '\n']) {
-            value.to_string()
-        } else {
-            text.to_string()
-        };
-        Ok(format!("event: {kind}\ndata: {payload}\n\n").into_bytes())
+        let payload = event.payload();
+        format!("event: {kind}\ndata: {payload}\n\n").into_bytes()
     }
 
     fn complete(&mut self, value: &Value) {
@@ -195,6 +208,16 @@ impl Reader {
             .and_then(|turn| turn.history.confirm(id, output));
     }
 
+    fn record_account(&mut self) {
+        if self.account_recorded {
+            return;
+        }
+        if let Some(turn) = self.turn.as_ref() {
+            turn.lease.record_account(&turn.owner.account);
+            self.account_recorded = true;
+        }
+    }
+
     fn retain(&mut self) {
         let Some(history) = self.terminal.take() else {
             return;
@@ -205,6 +228,80 @@ impl Reader {
             owner: turn.owner,
             history,
         });
+    }
+}
+
+struct Event {
+    value: Value,
+    raw: String,
+    redacted: bool,
+}
+
+impl Event {
+    fn parse(raw: String) -> io::Result<Self> {
+        let value: Value = serde_json::from_str(&raw).map_err(|_| io::ErrorKind::InvalidData)?;
+        value
+            .get("type")
+            .and_then(Value::as_str)
+            .filter(|kind| {
+                !kind.is_empty()
+                    && kind.bytes().all(|c| {
+                        c.is_ascii_lowercase()
+                            || c.is_ascii_digit()
+                            || matches!(c, b'.' | b'_' | b'-')
+                    })
+            })
+            .ok_or(io::ErrorKind::InvalidData)?;
+        Ok(Self {
+            value,
+            raw,
+            redacted: false,
+        })
+    }
+
+    fn kind(&self) -> &str {
+        self.value["type"].as_str().unwrap_or_default()
+    }
+
+    fn acknowledges_generation(&self) -> bool {
+        if quota_sse::response_contains_output(&self.value) {
+            return true;
+        }
+        let kind = self.kind();
+        !quota_sse::is_opening_event(kind)
+            && !matches!(
+                kind,
+                "error" | "response.failed" | "response.cancelled" | "response.incomplete"
+            )
+    }
+
+    fn take_private_turn_state(&mut self) -> Option<String> {
+        let capture = self.kind() == "response.metadata";
+        let mut token = None;
+        for path in ["/headers", "/response/headers", "/error/headers"] {
+            let Some(headers) = self.value.pointer_mut(path).and_then(Value::as_object_mut) else {
+                continue;
+            };
+            headers.retain(|name, state| {
+                let private = name.eq_ignore_ascii_case(TURN_STATE);
+                if private {
+                    self.redacted = true;
+                    if capture && path == "/headers" {
+                        token = metadata::event_turn_state(state);
+                    }
+                }
+                !private
+            });
+        }
+        token
+    }
+
+    fn payload(&self) -> std::borrow::Cow<'_, str> {
+        if self.redacted || self.raw.contains(['\r', '\n']) {
+            self.value.to_string().into()
+        } else {
+            self.raw.as_str().into()
+        }
     }
 }
 
@@ -232,14 +329,18 @@ impl Read for Reader {
             self.retain();
             return Ok(0);
         }
-        self.bytes = Cursor::new(self.next_frame()?);
+        let bytes = match self.next_event(true)? {
+            Some(event) => self.encode_event(event),
+            None => HEARTBEAT.to_vec(),
+        };
+        self.bytes = Cursor::new(bytes);
         self.bytes.read(target)
     }
 }
 
 #[derive(Default)]
 struct OutputItems {
-    observed: BTreeMap<usize, Option<Fingerprint>>,
+    observed: BTreeMap<usize, Option<HistoryItem>>,
     uncertain: bool,
 }
 
@@ -264,11 +365,11 @@ impl OutputItems {
             self.observed.entry(index).or_insert(None);
         } else {
             self.observed
-                .insert(index, event.get("item").and_then(item_fingerprint));
+                .insert(index, event.get("item").and_then(output_fingerprint));
         }
     }
 
-    fn confirm(&self, output: Option<&Value>) -> Option<Vec<Fingerprint>> {
+    fn confirm(&self, output: Option<&Value>) -> Option<Vec<HistoryItem>> {
         if self.uncertain {
             return None;
         }
@@ -281,7 +382,7 @@ impl OutputItems {
             }
             let full = items
                 .iter()
-                .map(item_fingerprint)
+                .map(output_fingerprint)
                 .collect::<Option<Vec<_>>>()?;
             let inconsistent = self.observed.iter().any(|(index, observed)| {
                 *index >= full.len() || observed.is_some_and(|item| full[*index] != item)

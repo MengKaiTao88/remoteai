@@ -15,7 +15,9 @@ fn forward_official<R: Runtime>(
     if *request.method == Method::Get
         && matches!(request_path(request.url), "/models" | "/v1/models")
     {
-        return official_model_cache::with_fallback(request.app, || forward_official_upstream(request));
+        return official_model_cache::with_fallback(request.app, || {
+            forward_official_upstream(request)
+        });
     }
     forward_official_upstream(request)
 }
@@ -23,31 +25,27 @@ fn forward_official<R: Runtime>(
 fn forward_official_upstream<R: Runtime>(
     request: OfficialForwardRequest<'_, R>,
 ) -> Result<UpstreamPayload, String> {
-    let OfficialForwardRequest {
-        app,
-        method,
-        url,
-        headers,
-        body,
-        model,
-        session_id,
-        account_id_override,
-    } = request;
     let client = http_client()?;
-    let upstream_endpoint = upstream_endpoint_for_codex_request(url);
-    let credential_purpose = official_credential_purpose(request_path(&upstream_endpoint), &body);
+    let path = upstream_endpoint_for_codex_request(request.url);
+    let purpose = official_credential_purpose(request_path(&path), &request.body);
+    let retry_account = official_websocket::retry_account();
     let mut credentials = match official_credentials(
-        app,
+        request.app,
         &client,
         OfficialCredentialOptions {
-            purpose: credential_purpose,
-            session_id,
-            account_id_override,
+            purpose,
+            session_id: request.session_id,
+            account_id_override: retry_account.as_deref().or(request.account_id_override),
         },
     ) {
         Ok(credentials) => credentials,
         Err(error) => {
-            official_websocket::guard_credential_replay(method, &upstream_endpoint, headers, &body);
+            official_websocket::guard_credential_replay(
+                request.method,
+                &path,
+                request.headers,
+                &request.body,
+            );
             return error.into_response();
         }
     };
@@ -55,43 +53,95 @@ fn forward_official_upstream<R: Runtime>(
         "event": "official_credentials_ready",
         "account": diagnostic_account(&credentials.token_usage_account)
     }));
-    let upstream_url = official_url(&upstream_endpoint);
-    let body = official_body_for_upstream(method, &upstream_endpoint, body, model);
-    let body = prepare_official_body(method, &upstream_url, headers, body)?;
-    let mut payload = match official_websocket::send(official_websocket::Request {
-        app,
+    let url = official_url(&path);
+    let body = official_body_for_upstream(request.method, &path, request.body, request.model);
+    let body = prepare_official_body(request.method, &url, request.headers, body)?;
+    let upstream = OfficialHttpRequest {
         client: &client,
-        method,
-        path: &upstream_endpoint,
-        url: &upstream_url,
-        headers,
+        method: request.method,
+        url: &url,
+        headers: request.headers,
         body: &body,
-        model,
-        authentication: &credentials.authentication,
-        account: &credentials.token_usage_account.account_id,
-    }) {
-        Some(result) => result?,
-        None => send_prepared_official_request(
-            &client, method, &upstream_url, headers, &body, &credentials.authentication,
-        )?,
     };
+    let context = OfficialResponsesAttempt {
+        app: request.app,
+        path: &path,
+        model: request.model,
+    };
+    let mut payload = upstream.send_responses(
+        &context,
+        &credentials,
+        official_websocket::Transport::WebSocket,
+    )?;
     if invalid_agent_identity_task_response(&credentials.authentication, &payload) {
         diagnostic_retry("agent_identity_task_refresh", Duration::ZERO);
         record_retried_proxy_response(&payload);
         // Recalculate discovery's remaining credential budget before another network operation.
-        refresh_agent_identity_task(&mut credentials.authentication, app, &http_client()?)?;
-        payload = send_prepared_official_request(
-            &client,
-            method,
-            &upstream_url,
-            headers,
-            body.as_slice(),
-            &credentials.authentication,
+        refresh_agent_identity_task(
+            &mut credentials.authentication,
+            request.app,
+            &http_client()?,
         )?;
+        payload =
+            upstream.send_responses(&context, &credentials, official_websocket::Transport::Http)?;
     }
     payload.token_usage_account = Some(credentials.token_usage_account);
-    payload.token_usage_service_tier = forwarded_request_service_tier(&body, headers);
     Ok(payload)
+}
+
+struct OfficialResponsesAttempt<'a, R: Runtime> {
+    app: &'a tauri::AppHandle<R>,
+    path: &'a str,
+    model: &'a str,
+}
+
+struct OfficialHttpRequest<'a> {
+    client: &'a Client,
+    method: &'a Method,
+    url: &'a str,
+    headers: &'a [(String, String)],
+    body: &'a [u8],
+}
+
+impl OfficialHttpRequest<'_> {
+    fn send_responses<R: Runtime>(
+        &self,
+        context: &OfficialResponsesAttempt<'_, R>,
+        credentials: &OfficialProxyCredentials,
+        transport: official_websocket::Transport,
+    ) -> Result<UpstreamPayload, String> {
+        let account = &credentials.token_usage_account.account_id;
+        match official_websocket::send(
+            official_websocket::Request {
+                app: context.app,
+                client: self.client,
+                method: self.method,
+                path: context.path,
+                url: self.url,
+                headers: self.headers,
+                body: self.body,
+                model: context.model,
+                authentication: &credentials.authentication,
+                account,
+            },
+            transport,
+        ) {
+            official_websocket::Outcome::Response(mut payload) => {
+                payload.token_usage_service_tier =
+                    forwarded_request_service_tier(self.body, self.headers);
+                Ok(payload)
+            }
+            official_websocket::Outcome::Failed(error) => Err(error),
+            official_websocket::Outcome::Http(route) => {
+                let body = route.body.as_deref().unwrap_or(self.body);
+                official_websocket::record_http_started(account);
+                let payload =
+                    self.send(&credentials.authentication, route.strip_routing_hint, body)?;
+                route.record(account, payload.status);
+                Ok(payload)
+            }
+        }
+    }
 }
 
 fn send_official_request(
@@ -103,7 +153,14 @@ fn send_official_request(
     authentication: &OfficialRequestAuthentication,
 ) -> Result<UpstreamPayload, String> {
     let body = prepare_official_body(method, upstream_url, headers, body.to_vec())?;
-    send_prepared_official_request(client, method, upstream_url, headers, &body, authentication)
+    OfficialHttpRequest {
+        client,
+        method,
+        url: upstream_url,
+        headers,
+        body: &body,
+    }
+    .send(authentication, false, &body)
 }
 
 fn prepare_official_body(
@@ -121,44 +178,53 @@ fn prepare_official_body(
     Ok(body)
 }
 
-fn send_prepared_official_request(
-    client: &Client,
-    method: &Method,
-    upstream_url: &str,
-    headers: &[(String, String)],
-    body: &[u8],
-    authentication: &OfficialRequestAuthentication,
-) -> Result<UpstreamPayload, String> {
-    let request_method = reqwest_method(method)?;
-    let filtered_headers;
-    let headers = if official_websocket::strip_old_routing_hint() {
-        filtered_headers = headers.iter()
-            .filter(|(name, _)| !name.eq_ignore_ascii_case("x-codex-routing-hint"))
-            .cloned().collect::<Vec<_>>();
-        &filtered_headers
-    } else {
-        headers
-    };
-    diagnostic_event(json!({
-        "event": "official_upstream_upload", "transport": "http",
-        "mode": "full", "bodyBytes": body.len()
-    }));
-    let response = send_with_timeout_retries(
-        || {
-            let request = client
-                .request(request_method.clone(), upstream_url)
-                .header("originator", ORIGINATOR)
-                .header("User-Agent", "codex_cli_rs/0.1.0");
-            let request = apply_official_authentication(request, authentication);
-            let request = apply_forward_headers(request, headers, true);
-            official_model_request::apply_user_agent(request, method, upstream_url, headers)
-                .body(body.to_vec())
-        },
-        "Official Codex proxy request failed",
-    )?;
-    let mut payload = quota_sse::inspect_initial_official_sse(stream_response(response)?)?;
-    payload.token_usage_service_tier = forwarded_request_service_tier(body, headers);
-    Ok(payload)
+impl OfficialHttpRequest<'_> {
+    fn send(
+        &self,
+        authentication: &OfficialRequestAuthentication,
+        strip_routing_hint: bool,
+        body: &[u8],
+    ) -> Result<UpstreamPayload, String> {
+        let Self {
+            client,
+            method,
+            url,
+            headers,
+            ..
+        } = *self;
+        let request_method = reqwest_method(method)?;
+        let filtered_headers;
+        let headers = if strip_routing_hint {
+            filtered_headers = headers
+                .iter()
+                .filter(|(name, _)| !name.eq_ignore_ascii_case("x-codex-routing-hint"))
+                .cloned()
+                .collect::<Vec<_>>();
+            &filtered_headers
+        } else {
+            headers
+        };
+        diagnostic_event(json!({
+            "event": "official_upstream_upload", "transport": "http",
+            "mode": "full", "bodyBytes": body.len()
+        }));
+        let response = send_with_timeout_retries(
+            || {
+                let request = client
+                    .request(request_method.clone(), url)
+                    .header("originator", ORIGINATOR)
+                    .header("User-Agent", "codex_cli_rs/0.1.0");
+                let request = apply_official_authentication(request, authentication);
+                let request = apply_forward_headers(request, headers, true);
+                official_model_request::apply_user_agent(request, method, url, headers)
+                    .body(body.to_vec())
+            },
+            "Official Codex proxy request failed",
+        )?;
+        let mut payload = quota_sse::inspect_initial_official_sse(stream_response(response)?)?;
+        payload.token_usage_service_tier = forwarded_request_service_tier(body, headers);
+        Ok(payload)
+    }
 }
 
 fn apply_official_authentication(

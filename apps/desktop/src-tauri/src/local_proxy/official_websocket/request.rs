@@ -1,3 +1,4 @@
+use super::{metadata, outcome::Reason};
 use serde::{Serialize, Serializer};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -9,6 +10,7 @@ pub(super) type Fingerprint = [u8; 32];
 
 pub(super) struct Turn {
     options: Map<String, Value>,
+    pub(super) turn_id: Option<String>,
     input: Vec<Value>,
     option_fingerprint: Fingerprint,
     input_fingerprints: Vec<Fingerprint>,
@@ -17,7 +19,19 @@ pub(super) struct Turn {
 pub(super) struct ConfirmedHistory {
     pub(super) response_id: String,
     options: Fingerprint,
-    prefix: Vec<Fingerprint>,
+    prefix: Vec<HistoryItem>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub(super) struct HistoryItem {
+    original: Fingerprint,
+    codex_input: Option<Fingerprint>,
+}
+
+impl HistoryItem {
+    fn matches(&self, input: &Fingerprint) -> bool {
+        self.original == *input || self.codex_input.as_ref() == Some(input)
+    }
 }
 
 pub(super) struct SentHistory {
@@ -26,7 +40,10 @@ pub(super) struct SentHistory {
 }
 
 impl Turn {
-    pub(super) fn from_body(mut options: Map<String, Value>) -> Option<Self> {
+    pub(super) fn from_body(
+        mut options: Map<String, Value>,
+        headers: &[(String, String)],
+    ) -> Option<Self> {
         if options.get("stream") != Some(&Value::Bool(true)) || has_server_state(&options) {
             return None;
         }
@@ -35,29 +52,36 @@ impl Turn {
             _ => return None,
         };
         let option_fingerprint = fingerprint_options(&options)?;
+        let turn_id = metadata::prepare(&mut options, headers);
         let input_fingerprints = input
             .iter()
             .map(item_fingerprint)
             .collect::<Option<Vec<_>>>()?;
         Some(Self {
             options,
+            turn_id,
             input,
             option_fingerprint,
             input_fingerprints,
         })
     }
 
-    pub(super) fn extension(&self, history: &ConfirmedHistory) -> Result<usize, &'static str> {
+    pub(super) fn extension(&self, history: &ConfirmedHistory) -> Result<usize, Reason> {
         if self.option_fingerprint != history.options {
-            return Err("request_options_changed");
+            return Err(Reason::RequestOptionsChanged);
         }
-        let input = self
-            .input_fingerprints
-            .strip_prefix(history.prefix.as_slice())
-            .ok_or("input_prefix_changed")?;
-        let offset = self.input_fingerprints.len() - input.len();
+        let offset = history.prefix.len();
+        if self.input_fingerprints.len() < offset
+            || !history
+                .prefix
+                .iter()
+                .zip(&self.input_fingerprints)
+                .all(|(confirmed, input)| confirmed.matches(input))
+        {
+            return Err(Reason::InputPrefixChanged);
+        }
         if self.input[offset..].iter().any(contains_account_state) {
-            return Err("account_state_in_delta");
+            return Err(Reason::AccountStateInDelta);
         }
         Ok(offset)
     }
@@ -65,7 +89,9 @@ impl Turn {
     pub(super) fn encode(
         mut self,
         continuation: Option<(&ConfirmedHistory, usize)>,
+        turn_state: Option<&str>,
     ) -> (String, SentHistory) {
+        metadata::attach(&mut self.options, turn_state);
         self.options.insert("type".into(), "response.create".into());
         self.options.remove("previous_response_id");
         self.options.remove("conversation");
@@ -92,7 +118,7 @@ impl SentHistory {
     pub(super) fn confirm(
         &mut self,
         response_id: &str,
-        output: Vec<Fingerprint>,
+        output: Vec<HistoryItem>,
     ) -> Option<ConfirmedHistory> {
         if response_id.is_empty()
             || response_id.len() > 512
@@ -100,11 +126,19 @@ impl SentHistory {
         {
             return None;
         }
-        self.input.extend(output);
+
         Some(ConfirmedHistory {
             response_id: response_id.into(),
             options: self.options,
-            prefix: std::mem::take(&mut self.input),
+            prefix: self
+                .input
+                .drain(..)
+                .map(|original| HistoryItem {
+                    original,
+                    codex_input: None,
+                })
+                .chain(output)
+                .collect(),
         })
     }
 }
@@ -126,16 +160,40 @@ pub(super) fn fingerprint(value: &impl Serialize) -> Option<Fingerprint> {
     Some(hash.0.finalize().into())
 }
 
-pub(super) fn item_fingerprint(item: &Value) -> Option<Fingerprint> {
+pub(super) fn output_fingerprint(item: &Value) -> Option<HistoryItem> {
+    let reasoning_text = item.get("type").and_then(Value::as_str) == Some("reasoning")
+        && item
+            .get("content")
+            .and_then(Value::as_array)
+            .is_some_and(|content| {
+                content
+                    .iter()
+                    .any(|part| part.get("type").and_then(Value::as_str) == Some("reasoning_text"))
+            });
+    Some(HistoryItem {
+        original: item_fingerprint(item)?,
+        codex_input: reasoning_text
+            .then(|| fingerprint_item(item, true))
+            .flatten(),
+    })
+}
+
+fn item_fingerprint(item: &Value) -> Option<Fingerprint> {
+    fingerprint_item(item, false)
+}
+
+fn fingerprint_item(item: &Value, omit_reasoning_text: bool) -> Option<Fingerprint> {
     let Some(fields) = item.as_object() else {
         return fingerprint(item);
     };
     let reasoning = item.get("type").and_then(Value::as_str) == Some("reasoning");
     // Codex's typed history omits empty optionals and does not serialize a status on reasoning.
     // Keep all non-null attributes which could affect server-side context, including item IDs.
-    let canonical = fields
-        .iter()
-        .filter(|(key, value)| !value.is_null() && !(reasoning && key.as_str() == "status"));
+    let canonical = fields.iter().filter(|(key, value)| {
+        !value.is_null()
+            && !(reasoning && key.as_str() == "status")
+            && !(omit_reasoning_text && key.as_str() == "content")
+    });
     let mut hash = HashWriter(Sha256::new());
     let mut serializer = serde_json::Serializer::new(&mut hash);
     serializer.collect_map(canonical).ok()?;
@@ -205,42 +263,40 @@ fn portable_item<'a>(item: &'a Value, calls: &mut HashMap<&'a str, Option<&'a st
                 )
         }
         Some("reasoning") => item.get("summary").is_some_and(Value::is_array),
-        Some("function_call" | "custom_tool_call" | "tool_search_call" | "local_shell_call") => {
-            let Some(id) = call_id(item) else {
-                return false;
-            };
-            call_context_complete(item, kind.unwrap()) && calls.insert(id, kind).is_none()
+        Some("additional_tools") => {
+            item.get("role").and_then(Value::as_str) == Some("developer")
+                && item
+                    .get("tools")
+                    .and_then(Value::as_array)
+                    .is_some_and(|tools| tools.iter().all(Value::is_object))
         }
         Some(
-            kind @ ("function_call_output"
-            | "custom_tool_call_output"
-            | "tool_search_output"
-            | "local_shell_call_output"),
-        ) => {
-            let Some(called) = call_id(item).and_then(|id| calls.get_mut(id)) else {
-                return false;
-            };
-            let expected = if kind == "tool_search_output" {
-                Some("tool_search_call")
-            } else {
-                kind.strip_suffix("_output")
-            };
-            let output_key = if kind == "tool_search_output" {
-                "tools"
-            } else {
-                "output"
-            };
-            if expected == *called
-                && called.is_some()
-                && item.get(output_key).is_some_and(|value| !value.is_null())
-            {
-                *called = None;
-                return true;
-            }
-            false
-        }
+            kind @ ("function_call" | "custom_tool_call" | "tool_search_call" | "local_shell_call"),
+        ) => call_id(item).is_some_and(|id| {
+            call_context_complete(item, kind) && calls.insert(id, Some(kind)).is_none()
+        }),
+        Some("function_call_output") => match_call(item, calls, "function_call", "output"),
+        Some("custom_tool_call_output") => match_call(item, calls, "custom_tool_call", "output"),
+        Some("tool_search_output") => match_call(item, calls, "tool_search_call", "tools"),
+        Some("local_shell_call_output") => match_call(item, calls, "local_shell_call", "output"),
         _ => false,
     }
+}
+
+fn match_call<'a>(
+    item: &'a Value,
+    calls: &mut HashMap<&'a str, Option<&'a str>>,
+    expected: &str,
+    output_key: &str,
+) -> bool {
+    let Some(called) = call_id(item).and_then(|id| calls.get_mut(id)) else {
+        return false;
+    };
+    if *called != Some(expected) || !item.get(output_key).is_some_and(|value| !value.is_null()) {
+        return false;
+    }
+    *called = None;
+    true
 }
 
 fn call_context_complete(item: &Value, kind: &str) -> bool {

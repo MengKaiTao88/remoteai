@@ -55,7 +55,7 @@ fn verify_quota_http_fallback(upstream: TcpListener, accounts: &[String; 2], exp
         .unwrap();
 }
 
-fn assert_account_header(request: &Request, email: &str) {
+pub(super) fn assert_account_header(request: &Request, email: &str) {
     let auth = request
         .headers()
         .iter()
@@ -131,6 +131,41 @@ fn account_state_and_incomplete_tool_history_do_not_cross_accounts() {
     }
 }
 
+#[test]
+fn an_unscoped_account_bound_request_does_not_switch_accounts() {
+    if run_gui_runtime_test_in_subprocess() {
+        return;
+    }
+    let upstream = Server::http("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", upstream.server_addr());
+    let (fixture, accounts) = OfficialResponsesFixture::concurrent(&url, 1);
+    let worker = thread::spawn(move || {
+        let first = upstream.recv_timeout(TIMEOUT).unwrap().unwrap();
+        assert_account_header(&first, &accounts[0]);
+        first
+            .respond(
+                Response::from_string(
+                    r#"{"error":{"type":"usage_limit_reached","message":"exhausted"}}"#,
+                )
+                .with_status_code(429),
+            )
+            .unwrap();
+        if let Some(unexpected) = upstream.recv_timeout(Duration::from_millis(250)).unwrap() {
+            unexpected.respond(Response::empty(200)).unwrap();
+            panic!("account-bound request was sent to another account");
+        }
+    });
+    let input = json!([{"type":"message","role":"user","content":[{"type":"input_file","file_id":"file-a"}]}]);
+    let response = gui_runtime_client()
+        .post(format!("{}/v1/responses", fixture.base_url))
+        .bearer_auth(crate::codex_config::LOCAL_PROXY_TOKEN)
+        .json(&turn(input))
+        .send()
+        .unwrap();
+    assert_eq!(response.status().as_u16(), 429);
+    worker.join().unwrap();
+    fixture.join();
+}
 fn run_nonportable_quota_case(input: Value, index: usize) {
     let upstream = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}", upstream.local_addr().unwrap());

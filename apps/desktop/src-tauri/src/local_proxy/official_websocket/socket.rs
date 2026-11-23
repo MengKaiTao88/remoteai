@@ -1,6 +1,8 @@
 use super::super::{
     response_header_timeout, UPSTREAM_CONNECT_TIMEOUT, UPSTREAM_UPLOAD_IDLE_TIMEOUT,
 };
+use super::metadata::{self, Affinity};
+use super::outcome::Reason;
 use futures_util::FutureExt;
 use reqwest::{header, StatusCode, Upgraded, Url};
 use std::{
@@ -18,45 +20,69 @@ const DIAL_TIMEOUT: Duration = Duration::from_secs(10);
 pub(super) const READ_INTERVAL: Duration = Duration::from_secs(1);
 const CODEX_WEBSOCKET_BETA: &str = "responses_websockets=2026-02-06";
 
-pub(super) struct Socket(WebSocket<BlockingUpgrade>);
+pub(super) struct Socket {
+    socket: WebSocket<BlockingUpgrade>,
+    affinity: Option<Affinity>,
+}
 
 impl Socket {
-    pub(super) fn connect(url: &Url, headers: header::HeaderMap) -> Result<Self, &'static str> {
+    pub(super) fn connect(
+        url: &Url,
+        headers: header::HeaderMap,
+        turn_id: Option<String>,
+    ) -> Result<Self, Reason> {
         tauri::async_runtime::block_on(async {
-            let stream = tokio::time::timeout(
+            let (stream, token) = tokio::time::timeout(
                 response_header_timeout::current().min(DIAL_TIMEOUT),
                 upgrade(url, headers),
             )
             .await
-            .map_err(|_| "upgrade_timeout")??;
-            Ok(Self(WebSocket::from_raw_socket(
-                BlockingUpgrade {
-                    stream,
-                    wait: READ_INTERVAL,
-                    write_wait: READ_INTERVAL,
-                },
-                Role::Client,
-                None,
-            )))
+            .map_err(|_| Reason::UpgradeTimeout)??;
+            Ok(Self {
+                socket: WebSocket::from_raw_socket(
+                    BlockingUpgrade {
+                        stream,
+                        wait: READ_INTERVAL,
+                        write_wait: READ_INTERVAL,
+                    },
+                    Role::Client,
+                    None,
+                ),
+                affinity: Affinity::new(turn_id, token),
+            })
         })
+    }
+
+    pub(super) fn advance_turn(&mut self, turn_id: Option<String>) {
+        Affinity::advance(&mut self.affinity, turn_id);
+    }
+
+    pub(super) fn turn_state(&self) -> Option<&str> {
+        self.affinity.as_ref().and_then(Affinity::token)
+    }
+
+    pub(super) fn observe_turn_state(&mut self, state: String) {
+        if let Some(affinity) = self.affinity.as_mut() {
+            affinity.set_token(state);
+        }
     }
 
     /// Detect a peer close that arrived while idle, before any generation bytes can be written.
     pub(super) fn available(&mut self) -> bool {
-        self.0.get_mut().wait = Duration::ZERO;
+        self.socket.get_mut().wait = Duration::ZERO;
         let available = self.check_pending();
-        self.0.get_mut().wait = READ_INTERVAL;
+        self.socket.get_mut().wait = READ_INTERVAL;
         available
     }
 
     fn check_pending(&mut self) -> bool {
         const MAX_IDLE_FRAMES: usize = 8;
         for _ in 0..MAX_IDLE_FRAMES {
-            match self.0.read() {
+            match self.socket.read() {
                 Ok(Message::Ping(_) | Message::Pong(_)) => {}
                 Ok(Message::Text(text)) if is_rate_limit_event(&text) => {}
                 Err(Error::Io(error)) if error.kind() == io::ErrorKind::WouldBlock => {
-                    return self.0.can_write();
+                    return self.socket.can_write();
                 }
                 _ => return false,
             }
@@ -65,15 +91,15 @@ impl Socket {
     }
 
     pub(super) fn send(&mut self, request: String) -> tungstenite::Result<()> {
-        self.0.get_mut().write_wait = UPSTREAM_UPLOAD_IDLE_TIMEOUT;
-        let result = self.0.send(Message::text(request));
-        self.0.get_mut().write_wait = READ_INTERVAL;
+        self.socket.get_mut().write_wait = UPSTREAM_UPLOAD_IDLE_TIMEOUT;
+        let result = self.socket.send(Message::text(request));
+        self.socket.get_mut().write_wait = READ_INTERVAL;
         result
     }
 
     pub(super) fn read(&mut self, wait: Duration) -> tungstenite::Result<Message> {
-        self.0.get_mut().wait = wait;
-        self.0.read()
+        self.socket.get_mut().wait = wait;
+        self.socket.read()
     }
 }
 
@@ -84,7 +110,10 @@ fn is_rate_limit_event(text: &str) -> bool {
         .is_some_and(|kind| kind == "codex.rate_limits")
 }
 
-async fn upgrade(url: &Url, mut headers: header::HeaderMap) -> Result<Upgraded, &'static str> {
+async fn upgrade(
+    url: &Url,
+    mut headers: header::HeaderMap,
+) -> Result<(Upgraded, Option<String>), Reason> {
     // Resolve the same PAC, HTTP CONNECT and SOCKS proxy configuration as HTTP forwarding.
     let client = crate::system_proxy::apply_async(
         reqwest::Client::builder()
@@ -94,9 +123,9 @@ async fn upgrade(url: &Url, mut headers: header::HeaderMap) -> Result<Upgraded, 
         url,
     )
     .await
-    .map_err(|_| "proxy_resolution")?
+    .map_err(|_| Reason::ProxyResolution)?
     .build()
-    .map_err(|_| "upgrade_client")?;
+    .map_err(|_| Reason::UpgradeClient)?;
     let key = generate_key();
     headers.insert(
         header::CONNECTION,
@@ -120,11 +149,16 @@ async fn upgrade(url: &Url, mut headers: header::HeaderMap) -> Result<Upgraded, 
         .header(header::SEC_WEBSOCKET_KEY, &key)
         .send()
         .await
-        .map_err(|_| "upgrade_connect")?;
+        .map_err(|_| Reason::UpgradeConnect)?;
     if !valid_upgrade(&response, &key) {
-        return Err("upgrade_rejected");
+        return Err(Reason::UpgradeRejected);
     }
-    response.upgrade().await.map_err(|_| "upgrade_stream")
+    let token = metadata::upgrade_turn_state(response.headers());
+    let stream = response
+        .upgrade()
+        .await
+        .map_err(|_| Reason::UpgradeStream)?;
+    Ok((stream, token))
 }
 
 fn valid_upgrade(response: &reqwest::Response, key: &str) -> bool {
@@ -163,25 +197,23 @@ impl Read for BlockingUpgrade {
             return tauri::async_runtime::block_on(async {
                 operation
                     .now_or_never()
-                    .ok_or_else(|| io::Error::from(io::ErrorKind::WouldBlock))?
+                    .unwrap_or_else(|| Err(io::ErrorKind::WouldBlock.into()))
             });
         }
-        tauri::async_runtime::block_on(async {
-            Ok(tokio::time::timeout(self.wait, operation).await??)
-        })
+        tauri::async_runtime::block_on(async { tokio::time::timeout(self.wait, operation).await? })
     }
 }
 
 impl Write for BlockingUpgrade {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         tauri::async_runtime::block_on(async {
-            Ok(tokio::time::timeout(self.write_wait, self.stream.write(bytes)).await??)
+            tokio::time::timeout(self.write_wait, self.stream.write(bytes)).await?
         })
     }
 
     fn flush(&mut self) -> io::Result<()> {
         tauri::async_runtime::block_on(async {
-            Ok(tokio::time::timeout(self.write_wait, self.stream.flush()).await??)
+            tokio::time::timeout(self.write_wait, self.stream.flush()).await?
         })
     }
 }

@@ -58,7 +58,7 @@ fn send_aggregate_attempt<R: Runtime>(
     request: &AggregateForwardRequest<'_>,
     lease: aggregate_scheduler::MemberLease,
 ) -> (Result<UpstreamPayload, String>, bool) {
-    official_websocket::allow_replay_for_attempt();
+    official_websocket::begin_attempt();
     let (result, network) =
         failover_transport::capture(|| send_aggregate_member(app, request, lease.member_id()));
     if result
@@ -72,12 +72,13 @@ fn send_aggregate_attempt<R: Runtime>(
     }
     let (outcome, retry) =
         aggregate_failure_decision(&request.target.config.failover_policy, &result, network);
+    let retry = retry && official_websocket::attempt_can_change_route();
     diagnostic_event(
         json!({ "event": "aggregate_attempt_failed", "providerId": lease.member_id(),
         "retryable": retry, "status": result.as_ref().ok().map(|payload| payload.status) }),
     );
     lease.finish(outcome);
-    (result, retry && official_websocket::attempt_can_replay())
+    (result, retry)
 }
 
 fn send_aggregate_member<R: Runtime>(

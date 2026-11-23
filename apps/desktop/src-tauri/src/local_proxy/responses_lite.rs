@@ -83,7 +83,7 @@ pub(super) fn decode<'a>(body: &'a [u8], encoding: &str) -> Result<Cow<'a, [u8]>
     Ok(Cow::Owned(decoded))
 }
 
-fn encode(body: &[u8], encoding: &str) -> Result<Vec<u8>, RequestError> {
+pub(super) fn encode(body: &[u8], encoding: &str) -> Result<Vec<u8>, RequestError> {
     match encoding.trim().to_ascii_lowercase().as_str() {
         "" | "identity" => Ok(body.to_vec()),
         "zstd" => zstd::stream::encode_all(body, 0)

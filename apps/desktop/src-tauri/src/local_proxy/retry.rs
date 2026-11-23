@@ -60,22 +60,25 @@ where
         attempt = attempt.saturating_add(1);
         let started = Instant::now();
         diagnostic_event(json!({ "event": "upstream_attempt_started", "attempt": attempt }));
-        official_websocket::allow_replay_for_attempt();
+        official_websocket::begin_attempt();
         let result = request();
         diagnostic_attempt(&result, attempt, started);
         let response = result?;
         // A confirmed concurrent quota failure invalidates cached eligibility before
         // any backoff, including when the normal 429 retry budget is exhausted.
         let excluded = concurrent_quota::exclude_response(&response)?;
-        if !official_websocket::attempt_can_replay() {
-            return Ok(response);
-        }
+        let can_change_route = official_websocket::attempt_can_change_route();
         if excluded {
+            if !can_change_route {
+                return Ok(response);
+            }
             diagnostic_retry("concurrent_account_excluded", Duration::ZERO);
             record_retried_proxy_response(&response);
             continue;
         }
-        if switch_exhausted_account(&response, &mut quota_retry, &mut handle_quota_event) {
+        if can_change_route
+            && switch_exhausted_account(&response, &mut quota_retry, &mut handle_quota_event)
+        {
             diagnostic_retry("quota_account_switch", Duration::ZERO);
             record_retried_proxy_response(&response);
             continue;
@@ -92,6 +95,12 @@ where
             diagnostic_event(json!({ "event": "retry_budget_exhausted", "attempt": attempt }));
             let _ = handle_quota_event(&response, UpstreamQuotaEvent::RetryTimedOut);
             return Ok(response);
+        }
+        if !can_change_route {
+            let Some(account) = response.token_usage_account.as_ref() else {
+                return Ok(response);
+            };
+            official_websocket::pin_retry_account(&account.account_id);
         }
         record_retried_proxy_response(&response);
     }

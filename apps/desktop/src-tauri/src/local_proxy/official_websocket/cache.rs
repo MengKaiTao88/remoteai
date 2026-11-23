@@ -1,4 +1,4 @@
-use super::{request::ConfirmedHistory, socket::Socket};
+use super::{outcome::Reason, request::ConfirmedHistory, socket::Socket};
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -10,8 +10,7 @@ const MAX_CONNECTIONS: usize = 32;
 const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const MAX_TRACKED_OWNERS: usize = 256;
 const OWNER_IDLE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
-static CACHE: OnceLock<Mutex<HashMap<Scope, Slot>>> = OnceLock::new();
-static OWNERS: OnceLock<Mutex<HashMap<Scope, AccountUse>>> = OnceLock::new();
+static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub(super) struct Scope {
@@ -34,37 +33,38 @@ pub(super) struct Connection {
     pub(super) history: ConfirmedHistory,
 }
 
-struct AccountUse {
-    id: String,
-    last_used: Instant,
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum AccountRoute {
+    Unknown,
+    SameAccount,
+    ChangedAccount,
+    Unavailable,
 }
 
-pub(super) fn account_allowed(scope: &Scope, account: &str, account_bound: bool) -> bool {
-    let mut owners = match OWNERS.get_or_init(Mutex::default).lock() {
-        Ok(owners) => owners,
-        Err(_) => return !account_bound,
+pub(super) fn account_route(scope: &Scope, account: &str) -> AccountRoute {
+    let Ok(mut cache) = cache().lock() else {
+        return AccountRoute::Unavailable;
     };
-    owners.retain(|_, owner| owner.last_used.elapsed() < OWNER_IDLE_TIMEOUT);
-    if account_bound && owners.get(scope).is_some_and(|owner| owner.id != account) {
-        return false;
+    cache.prune();
+    match cache
+        .get(scope)
+        .and_then(|session| session.account.as_ref())
+    {
+        Some(owner) if owner.id != account => AccountRoute::ChangedAccount,
+        Some(_) => AccountRoute::SameAccount,
+        None => AccountRoute::Unknown,
     }
-    if !owners.contains_key(scope) && owners.len() >= MAX_TRACKED_OWNERS {
-        let oldest = owners
-            .iter()
-            .min_by_key(|(_, owner)| owner.last_used)
-            .map(|(scope, _)| scope.clone());
-        if let Some(oldest) = oldest {
-            owners.remove(&oldest);
-        }
+}
+
+pub(super) fn record_account(scope: &Scope, account: &str) {
+    if let Ok(mut cache) = cache().lock() {
+        cache.record_account(scope, account);
     }
-    owners.insert(
-        scope.clone(),
-        AccountUse {
-            id: account.into(),
-            last_used: Instant::now(),
-        },
-    );
-    true
+}
+
+struct AccountUse {
+    id: String,
+    since: Instant,
 }
 
 enum Slot {
@@ -77,42 +77,148 @@ enum Slot {
     },
 }
 
+#[derive(Default)]
+struct Session {
+    account: Option<AccountUse>,
+    socket: Option<Slot>,
+}
+
 pub(super) struct Lease(Option<Scope>);
 
-type Cache = HashMap<Scope, Slot>;
+#[derive(Default)]
+struct Cache(HashMap<Scope, Session>);
 
-impl Lease {
-    pub(super) fn take(scope: Scope) -> Result<(Self, Option<Connection>), &'static str> {
-        let mut cache = cache().lock().map_err(|_| "cache_unavailable")?;
-        cache.retain(|_, slot| match slot {
-            Slot::Idle { since, .. } => since.elapsed() < IDLE_TIMEOUT,
-            Slot::Leased { .. } => true,
+impl std::ops::Deref for Cache {
+    type Target = HashMap<Scope, Session>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Cache {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Cache {
+    fn prune(&mut self) {
+        self.retain(|_, session| {
+            if matches!(&session.socket, Some(Slot::Idle { since, .. }) if since.elapsed() >= IDLE_TIMEOUT) {
+                session.socket = None;
+            }
+            if session.account.as_ref().is_some_and(|owner| owner.since.elapsed() >= OWNER_IDLE_TIMEOUT) {
+                session.account = None;
+            }
+            session.socket.is_some() || session.account.is_some()
         });
-        if let Some(Slot::Leased { invalidated }) = cache.get_mut(&scope) {
-            *invalidated = true;
-            return Err("conversation_busy");
+    }
+
+    fn record_account(&mut self, scope: &Scope, account: &str) {
+        self.prune();
+        let new_owner = self
+            .get(scope)
+            .is_none_or(|session| session.account.is_none());
+        if new_owner
+            && self
+                .values()
+                .filter(|session| session.account.is_some())
+                .count()
+                >= MAX_TRACKED_OWNERS
+        {
+            self.evict_oldest_owner();
         }
-        if !cache.contains_key(&scope) && cache.len() >= MAX_CONNECTIONS {
-            evict_idle(&mut cache)?;
+        let entry = self.entry(scope.clone()).or_default();
+        if matches!(&entry.socket, Some(Slot::Idle { connection, .. }) if connection.owner.account != account)
+        {
+            entry.socket = None;
         }
-        let prior = cache.insert(scope.clone(), Slot::Leased { invalidated: false });
-        let connection = match prior {
+        entry.account = Some(AccountUse {
+            id: account.into(),
+            since: Instant::now(),
+        });
+    }
+
+    fn evict_oldest_owner(&mut self) {
+        let oldest = self
+            .iter()
+            .filter_map(|(scope, session)| {
+                let owner = session.account.as_ref()?;
+                session.socket.is_none().then_some((scope, owner.since))
+            })
+            .min_by_key(|(_, since)| *since)
+            .map(|(scope, _)| scope.clone());
+        if let Some(scope) = oldest {
+            self.remove(&scope);
+        }
+    }
+
+    fn reserve_socket(&mut self, scope: &Scope) -> Result<Option<Connection>, Reason> {
+        self.prune();
+        if let Some(session) = self.get_mut(scope) {
+            if let Some(Slot::Leased { invalidated }) = &mut session.socket {
+                *invalidated = true;
+                return Err(Reason::ConversationBusy);
+            }
+        }
+        if self.values().filter(|entry| entry.socket.is_some()).count() >= MAX_CONNECTIONS
+            && self
+                .get(scope)
+                .is_none_or(|session| session.socket.is_none())
+        {
+            self.evict_idle_socket()?;
+        }
+        let session = self.entry(scope.clone()).or_default();
+        let previous = session.socket.replace(Slot::Leased { invalidated: false });
+        Ok(match previous {
             Some(Slot::Idle { connection, .. }) => Some(*connection),
             _ => None,
-        };
-        Ok((Self(Some(scope)), connection))
+        })
+    }
+
+    fn evict_idle_socket(&mut self) -> Result<(), Reason> {
+        let session = self
+            .values_mut()
+            .filter_map(|session| match &session.socket {
+                Some(Slot::Idle { since, .. }) => Some((*since, session)),
+                _ => None,
+            })
+            .min_by_key(|(since, _)| *since)
+            .map(|(_, session)| session)
+            .ok_or(Reason::CacheFull)?;
+        session.socket = None;
+        Ok(())
+    }
+}
+
+impl Lease {
+    pub(super) fn take(scope: Scope) -> Result<(Self, Option<Connection>), Reason> {
+        let mut cache = cache().lock().map_err(|_| Reason::CacheUnavailable)?;
+        let previous = cache.reserve_socket(&scope)?;
+        Ok((Self(Some(scope)), previous))
+    }
+
+    pub(super) fn record_account(&self, account: &str) {
+        if let Some(scope) = self.0.as_ref() {
+            record_account(scope, account);
+        }
     }
 
     pub(super) fn retain(mut self, connection: Connection) {
-        if let Ok(mut cache) = cache().lock() {
-            let scope = self.0.as_ref().expect("active cache lease");
-            if let Some(slot @ Slot::Leased { invalidated: false }) = cache.get_mut(scope) {
-                *slot = Slot::Idle {
-                    connection: Box::new(connection),
-                    since: Instant::now(),
-                };
-                self.0 = None;
-            }
+        let Some(scope) = self.0.as_ref() else { return };
+        let Ok(mut cache) = cache().lock() else {
+            return;
+        };
+        let Some(slot) = cache.get_mut(scope).map(|session| &mut session.socket) else {
+            return;
+        };
+        if matches!(slot, Some(Slot::Leased { invalidated: false })) {
+            *slot = Some(Slot::Idle {
+                connection: Box::new(connection),
+                since: Instant::now(),
+            });
+            self.0 = None;
         }
     }
 }
@@ -120,58 +226,44 @@ impl Lease {
 impl Drop for Lease {
     fn drop(&mut self) {
         let Some(scope) = self.0.take() else { return };
-        if let Ok(mut cache) = cache().lock() {
-            cache.remove(&scope);
+        let Ok(mut cache) = cache().lock() else {
+            return;
+        };
+        if let Some(session) = cache.get_mut(&scope) {
+            session.socket = None;
         }
     }
 }
 
 fn cache() -> &'static Mutex<Cache> {
-    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+    CACHE.get_or_init(Mutex::default)
 }
 
-fn evict_idle(cache: &mut Cache) -> Result<(), &'static str> {
-    let oldest = cache
-        .iter()
-        .filter_map(|(scope, slot)| match slot {
-            Slot::Idle { since, .. } => Some((scope, since)),
-            Slot::Leased { .. } => None,
-        })
-        .min_by_key(|(_, since)| *since)
-        .map(|(scope, _)| scope.clone())
-        .ok_or("cache_full")?;
-    cache.remove(&oldest);
-    Ok(())
-}
-
-pub(super) fn invalidate(scope: &Scope) {
-    let Ok(mut cache) = cache().lock() else {
-        return;
-    };
-    match cache.get_mut(scope) {
+fn invalidate_socket(slot: &mut Option<Slot>) {
+    match slot {
         Some(Slot::Leased { invalidated }) => *invalidated = true,
-        Some(Slot::Idle { .. }) => {
-            cache.remove(scope);
-        }
+        Some(Slot::Idle { .. }) => *slot = None,
         None => {}
     }
 }
 
-pub(super) fn clear(gui: bool) {
-    if let Ok(mut owners) = OWNERS.get_or_init(Mutex::default).lock() {
-        owners.retain(|scope, _| scope.gui != gui);
+pub(super) fn invalidate(scope: &Scope) {
+    if let Ok(mut cache) = cache().lock() {
+        if let Some(session) = cache.get_mut(scope) {
+            invalidate_socket(&mut session.socket);
+        }
     }
-    let Ok(mut cache) = cache().lock() else {
-        return;
-    };
-    cache.retain(|scope, slot| {
-        if scope.gui != gui {
-            return true;
-        }
-        if let Slot::Leased { invalidated } = slot {
-            *invalidated = true;
-            return true;
-        }
-        false
-    });
+}
+
+pub(super) fn clear(gui: bool) {
+    if let Ok(mut cache) = cache().lock() {
+        cache.retain(|scope, session| {
+            if scope.gui != gui {
+                return true;
+            }
+            session.account = None;
+            invalidate_socket(&mut session.socket);
+            session.socket.is_some()
+        });
+    }
 }

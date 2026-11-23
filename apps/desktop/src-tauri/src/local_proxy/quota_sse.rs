@@ -6,8 +6,8 @@ use super::{UpstreamBody, UpstreamPayload};
 use serde_json::{json, Value};
 use std::io::{self, Cursor, Read};
 
-const MAX_OPENING_BYTES: usize = 64 * 1024;
-const MAX_OPENING_EVENTS: usize = 8;
+pub(super) const MAX_OPENING_BYTES: usize = 64 * 1024;
+pub(super) const MAX_OPENING_EVENTS: usize = 8;
 const READ_BUFFER_BYTES: usize = 4096;
 
 #[derive(Default)]
@@ -17,7 +17,7 @@ struct OpeningProbe {
     inspected_events: usize,
 }
 
-enum EventOutcome {
+pub(super) enum EventOutcome {
     Opening,
     Forward,
     Quota(Value),
@@ -121,7 +121,7 @@ fn inspect_event(bytes: &[u8]) -> EventOutcome {
     classify_event(&value, event_type)
 }
 
-fn classify_event(value: &Value, event_type: Option<&str>) -> EventOutcome {
+pub(super) fn classify_event(value: &Value, event_type: Option<&str>) -> EventOutcome {
     let payload_type = value.get("type").and_then(Value::as_str);
     let conflicting_type = event_type
         .zip(payload_type)
@@ -130,18 +130,12 @@ fn classify_event(value: &Value, event_type: Option<&str>) -> EventOutcome {
         return EventOutcome::Forward;
     }
     let kind = payload_type.or(event_type);
+    if kind.is_some_and(is_opening_event) {
+        return EventOutcome::Opening;
+    }
     let error = match kind {
         Some("response.failed") => value.pointer("/response/error"),
         Some("error") => Some(value.get("error").unwrap_or(value)),
-        Some(
-            "response.created"
-            | "response.in_progress"
-            | "response.metadata"
-            | "codex.response.metadata"
-            | "codex.rate_limits",
-        ) => {
-            return EventOutcome::Opening;
-        }
         _ => return EventOutcome::Forward,
     };
     match error.filter(|error| is_explicit_quota_error(error)) {
@@ -150,7 +144,18 @@ fn classify_event(value: &Value, event_type: Option<&str>) -> EventOutcome {
     }
 }
 
-fn response_contains_output(value: &Value) -> bool {
+pub(super) fn is_opening_event(kind: &str) -> bool {
+    matches!(
+        kind,
+        "response.created"
+            | "response.in_progress"
+            | "response.metadata"
+            | "codex.response.metadata"
+            | "codex.rate_limits"
+    )
+}
+
+pub(super) fn response_contains_output(value: &Value) -> bool {
     [value.get("output"), value.pointer("/response/output")]
         .into_iter()
         .flatten()
