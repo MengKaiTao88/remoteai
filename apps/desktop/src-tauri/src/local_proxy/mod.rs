@@ -47,6 +47,7 @@ mod official_context_startup;
 mod official_input;
 mod official_model_cache;
 mod official_model_request;
+mod official_websocket;
 mod provider_reasoning;
 mod provider_request_options;
 mod provider_tool_schema;
@@ -177,6 +178,7 @@ mod tests {
     include!("tests/token_usage_responsiveness.rs");
     include!("tests/token_usage_capture.rs");
     include!("tests/official_service_tier_capture.rs");
+    mod official_websocket;
     include!("tests/auto_switch_retry.rs");
     include!("tests/authentication_retry.rs");
     include!("tests/authentication_http.rs");

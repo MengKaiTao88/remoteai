@@ -57,6 +57,14 @@ pub(super) fn record(error: Option<&Error>) {
     });
 }
 
+pub(super) fn record_ambiguous_send() {
+    CURRENT.with(|current| {
+        if let Some(failure) = current.borrow_mut().as_mut() {
+            *failure = Some(NetworkFailure { replay_safe: false });
+        }
+    });
+}
+
 fn classify(error: &Error) -> Option<NetworkFailure> {
     let replay_safe = match error {
         Error::Http { source, sent_bytes } if !source.is_builder() => {

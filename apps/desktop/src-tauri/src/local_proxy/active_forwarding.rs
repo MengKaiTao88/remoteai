@@ -86,6 +86,9 @@ fn forward_active_request<R: Runtime>(
                     account_id_override: Some(account_id),
                 });
             }
+            if *method == Method::Post {
+                official_websocket::invalidate(app, headers);
+            }
             if is_anthropic_messages_endpoint(request_path(url)) {
                 let settings = read_app_settings(app)?;
                 let subagent_model =

@@ -26,6 +26,12 @@ HTTP 200 不代表模型回复成功。例如上游返回 `response protection i
 `request_received.headers.threadId.hash` 和时间关联，不会误计为代理内部重试。
 版本 3 新增毫秒时间戳 `tsMs`，保留原有秒级 `ts`。
 
+## 官方 Codex 上游续接
+
+在应用数据目录的 `settings.json` 中设置 `"officialCodexWebsocketEnabled": true`，即可对符合条件的官方 Codex 流式生成请求启用续接。初始值为 `false`，改回 `false` 后的新请求恢复 HTTP 上游转发。Codex 仍使用原有的本地 HTTP 地址。会话在首轮发送完整输入，后续在同一连接和账号下确认历史前缀后只发送新增输入。发生明确的额度拒绝时，原有路由规则可为完整、可重放的请求选择备用账号，备用账号从完整输入开始。发送生成请求前建连失败会走 HTTP。已开始出流或送达不明时，当前请求保留原有失败结果。
+
+按 `requestId` 汇总 `official_upstream_upload` 的 `bodyBytes` 可对照 HTTP 请求体和 WebSocket 请求 JSON 的大小。`mode` 区分完整发送和增量发送，`official_websocket_reconnect` 和 `official_websocket_fallback` 记录重连及回退原因。这些字段不含请求内容，不计算网络头、帧开销或其他应用流量。
+
 ## 隐私与限制
 
 这是一份脱敏诊断记录，不是完整网络抓包。不记录请求正文、正常回复、工具输出、认证头或 Cookie；

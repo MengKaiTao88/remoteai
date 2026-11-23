@@ -60,12 +60,17 @@ where
         attempt = attempt.saturating_add(1);
         let started = Instant::now();
         diagnostic_event(json!({ "event": "upstream_attempt_started", "attempt": attempt }));
+        official_websocket::allow_replay_for_attempt();
         let result = request();
         diagnostic_attempt(&result, attempt, started);
         let response = result?;
         // A confirmed concurrent quota failure invalidates cached eligibility before
         // any backoff, including when the normal 429 retry budget is exhausted.
-        if concurrent_quota::exclude_response(&response)? {
+        let excluded = concurrent_quota::exclude_response(&response)?;
+        if !official_websocket::attempt_can_replay() {
+            return Ok(response);
+        }
+        if excluded {
             diagnostic_retry("concurrent_account_excluded", Duration::ZERO);
             record_retried_proxy_response(&response);
             continue;

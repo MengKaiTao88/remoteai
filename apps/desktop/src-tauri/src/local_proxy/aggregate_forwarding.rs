@@ -58,6 +58,7 @@ fn send_aggregate_attempt<R: Runtime>(
     request: &AggregateForwardRequest<'_>,
     lease: aggregate_scheduler::MemberLease,
 ) -> (Result<UpstreamPayload, String>, bool) {
+    official_websocket::allow_replay_for_attempt();
     let (result, network) =
         failover_transport::capture(|| send_aggregate_member(app, request, lease.member_id()));
     if result
@@ -76,7 +77,7 @@ fn send_aggregate_attempt<R: Runtime>(
         "retryable": retry, "status": result.as_ref().ok().map(|payload| payload.status) }),
     );
     lease.finish(outcome);
-    (result, retry)
+    (result, retry && official_websocket::attempt_can_replay())
 }
 
 fn send_aggregate_member<R: Runtime>(
@@ -93,6 +94,9 @@ fn send_aggregate_member<R: Runtime>(
     let model = aggregate_api::member_model(&request.target.config, member_id);
     if let Some(account_id) = aggregate_api::member_account_id(member_id) {
         return forward_aggregate_official(app, request, account_id, model);
+    }
+    if *request.method == Method::Post {
+        official_websocket::invalidate(app, request.headers);
     }
     let provider = aggregate_api::force_aggregate_model(provider, model);
     if is_anthropic_messages_endpoint(request_path(request.url)) {

@@ -19,6 +19,10 @@ fn handle_proxy_request<R: Runtime>(
         }
     })?;
     let _transport_scope = transport_settings::RequestScope::enter(settings.proxy_transport);
+    let _websocket_scope = official_websocket::RequestScope::enter(
+        settings.official_codex_websocket_enabled,
+        gui_routing::upstream_path(url).is_some(),
+    );
     let _timeout_scope = sse_idle_timeout::RequestScope::enter(settings.sse_idle_timeout);
     let _header_timeout_scope =
         response_header_timeout::RequestScope::enter(settings.response_header_timeout);

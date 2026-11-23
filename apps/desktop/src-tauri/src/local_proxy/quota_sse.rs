@@ -137,7 +137,8 @@ fn classify_event(value: &Value, event_type: Option<&str>) -> EventOutcome {
             "response.created"
             | "response.in_progress"
             | "response.metadata"
-            | "codex.response.metadata",
+            | "codex.response.metadata"
+            | "codex.rate_limits",
         ) => {
             return EventOutcome::Opening;
         }

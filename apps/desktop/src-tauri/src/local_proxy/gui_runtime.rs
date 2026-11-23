@@ -83,6 +83,7 @@ pub(crate) fn shutdown<R: Runtime>(app: &tauri::AppHandle<R>) {
     if let Some(runtime) = runtime {
         stop_proxy_runtime(runtime);
     }
+    super::official_websocket::clear(true);
 }
 
 pub(super) fn service_tier<R: Runtime>(app: &tauri::AppHandle<R>) -> ProxyServiceTier {

@@ -46,7 +46,10 @@ fn forward_official_upstream<R: Runtime>(
         },
     ) {
         Ok(credentials) => credentials,
-        Err(error) => return error.into_response(),
+        Err(error) => {
+            official_websocket::guard_credential_replay(method, &upstream_endpoint, headers, &body);
+            return error.into_response();
+        }
     };
     diagnostic_event(json!({
         "event": "official_credentials_ready",
@@ -54,20 +57,30 @@ fn forward_official_upstream<R: Runtime>(
     }));
     let upstream_url = official_url(&upstream_endpoint);
     let body = official_body_for_upstream(method, &upstream_endpoint, body, model);
-    let mut payload = send_official_request(
-        &client,
+    let body = prepare_official_body(method, &upstream_url, headers, body)?;
+    let mut payload = match official_websocket::send(official_websocket::Request {
+        app,
+        client: &client,
         method,
-        &upstream_url,
+        path: &upstream_endpoint,
+        url: &upstream_url,
         headers,
-        body.as_slice(),
-        &credentials.authentication,
-    )?;
+        body: &body,
+        model,
+        authentication: &credentials.authentication,
+        account: &credentials.token_usage_account.account_id,
+    }) {
+        Some(result) => result?,
+        None => send_prepared_official_request(
+            &client, method, &upstream_url, headers, &body, &credentials.authentication,
+        )?,
+    };
     if invalid_agent_identity_task_response(&credentials.authentication, &payload) {
         diagnostic_retry("agent_identity_task_refresh", Duration::ZERO);
         record_retried_proxy_response(&payload);
         // Recalculate discovery's remaining credential budget before another network operation.
         refresh_agent_identity_task(&mut credentials.authentication, app, &http_client()?)?;
-        payload = send_official_request(
+        payload = send_prepared_official_request(
             &client,
             method,
             &upstream_url,
@@ -77,6 +90,7 @@ fn forward_official_upstream<R: Runtime>(
         )?;
     }
     payload.token_usage_account = Some(credentials.token_usage_account);
+    payload.token_usage_service_tier = forwarded_request_service_tier(&body, headers);
     Ok(payload)
 }
 
@@ -88,41 +102,54 @@ fn send_official_request(
     body: &[u8],
     authentication: &OfficialRequestAuthentication,
 ) -> Result<UpstreamPayload, String> {
-    let body = responses_lite::prepare(method, upstream_url, headers, body.to_vec())
+    let body = prepare_official_body(method, upstream_url, headers, body.to_vec())?;
+    send_prepared_official_request(client, method, upstream_url, headers, &body, authentication)
+}
+
+fn prepare_official_body(
+    method: &Method,
+    upstream_url: &str,
+    headers: &[(String, String)],
+    body: Vec<u8>,
+) -> Result<Vec<u8>, String> {
+    let body = responses_lite::prepare(method, upstream_url, headers, body)
         .map_err(|error| error.wire())?;
     diagnostic_event(json!({
         "event": "official_request_prepared", "request": diagnostic_request_options(&body),
         "responsesLite": responses_lite::enabled(headers)
     }));
+    Ok(body)
+}
+
+fn send_prepared_official_request(
+    client: &Client,
+    method: &Method,
+    upstream_url: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+    authentication: &OfficialRequestAuthentication,
+) -> Result<UpstreamPayload, String> {
     let request_method = reqwest_method(method)?;
+    let filtered_headers;
+    let headers = if official_websocket::strip_old_routing_hint() {
+        filtered_headers = headers.iter()
+            .filter(|(name, _)| !name.eq_ignore_ascii_case("x-codex-routing-hint"))
+            .cloned().collect::<Vec<_>>();
+        &filtered_headers
+    } else {
+        headers
+    };
+    diagnostic_event(json!({
+        "event": "official_upstream_upload", "transport": "http",
+        "mode": "full", "bodyBytes": body.len()
+    }));
     let response = send_with_timeout_retries(
         || {
-            let mut request = client
+            let request = client
                 .request(request_method.clone(), upstream_url)
                 .header("originator", ORIGINATOR)
                 .header("User-Agent", "codex_cli_rs/0.1.0");
-            match authentication {
-                OfficialRequestAuthentication::OAuth {
-                    access_token,
-                    chatgpt_account_id,
-                } => {
-                    request = request.bearer_auth(access_token);
-                    if let Some(account_id) = chatgpt_account_id {
-                        request = request.header("ChatGPT-Account-Id", account_id);
-                    }
-                }
-                OfficialRequestAuthentication::AgentIdentity {
-                    request_authentication,
-                    ..
-                } => {
-                    request = request
-                        .header("Authorization", &request_authentication.authorization)
-                        .header("ChatGPT-Account-Id", &request_authentication.account_id);
-                    if request_authentication.is_fedramp {
-                        request = request.header("x-openai-fedramp", "true");
-                    }
-                }
-            }
+            let request = apply_official_authentication(request, authentication);
             let request = apply_forward_headers(request, headers, true);
             official_model_request::apply_user_agent(request, method, upstream_url, headers)
                 .body(body.to_vec())
@@ -130,8 +157,31 @@ fn send_official_request(
         "Official Codex proxy request failed",
     )?;
     let mut payload = quota_sse::inspect_initial_official_sse(stream_response(response)?)?;
-    payload.token_usage_service_tier = forwarded_request_service_tier(&body, headers);
+    payload.token_usage_service_tier = forwarded_request_service_tier(body, headers);
     Ok(payload)
+}
+
+fn apply_official_authentication(
+    mut request: RequestBuilder,
+    authentication: &OfficialRequestAuthentication,
+) -> RequestBuilder {
+    match authentication {
+        OfficialRequestAuthentication::OAuth { access_token, chatgpt_account_id } => {
+            request = request.bearer_auth(access_token);
+            if let Some(account_id) = chatgpt_account_id {
+                request = request.header("ChatGPT-Account-Id", account_id);
+            }
+        }
+        OfficialRequestAuthentication::AgentIdentity { request_authentication, .. } => {
+            request = request
+                .header("Authorization", &request_authentication.authorization)
+                .header("ChatGPT-Account-Id", &request_authentication.account_id);
+            if request_authentication.is_fedramp {
+                request = request.header("x-openai-fedramp", "true");
+            }
+        }
+    }
+    request
 }
 
 fn official_body_for_upstream(method: &Method, url: &str, body: Vec<u8>, model: &str) -> Vec<u8> {

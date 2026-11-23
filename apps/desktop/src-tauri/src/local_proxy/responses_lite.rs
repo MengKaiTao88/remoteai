@@ -57,7 +57,7 @@ fn is_responses_url(value: &str) -> bool {
     super::is_responses_endpoint(super::request_path(path))
 }
 
-fn decode<'a>(body: &'a [u8], encoding: &str) -> Result<Cow<'a, [u8]>, RequestError> {
+pub(super) fn decode<'a>(body: &'a [u8], encoding: &str) -> Result<Cow<'a, [u8]>, RequestError> {
     // Lite compatibility must not impose a body-size limit on otherwise valid conversations.
     // Uncompressed requests are already buffered by the request worker; avoid copying them again.
     let mut reader: Box<dyn Read + '_> = match encoding.trim().to_ascii_lowercase().as_str() {

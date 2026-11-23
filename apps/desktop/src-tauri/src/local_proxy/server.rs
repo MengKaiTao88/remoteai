@@ -245,6 +245,7 @@ fn stop_server() {
     }
     clear_proxy_session_routing();
     aggregate_scheduler::clear();
+    official_websocket::clear(false);
 }
 
 #[derive(Clone, Copy)]
