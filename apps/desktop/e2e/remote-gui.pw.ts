@@ -54,6 +54,30 @@ async function chooseHost(page: Page, name: string) {
   await expect(page.getByRole('menu', { name: '主机列表' })).toBeHidden();
 }
 
+test('selects an installed plugin from slash suggestions in remote desktop mode', async ({ context, page }, info) => {
+  test.setTimeout(90_000);
+  const host = await context.newPage();
+  await host.goto(`/e2e/chat-harness.html?role=desktop&demo&device=computer-one&blocked=false&title=Plugin%20fixture`
+    + `&socket=${encodeURIComponent(endpoint)}`);
+  await expect(host.locator('#status')).toHaveText('registered');
+  await page.bringToFront();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/e2e/remote-gui-harness.html?settings&dark&socket=${encodeURIComponent(endpoint)}`);
+  await chooseHost(page, 'Office PC');
+  await expect(page.locator('.gui-remote-workspace:visible .chat-connection-status'))
+    .toContainText('P2P', { timeout: 30_000 });
+  await page.getByRole('button', { name: 'Plugin fixture', exact: true }).click();
+  const input = page.getByRole('textbox', { name: '聊天消息', exact: true });
+  await input.fill('检查项目 /git');
+  await expect(page.getByRole('menuitem', { name: '使用插件 GitHub', exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('remote-plugin-menu.png'), animations: 'disabled' });
+  await input.press('Enter');
+  await expect(input).toHaveValue('检查项目 ');
+  await expect(page.getByRole('button', { name: '移除GitHub', exact: true })).toBeVisible();
+  expect(await host.evaluate(() => window.chatTest.demoState().operations.filter(row => row.operation === 'send')))
+    .toEqual([]);
+});
+
 test('remote desktop preserves an unavailable model and restores sending after account recovery',
   async ({ context, page }) => {
     const host = await context.newPage();

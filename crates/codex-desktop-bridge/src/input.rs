@@ -1,4 +1,4 @@
-//! Bounded image inputs; all validation completes before uploading or submitting a turn.
+//! Bounded image and plugin inputs; validate before uploading or submitting a turn.
 use super::{Error, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
@@ -16,6 +16,7 @@ pub(super) struct Image {
 pub(super) struct Input {
     pub text: String,
     pub images: Vec<Image>,
+    pub plugins: Vec<String>,
 }
 
 pub(super) async fn prepare(request: &Value) -> Result<Input> {
@@ -37,10 +38,23 @@ pub(super) async fn prepare(request: &Value) -> Result<Input> {
     };
     let mut text = Vec::new();
     let mut images = Vec::new();
+    let mut plugins = Vec::new();
     let mut total = 0;
     for node in nodes {
         match node["type"].as_str() {
             Some("text") => text.push(node["text"].as_str().ok_or(Error::Input)?.to_owned()),
+            Some("mention") => {
+                let path = node["path"]
+                    .as_str()
+                    .filter(|path| super::plugins::plugin_path(path))
+                    .ok_or(Error::Unsupported)?;
+                if !plugins.iter().any(|id| id == path) {
+                    if plugins.len() >= super::plugins::MAX_PLUGINS {
+                        return Err(Error::Input);
+                    }
+                    plugins.push(path.to_owned());
+                }
+            }
             Some("image" | "localImage") => {
                 let image = image(node).await?;
                 total += image.bytes.len();
@@ -56,7 +70,11 @@ pub(super) async fn prepare(request: &Value) -> Result<Input> {
     if (text.trim().is_empty() && images.is_empty()) || text.chars().count() > 100_000 {
         return Err(Error::Input);
     }
-    Ok(Input { text, images })
+    Ok(Input {
+        text,
+        images,
+        plugins,
+    })
 }
 
 async fn image(node: Value) -> Result<Image> {

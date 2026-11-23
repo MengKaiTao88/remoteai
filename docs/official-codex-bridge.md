@@ -8,7 +8,7 @@ rewrite providers, or change the native conversation's working directory or perm
 ## Test build scope
 
 Supported: discover existing **local desktop** conversations, read their history, stream message and
-command progress, send text and images (including the GUI queue), steer the current turn,
+command progress, send text, images and installed plugin references (including the GUI queue), steer the current turn,
 stop the verified current turn, rename a conversation,
 answer ordinary command/file/permission approvals and user-input questions, and reconnect after transport
 failure. The model picker reads the official owner's available models and reasoning efforts. Existing
@@ -17,8 +17,12 @@ owner, then synchronized across local, remote and Web viewers; an active inferen
 The sidebar uses official project membership and puts projectless chats in Recent, independently of cwd.
 For Desktop versions that have not migrated membership to app-server, it reads the project assignments
 and order from `.codex-global-state.json` without modifying that file.
-The existing Remote AI remote connection and Web chat protocol are reused; a Web redeployment is not
-required for these operations. Both desktop and phone connect to the same native thread IDs.
+The bridge uses the existing Remote AI remote connection and Web chat protocol. Both desktop and
+phone connect to the same native thread IDs.
+On the updated Web, typing `/` or `/` followed by part of a plugin name lists enabled plugins from the
+connected computer. The bridge uses the selected desktop chat's project and checks that the plugin is
+still enabled before forwarding the reference. A fresh desktop account needs a local chat before its
+catalog can be read by the bridge.
 The integrated application retains its normal model proxy in either chat mode. The legacy isolated
 launcher does not restore or start that proxy; keep the original proxy running when testing that launcher.
 A second listener on the same loopback port can shadow the original on Windows.
@@ -76,6 +80,8 @@ Use a disposable conversation, and keep both devices on it:
 
 - Send a short message from official Codex. Check that phone progress and its final reply update.
 - Send the next message from the phone. Check it appears in that same official conversation.
+- Type `/` on the phone, select an enabled plugin, and verify that the native owner receives the plugin
+  reference when the message is sent.
 - Open model settings from the phone, choose a model and supported reasoning effort, and verify the
   official owner's selection. Send a harmless test turn and reload the phone page; both views must
   retain the same model. Restore the disposable conversation's original selection after verification.

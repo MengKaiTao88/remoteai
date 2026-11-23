@@ -11,7 +11,8 @@ export async function composerCatalog(result: SkillsResponse, body: Record<strin
   if (!body.includePlugins) return skills;
   try {
     const plugins = await guiApi.request<PluginsResponse>({ operation: 'plugins',
-      cwd: typeof body.cwd === 'string' ? body.cwd : undefined });
+      cwd: typeof body.cwd === 'string' ? body.cwd : undefined,
+      ...(typeof body.threadId === 'string' ? { threadId: body.threadId } : {}) });
     return { ...skills, plugins: remotePlugins(plugins),
       pluginsError: plugins.marketplaceLoadErrors.length ? PLUGINS_UNAVAILABLE : '' };
   } catch { return { ...skills, plugins: [], pluginsError: PLUGINS_UNAVAILABLE }; }

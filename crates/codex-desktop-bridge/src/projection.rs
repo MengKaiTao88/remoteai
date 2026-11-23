@@ -77,6 +77,11 @@ fn item(row: &Value) -> Value {
             value["type"] = json!("userMessage");
             value["content"] = json!([{"type": "text", "text": text}]);
             if let Some(content) = value["content"].as_array_mut() {
+                content.extend(
+                    rows(&row["pluginMentions"])
+                        .iter()
+                        .filter_map(super::plugins::mention),
+                );
                 for attachment in rows(&row["attachments"]) {
                     if let Some(source) = super::images::source(attachment) {
                         content.push(json!({"type":"localImage", "path":source}));

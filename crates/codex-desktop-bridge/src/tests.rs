@@ -334,7 +334,10 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         assert!(uuid::Uuid::parse_str(body["id"].as_str().unwrap()).is_ok());
                         assert!(body.get("access").is_none() && body.get("model").is_none());
                         let steering = body["mode"] == "steer";
-                        if steering {
+                        if body["text"] == "Use GitHub" {
+                            assert_eq!(body["skills"], json!(["plugin://github@fixture"]));
+                            assert_eq!(body["attachments"], json!([]));
+                        } else if steering {
                             assert_eq!(projection::rows(&body["attachments"]).len(), 1);
                             assert_eq!(body["text"], "Attached update");
                         } else if !projection::rows(&body["attachments"]).is_empty() {
@@ -366,6 +369,15 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         }
                         json!({"before":format!("cursor-{}",saved.load(Ordering::SeqCst)),
                             "hasMore":saved.load(Ordering::SeqCst)<total.load(Ordering::SeqCst)})
+                    } else if path.contains("kind=remoteai-plugins") {
+                        assert_eq!(
+                            path,
+                            format!(
+                                "/api/sessions/{THREAD}/catalog?host=local&kind=remoteai-plugins"
+                            )
+                        );
+                        json!({"marketplaces":[{"plugins":[{"id":"github@fixture", "name":"GitHub",
+                            "installed":true, "enabled":true}]}], "marketplaceLoadErrors":[]})
                     } else if path.contains("/catalog?") {
                         json!({"models":[{"id":"model-a", "name":"Model A", "isDefault":true,
                             "defaultEffort":"high", "efforts":["low","high"]},
@@ -389,7 +401,11 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         json!({"state": null})
                     } else if path == "/api/projects?entry=desktop&host=local" {
-                        json!({"projects":[{"key":"local|fixture", "cwd":"C:\\fixture", "type":"desktop"}]})
+                        json!({"projects":[
+                            {"key":"local|fixture", "cwd":"C:\\fixture", "type":"desktop", "name":"Saved desktop project"},
+                            {"key":"local|cli", "cwd":"C:\\cli", "type":"cli", "name":"CLI"},
+                            {"key":"wsl|other", "cwd":"/other", "type":"desktop", "name":"Other host"}
+                        ]})
                     } else if path == "/api/sessions?host=local" && headers.starts_with("post ") {
                         let body: Value = serde_json::from_slice(&bytes[header_end..]).unwrap();
                         assert!(uuid::Uuid::parse_str(body["id"].as_str().unwrap()).is_ok());
@@ -525,6 +541,57 @@ async fn authenticated_history_and_sending_keep_native_turn_identity() {
     assert_eq!(result["turn"]["id"], "turn-2");
     assert_eq!(fixture.sends.load(Ordering::SeqCst), 1);
     client.close().await;
+}
+
+#[tokio::test]
+async fn official_plugins_use_the_selected_thread_and_only_send_valid_plugin_ids() {
+    let fixture = fixture(false).await;
+    let client = client(&fixture).await;
+    let result = client
+        .request(json!({"operation":"plugins", "threadId":THREAD, "cwd":"ignored client path"}))
+        .await
+        .unwrap();
+    assert_eq!(
+        result["marketplaces"][0]["plugins"][0]["id"],
+        "github@fixture"
+    );
+    let part = |path: &str| json!({"type":"mention", "name":"GitHub", "path":path});
+    let input = |path: &str| json!([{"type":"text", "text":"Use GitHub"}, part(path)]);
+    for path in ["plugin://../wrong", "file:///private.txt"] {
+        assert!(matches!(
+            client
+                .request(json!({"operation":"send", "threadId":THREAD,
+            "input":input(path)}))
+                .await,
+            Err(Error::Unsupported)
+        ));
+    }
+    assert_eq!(fixture.posts.load(Ordering::SeqCst), 0);
+    for operation in ["send", "steer"] {
+        let result = client
+            .request(json!({"operation":operation, "threadId":THREAD,
+            "turnId":"turn-1", "input":input("plugin://github@fixture")}))
+            .await
+            .unwrap();
+        assert_eq!(result["accepted"], true);
+    }
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 2);
+    client.close().await;
+}
+
+#[test]
+fn official_history_keeps_typed_plugin_references() {
+    let mut snapshot = view("first");
+    snapshot["turns"][0]["messages"][0]["pluginMentions"] = json!([
+        {"name":"GitHub", "path":"plugin://github@fixture"}, {"name":"file", "path":"C:/secret.txt"}
+    ]);
+    let project = projection::thread(&snapshot);
+    assert_eq!(
+        project["turns"][0]["items"][0]["content"],
+        json!([
+        {"type":"text", "text":"hello"}, {"type":"mention", "name":"GitHub", "path":"plugin://github@fixture"}
+        ])
+    );
 }
 
 #[tokio::test]

@@ -100,6 +100,36 @@ async fn saved_project_creation_resolves_membership_and_rejects_unknown_or_inval
 }
 
 #[tokio::test]
+async fn mobile_project_picker_lists_and_validates_the_same_saved_projects_as_creation() {
+    let fixture = tests::fixture(false).await;
+    let client = tests::client(&fixture).await;
+    let listed = client
+        .request(json!({"operation":"officialProjects"}))
+        .await
+        .unwrap();
+    let project = json!({"cwd":"C:\\fixture", "label":"Saved desktop project"});
+    assert_eq!(listed, json!([project]));
+    let picked = client
+        .request(json!({"operation":"officialProjects", "cwd":"C:\\fixture/"}))
+        .await
+        .unwrap();
+    assert_eq!(picked, json!([project]));
+    assert!(matches!(
+        client
+            .request(json!({"operation":"officialProjects", "cwd":"C:/other"}))
+            .await,
+        Err(Error::Invalid)
+    ));
+    assert_eq!(fixture.posts.load(Ordering::SeqCst), 0);
+    client.request(start(Some("C:\\fixture/"))).await.unwrap();
+    assert_eq!(
+        fixture.creations.lock().await[0]["project"],
+        "local|fixture"
+    );
+    client.close().await;
+}
+
+#[tokio::test]
 async fn uncertain_creation_is_never_automatically_replayed_or_followed_by_a_send() {
     let fixture = tests::fixture(true).await;
     let client = tests::client(&fixture).await;

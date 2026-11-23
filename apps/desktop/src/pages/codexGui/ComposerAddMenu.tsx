@@ -11,8 +11,8 @@ import type { AttachmentReference } from "../../../../../shared/conversation/att
 import type { Skill } from "../../../../../shared/conversation/types";
 import styles from "./ComposerAddMenu.module.less";
 
-export function ComposerAddMenu({ cwd, disabled, active, anchor, onFiles, onGoal, onPlugin, onSkill }: {
-  cwd: string; disabled: boolean; active: boolean; onFiles: () => void; onGoal: () => void;
+export function ComposerAddMenu({ cwd, threadId, disabled, active, anchor, onFiles, onGoal, onPlugin, onSkill }: {
+  cwd: string; threadId?: string; disabled: boolean; active: boolean; onFiles: () => void; onGoal: () => void;
   anchor: RefObject<HTMLDivElement>;
   onPlugin: (plugin: AttachmentReference) => void;
   onSkill: (skill: Skill) => void;
@@ -22,9 +22,9 @@ export function ComposerAddMenu({ cwd, disabled, active, anchor, onFiles, onGoal
   const [offset, setOffset] = useState(8);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const catalog = useComposerPlugins({ cwd, active: open && active && !disabled });
+  const catalog = useComposerPlugins({ cwd, threadId, active: open && active && !disabled });
   const skills = useComposerSkills({ cwd, active: open && active && !disabled, connected: !disabled });
-  useEffect(() => { setOpen(false); }, [cwd, disabled, active]);
+  useEffect(() => { setOpen(false); }, [cwd, threadId, disabled, active]);
   const close = () => { setOpen(false); trigger.current?.focus(); };
   const content = <div ref={panel} className={styles.panel} role="menu" aria-label={uiText("client.shared.add")}
     onKeyDown={(event) => {

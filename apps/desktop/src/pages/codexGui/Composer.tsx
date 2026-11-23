@@ -36,6 +36,8 @@ import { useConversationMetrics } from '../../../../../shared/remote-chat/client
 import { loadConversationMetrics } from '../../api/conversationMetrics';
 import { ConversationTokenStatus } from './ConversationTokenStatus';
 import { ProjectPicker } from "./ProjectPicker";
+import { backendSnapshot } from './backendScope';
+import { loadOfficialSavedProjects } from './officialProjects';
 import { GuiToolbox } from "../../../../../shared/conversation/GuiToolbox";
 import { useLocalGitDownloads } from '../../downloads/localGitDownloads';
 import { LocalProjectBrowser } from './LocalProjectBrowser';
@@ -120,6 +122,7 @@ export const Composer = forwardRef<ComposerHandle, {
     <RunningChangesSummary value={current} />
     <ProjectPicker value={project}
       projects={state.projects} hostPicker={hostPicker} running={running} active={active} dropState={drop}
+      loadSavedProjects={!state.selected && backendSnapshot().backend === 'official' ? loadOfficialSavedProjects : undefined}
       actions={<>
         {isDesktopApp && <GuiToolbox trigger="git" active={active} connected={!workspaceBusy}
           cwd={project} git={localGitClient} />}
@@ -157,7 +160,8 @@ export const Composer = forwardRef<ComposerHandle, {
           ? uiText("client.chat.describeYourGoal") : uiText("client.fileReferences.describeATaskFilesConversationsSkillsCoze")}
         onChange={editContent} onPaste={paste} onPasteKeyDown={pasteKeyDown} onSend={() => void send()} />
       <div className={styles.composerControls}>
-        <ComposerAddMenu cwd={project} active={active} disabled={disabled} anchor={composer}
+        <ComposerAddMenu cwd={project} threadId={state.selected ?? undefined} active={active}
+          disabled={disabled} anchor={composer}
           onFiles={() => setDialog("files")} onGoal={() => setDialog("goal")}
           onPlugin={(plugin) => addAttachments([plugin])} onSkill={(skill) => skillInput.current?.addSkill(skill)} />
         <MessageDeliveryMode disabled={disabled || reading} />

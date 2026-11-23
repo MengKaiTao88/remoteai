@@ -18,7 +18,8 @@ impl Client {
         match request["operation"].as_str().ok_or(Error::Invalid)? {
             "models" => self.models(&request).await,
             "skills" => Ok(json!({"data": []})),
-            "plugins" => Ok(json!({"data": []})),
+            "plugins" => self.plugins(&request).await,
+            "officialProjects" => self.official_projects(&request).await,
             "list" => self.list(&request).await,
             "read" => self.read_history(&request).await,
             "imagePreview" => self.image_preview(&request).await,
@@ -202,8 +203,12 @@ impl Client {
                 .await?;
             attachments.push(upload_id);
         }
-        let body = json!({"id": submission, "text": input.text, "attachments": attachments,
+        let mut body = json!({"id": submission, "text": input.text, "attachments": attachments,
             "mode": if steering { "steer" } else { "send" }});
+        if !input.plugins.is_empty() {
+            // The pinned gateway keeps selected references in its durable submission ledger.
+            body["skills"] = json!(input.plugins);
+        }
         let reply = self
             .http
             .post(&format!("/api/sessions/{id}/send?host=local"), &body)

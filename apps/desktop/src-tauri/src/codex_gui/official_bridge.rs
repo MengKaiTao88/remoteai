@@ -124,7 +124,12 @@ impl State {
                 json!({"operation": "models", "cacheOnly":cache_only, "cursor":cursor})
             }
             GuiRequest::Skills { .. } => json!({"operation": "skills"}),
-            GuiRequest::Plugins { .. } => json!({"operation": "plugins"}),
+            GuiRequest::Plugins { cwd, thread_id } => {
+                json!({"operation": "plugins", "cwd": cwd, "threadId": thread_id})
+            }
+            GuiRequest::OfficialProjects { cwd } => {
+                json!({"operation": "officialProjects", "cwd": cwd})
+            }
             request @ GuiRequest::Start { .. } => super::official_bridge_inputs::start(request)?,
             GuiRequest::List {
                 limit,

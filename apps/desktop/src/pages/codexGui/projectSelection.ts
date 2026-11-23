@@ -2,6 +2,8 @@ import { uiText } from '../../../../../shared/localization/uiText';
 import { directoryProject, type ProjectDirectoriesResponse } from '../../../../../shared/remote-chat/projectDirectories';
 import type { GuiController } from './controller';
 import { guiApi } from '../../../../../shared/conversation/api';
+import { backendSnapshot } from './backendScope';
+import { readOfficialProjects } from './officialProjects';
 
 const MAX_PATH_LENGTH = 4096;
 const THREAD_ID = /^[a-zA-Z0-9_-]{1,200}$/;
@@ -26,6 +28,11 @@ export async function selectGuiProject(controller: ProjectHost, body: Record<str
     if (controller.getSnapshot().connection !== 'ready') await controller.connect({ reuseExisting: true });
     if (controller.getSnapshot().connection !== 'ready') {
       throw new Error(uiText('client.remoteHostMessages.theComputerIsnTReadyYetTryAgainLater'));
+    }
+    if (!threadId && backendSnapshot().backend === 'official') {
+      const [project] = await readOfficialProjects(cwd);
+      if (!project?.cwd) throw new Error(uiText('client.workspaceActions.chooseAValidProjectFolder'));
+      return project;
     }
     const directory = await guiApi.request<ProjectDirectoriesResponse>({ operation: 'projectDirectories', directory: cwd });
     if (!directory.directory) throw new Error(uiText('client.workspaceActions.chooseAValidProjectFolder'));

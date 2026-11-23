@@ -10,6 +10,7 @@ from native_permissions import install as install_permissions
 from native_protocol import install as install_protocol
 from native_queue import install as install_queue
 from native_questions import install as install_questions
+from native_plugins import install as install_plugins
 
 
 def main():
@@ -17,11 +18,12 @@ def main():
     sys.path.insert(0, str(bridge))
     from bridge.features.sessions import model
     from bridge.features.sessions.store import SessionStore
-    from bridge.app.service import Bridge
+    from bridge.app.service import Bridge, SubmissionRejected
     from image_archive import install as install_image_archive
     install_usage()
     install_protocol(Bridge)
     install_questions()
+    install_plugins(Bridge, model, SubmissionRejected)
     install_queue(Bridge)
     install_permissions()
     install(SessionStore)

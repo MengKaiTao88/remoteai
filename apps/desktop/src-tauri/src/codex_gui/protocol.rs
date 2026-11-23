@@ -52,6 +52,9 @@ pub(crate) enum GuiRequest {
         #[serde(default)]
         include_files: bool,
     },
+    OfficialProjects {
+        cwd: Option<String>,
+    },
     EditMessage(super::message_edit::EditRequest),
     DeleteMessage(super::message_edit::DeleteRequest),
     ImagePreview {
@@ -70,6 +73,7 @@ pub(crate) enum GuiRequest {
     },
     Plugins {
         cwd: Option<String>,
+        thread_id: Option<String>,
     },
     GoalGet {
         thread_id: String,
@@ -260,13 +264,15 @@ impl GuiRequest {
             | Self::ProjectFileBlame(_)
             | Self::ProjectFileWrite(_)
             | Self::ProjectEntryAction(_) => Err(GuiError::InvalidRequest),
-            Self::ProjectDirectories { .. } => Err(GuiError::InvalidRequest),
+            Self::ProjectDirectories { .. } | Self::OfficialProjects { .. } => {
+                Err(GuiError::InvalidRequest)
+            }
             Self::TextPreview { .. } => Err(GuiError::InvalidRequest),
             Self::EditMessage(_) | Self::DeleteMessage(_) => Err(GuiError::InvalidRequest),
             // Image previews are served locally, never forwarded as an app-server operation.
             Self::ImagePreview { .. } => Err(GuiError::InvalidRequest),
             Self::CozeCatalog => Err(GuiError::InvalidRequest),
-            Self::Plugins { cwd } => {
+            Self::Plugins { cwd, .. } => {
                 if let Some(cwd) = &cwd {
                     directory(cwd)?;
                 }

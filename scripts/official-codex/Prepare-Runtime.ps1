@@ -26,7 +26,7 @@ Get-ChildItem -LiteralPath $pythonRoot | ForEach-Object {
 }
 foreach ($name in @('Ensure-Gateway.ps1', 'initialize_gateway.py', 'run_gateway.py',
     'native_history.py', 'native_activity.py', 'image_archive.py', 'native_usage.py',
-    'native_permissions.py', 'native_protocol.py', 'native_queue.py',
+    'native_permissions.py', 'native_protocol.py', 'native_queue.py', 'native_plugins.py',
     'native_questions.py')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $destination -Force
 }

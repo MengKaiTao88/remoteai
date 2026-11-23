@@ -10,15 +10,22 @@ import type { Thread } from '../../../../shared/conversation/types';
 import { ChatOperations } from './operations';
 import { readRemoteProjects, selectRemoteProject } from './projects';
 import { guiSidebar } from '../pages/codexGui/sidebarBridge';
+import { backendSnapshot } from '../pages/codexGui/backendScope';
+import { readOfficialProjects } from '../pages/codexGui/officialProjects';
 
 vi.mock('../../../../shared/conversation/api', () => ({ guiApi: { request: vi.fn() } }));
 vi.mock('../pages/codexGui/session', () => ({ getGuiController: vi.fn() }));
 vi.mock('../pages/codexGui/composerBridge', () => ({ guiComposer: { validateSend: vi.fn() } }));
+vi.mock('../pages/codexGui/backendScope', async importOriginal => ({
+  ...await importOriginal<typeof import('../pages/codexGui/backendScope')>(), backendSnapshot: vi.fn(),
+}));
+vi.mock('../pages/codexGui/officialProjects', () => ({ readOfficialProjects: vi.fn() }));
 const thread: Thread = { id: 'chat', cwd: '/old', preview: '', updatedAt: 1, turns: [] };
 let controller: GuiController;
 let detachSidebar: () => void;
 beforeEach(() => {
   vi.resetAllMocks(); localStorage.clear(); controller = new GuiController();
+  vi.mocked(backendSnapshot).mockReturnValue({ backend: 'gui', officialAvailable: true });
   vi.mocked(getGuiController).mockReturnValue(controller);
   Object.assign(controller.getSnapshot(), { connection: 'ready', threads: [thread], selected: 'local',
     projects: ['/recent'] });
@@ -32,11 +39,23 @@ beforeEach(() => {
 });
 afterEach(() => { detachSidebar(); controller.dispose(); vi.restoreAllMocks(); });
 
-it('lists host saved and recent projects, deduplicates paths, and uses effective conversation folders', () => {
+it('lists host saved and recent projects, deduplicates paths, and uses effective conversation folders', async () => {
   saveProject({ path: '/recent', name: 'Saved name' });
   Object.assign(controller.getSnapshot(), { projectOverrides: { chat: '/changed' } });
-  expect(readRemoteProjects()).toEqual([{ cwd: '/recent', label: 'Saved name' },
+  expect(await readRemoteProjects()).toEqual([{ cwd: '/recent', label: 'Saved name' },
     { cwd: '/changed', label: 'changed' }]);
+});
+
+it('uses the official saved catalog for a remote draft without changing the host conversation', async () => {
+  vi.mocked(backendSnapshot).mockReturnValue({ backend: 'official', officialAvailable: true });
+  const project = { cwd: 'C:/workspace/saved', label: 'Saved on the host' };
+  vi.mocked(readOfficialProjects).mockResolvedValue([project]);
+  const settings = controller.getSnapshot().settings;
+  expect(await readRemoteProjects()).toEqual([project]);
+  expect(await selectRemoteProject({ cwd: 'C:\\Workspace\\Saved' })).toEqual(project);
+  expect(vi.mocked(readOfficialProjects).mock.calls).toEqual([[], ['C:\\Workspace\\Saved']]);
+  expect(guiApi.request).not.toHaveBeenCalled();
+  expect(controller.getSnapshot()).toMatchObject({ selected: 'local', settings, workspaceBusy: false });
 });
 
 it('validates and persists a folder without switching the host’s selected conversation', async () => {

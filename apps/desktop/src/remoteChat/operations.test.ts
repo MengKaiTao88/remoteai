@@ -167,6 +167,19 @@ it('retains available skills when the plugin catalog fails', async () => {
   expect(guiApi.request).toHaveBeenLastCalledWith({ operation: 'plugins', cwd: 'C:/project' });
 });
 
+it('loads installed plugins in the selected desktop conversation', async () => {
+  vi.mocked(guiApi.request).mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({
+    marketplaces: [{ plugins: [
+      { id: 'github@test', name: 'GitHub', installed: true, enabled: true },
+      { id: 'disabled@test', name: 'Disabled', installed: true, enabled: false },
+    ] }], marketplaceLoadErrors: [],
+  });
+  const result = await new ChatOperations().execute({ kind: 'request', id: 'plugins', method: 'request',
+    body: { operation: 'skills', cwd: 'C:/project', threadId: 'selected', includePlugins: true } });
+  expect(guiApi.request).toHaveBeenLastCalledWith({ operation: 'plugins', cwd: 'C:/project', threadId: 'selected' });
+  expect(result.data).toMatchObject({ plugins: [{ id: 'github@test' }] });
+});
+
 it('keeps accepting mutations after more than 512 incremental polls', async () => {
   vi.mocked(guiApi.request).mockResolvedValue({ data: [], nextCursor: null });
   const operations = new ChatOperations();

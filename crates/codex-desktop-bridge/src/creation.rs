@@ -5,6 +5,19 @@ use std::sync::Arc;
 
 const ATTACH_ATTEMPTS: usize = 40;
 const ATTACH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+const PROJECTS_PATH: &str = "/api/projects?entry=desktop&host=local";
+
+struct SavedProject<'a> {
+    key: &'a str,
+    cwd: &'a str,
+    label: &'a str,
+}
+
+impl SavedProject<'_> {
+    fn public(&self) -> Value {
+        json!({"cwd": self.cwd, "label": self.label})
+    }
+}
 
 impl Client {
     pub(super) async fn start(self: &Arc<Self>, request: &Value) -> Result<Value> {
@@ -78,30 +91,66 @@ impl Client {
     }
 
     async fn project_key(&self, cwd: &str) -> Result<String> {
-        let projects = self
-            .http
-            .get("/api/projects?entry=desktop&host=local")
-            .await?;
-        resolve_project(&projects["projects"], cwd)
+        let projects = self.http.get(PROJECTS_PATH).await?;
+        Ok(resolve_project(&projects["projects"], cwd)?.key.to_owned())
+    }
+
+    pub(super) async fn official_projects(&self, request: &Value) -> Result<Value> {
+        let cwd = match &request["cwd"] {
+            Value::Null => None,
+            Value::String(value) if valid_project_path(value) => Some(value.as_str()),
+            _ => return Err(Error::Invalid),
+        };
+        let projects = self.http.get(PROJECTS_PATH).await?;
+        let projects = &projects["projects"];
+        if let Some(cwd) = cwd {
+            return Ok(json!([resolve_project(projects, cwd)?.public()]));
+        }
+        Ok(Value::Array(
+            saved_projects(projects)
+                .map(|project| project.public())
+                .collect(),
+        ))
     }
 }
 
-fn resolve_project(projects: &Value, cwd: &str) -> Result<String> {
+fn saved_projects(projects: &Value) -> impl Iterator<Item = SavedProject<'_>> {
+    projection::rows(projects).iter().filter_map(|project| {
+        let key = project["key"].as_str()?;
+        let cwd = project["cwd"].as_str()?;
+        if project["type"].as_str().unwrap_or("desktop") != "desktop"
+            || !key.starts_with("local|")
+            || !valid_project_path(cwd)
+        {
+            return None;
+        }
+        let label = project["name"]
+            .as_str()
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| {
+                cwd.trim_end_matches(['/', '\\'])
+                    .rsplit(['/', '\\'])
+                    .next()
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or(cwd)
+            });
+        Some(SavedProject { key, cwd, label })
+    })
+}
+
+fn valid_project_path(cwd: &str) -> bool {
+    !cwd.trim().is_empty() && cwd.len() <= 4096 && !cwd.chars().any(char::is_control)
+}
+
+fn resolve_project<'a>(projects: &'a Value, cwd: &str) -> Result<SavedProject<'a>> {
     let wanted = normalize_cwd(cwd);
-    let mut matches = projection::rows(projects).iter().filter(|project| {
-        project["type"].as_str().unwrap_or("desktop") == "desktop"
-            && project["cwd"]
-                .as_str()
-                .is_some_and(|value| normalize_cwd(value) == wanted)
-            && project["key"]
-                .as_str()
-                .is_some_and(|key| key.starts_with("local|"))
-    });
+    let mut matches =
+        saved_projects(projects).filter(|project| normalize_cwd(project.cwd) == wanted);
     let project = matches.next().ok_or(Error::Invalid)?;
     if matches.next().is_some() {
         return Err(Error::Invalid);
     }
-    Ok(project["key"].as_str().ok_or(Error::Invalid)?.to_owned())
+    Ok(project)
 }
 
 fn normalize_cwd(value: &str) -> String {
@@ -128,7 +177,7 @@ mod tests {
             {"key":"local|expected","cwd":"/project","type":"desktop"}
         ]);
         assert_eq!(
-            resolve_project(&projects, "/project/").unwrap(),
+            resolve_project(&projects, "/project/").unwrap().key,
             "local|expected"
         );
         assert!(resolve_project(&projects, "/missing").is_err());

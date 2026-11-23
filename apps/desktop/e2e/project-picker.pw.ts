@@ -13,6 +13,16 @@ const quickClear = (page: Page) => page.getByRole('button', {
 });
 const add = (page: Page) => page.getByRole('button', { name: '新建项目', exact: true });
 
+test('local desktop lists saved projects from the official backend', async ({ page }, info) => {
+  await page.goto('/e2e/project-picker-harness.html?mode=local&official&dark');
+  await trigger(page).click();
+  const project = page.getByRole('menuitemradio', { name: 'Official Workspace', exact: true });
+  await expect(project).toBeVisible();
+  await page.screenshot({ path: info.outputPath('local-official-projects.png'), animations: 'disabled' });
+  await project.click();
+  await expect(selected(page)).toHaveText('F:/OfficialWorkspace');
+});
+
 async function verifyQuickClear({ page, draft, prefix }: { page: Page; draft: Locator; prefix: string }) {
   await page.mouse.move(0, 0);
   await expect(quickClear(page).locator('svg.lucide-folder')).toBeVisible();

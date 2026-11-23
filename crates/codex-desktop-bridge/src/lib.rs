@@ -8,6 +8,7 @@ mod input;
 mod models;
 #[cfg(test)]
 mod pagination_tests;
+mod plugins;
 mod projection;
 mod requests;
 mod usage;

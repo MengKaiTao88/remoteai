@@ -21,6 +21,7 @@ const params = new URLSearchParams(location.search);
 const mode = params.get('mode') ?? 'local';
 const dark = params.has('dark');
 const disabled = params.has('disabled');
+const official = params.has('official');
 const projects = [{ cwd: explorerRoot, label: 'codex-switch' },
   { cwd: `${explorerRoot}/docs`, label: 'mailBot' }, { cwd: `${explorerRoot}/scripts`, label: '新版视频' }];
 if (mode === 'web') {
@@ -51,6 +52,7 @@ function Harness() {
   }}><main className={styles.page} style={{ padding: 40, height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'end',
     gap: 12, background: 'var(--bg)', color: 'var(--ink)' }}>
     {mode === 'local' ? <ProjectPicker value={path} projects={projects.map(project => project.cwd)} disabled={disabled}
+      loadSavedProjects={official ? async () => [{ path: 'F:/OfficialWorkspace', name: 'Official Workspace' }] : undefined}
       onChange={setPath} onError={error => { throw error; }} />
       : <ProjectBar active scope={state.draftProject?.cwd ?? ''}>
         <RemoteProjectPicker state={state} controller={controller} active /></ProjectBar>}

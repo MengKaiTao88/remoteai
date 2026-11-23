@@ -16,6 +16,7 @@ import layout from '../../../../../shared/conversation/styles.module.less';
 interface ProjectPickerProps {
   value: string; projects: string[]; disabled: boolean;
   onChange: (cwd: string) => void; onError: (error: unknown) => void;
+  loadSavedProjects?: () => Promise<SavedProject[]>;
   gitEnabled?: boolean; onBusyChange?: (busy: boolean) => void; hostPicker?: ReactNode;
   actions?: ReactNode; running?: boolean; active?: boolean; dropTarget?: RefObject<HTMLElement>;
   dropState?: { dragging: boolean; reading: boolean };
@@ -23,10 +24,12 @@ interface ProjectPickerProps {
 
 export function ProjectPicker({ value, projects, disabled, onChange, onError,
   gitEnabled, onBusyChange, hostPicker, actions, running = false, active = true,
-  dropTarget, dropState }: ProjectPickerProps) {
+  dropTarget, dropState, loadSavedProjects }: ProjectPickerProps) {
   const [creating, setCreating] = useState(false);
   const [browsing, setBrowsing] = useState(false);
   const [saved, setSaved] = useState(readProjects);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [hostSaved, setHostSaved] = useState<SavedProject[]>([]);
   const trigger = useRef<HTMLButtonElement>(null);
   const bar = useRef<HTMLDivElement>(null);
   const close = () => { setCreating(false); setBrowsing(false); trigger.current?.focus(); };
@@ -39,6 +42,14 @@ export function ProjectPicker({ value, projects, disabled, onChange, onError,
       setSaved(saveProject(project)); onChange(project.path); close();
     } catch { onError(new Error(uiText("client.conversation.couldNotSaveTheProjectPleaseTryAgain"))); }
   };
+  const open = () => {
+    setSaved(readProjects());
+    if (!loadSavedProjects || loadingSaved) return;
+    setLoadingSaved(true);
+    void loadSavedProjects().then(setHostSaved, onError).finally(() => setLoadingSaved(false));
+  };
+  const choices = [...(loadSavedProjects ? hostSaved : []), ...saved,
+    ...projects.map(path => ({ path, name: folderName(path) }))];
   const folderDrop = useProjectFolderDrop({ target: dropTarget ?? bar,
     allowFileAttachments: true,
     enabled: !dropState && active && Boolean(gitEnabled) && !disabled && !creating && !browsing,
@@ -56,8 +67,8 @@ export function ProjectPicker({ value, projects, disabled, onChange, onError,
           : uiText("client.composer.dropToAddFilesOrFolders")}</span>
       </div>}>
       <ProjectFolderPicker value={value} disabled={disabled || running} triggerRef={trigger}
-        projects={[...saved, ...projects.map(path => ({ path, name: folderName(path) }))]}
-        onChange={onChange} onClear={() => onChange('')} onOpen={() => setSaved(readProjects())}
+        projects={choices} loading={loadingSaved}
+        onChange={onChange} onClear={() => onChange('')} onOpen={open}
         onBrowse={() => setBrowsing(true)}
         onAdd={() => setCreating(true)} addLabel={uiText("client.conversation.newProject")} />
       {(gitEnabled === false || running) && <ConversationWorkspaceStatus key={value} cwd={value}
@@ -70,8 +81,7 @@ export function ProjectPicker({ value, projects, disabled, onChange, onError,
     {creating && <CreateProjectDialog disabled={disabled} onCreate={create} onError={onError}
       onClose={close} />}
     {browsing && <ProjectExplorer cwd={value} load={loadProjectExplorer} mutate={mutateProjectExplorer}
-      projects={[...saved.map(project => ({ cwd: project.path, label: project.name })),
-        ...projects.map(path => ({ cwd: path, label: folderName(path) }))]}
+      projects={choices.map(project => ({ cwd: project.path, label: project.name }))}
       close={close} choose={project => create({ path: project.cwd, name: project.label })}
       t={uiText} locale={guiLocale()} />}
   </>;

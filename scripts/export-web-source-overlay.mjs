@@ -9,18 +9,20 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const vendor = path.join(root, 'apps/web/vendor');
 const manifestPath = path.join(vendor, 'source-lock.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const files = process.argv.slice(2);
+const args = process.argv.slice(2);
+const source = args.find(argument => argument.startsWith('--revision='))?.slice('--revision='.length) ?? 'HEAD';
+const files = args.filter(argument => !argument.startsWith('--revision='));
 if (!files.length) throw new Error('Specify committed shared source files to export.');
 const shared = path.join(root, 'shared');
 const git = args => execFileSync('git', args, { cwd: shared, windowsHide: true });
-const revision = git(['rev-parse', 'HEAD']).toString().trim();
+const revision = git(['rev-parse', '--verify', '--end-of-options', `${source}^{commit}`]).toString().trim();
 const repository = 'https://github.com/MengKaiTao88/remoteai-shared.git';
 const prepared = files.map(relative => {
   if (!/^shared\/[\w./-]+\.(?:[cm]?[jt]sx?|css|less)$/.test(relative)
     || relative.split('/').includes('..')) throw new Error(`Invalid shared source path: ${relative}`);
   const target = path.resolve(vendor, relative);
   if (!target.startsWith(vendor + path.sep)) throw new Error('Export must remain inside Web vendor.');
-  const contents = Buffer.from(git(['show', `HEAD:${relative.slice('shared/'.length)}`])
+  const contents = Buffer.from(git(['show', `${revision}:${relative.slice('shared/'.length)}`])
     .toString('utf8').replaceAll('\r\n', '\n').replace(/\n+$/, '\n'));
   return { relative, target, contents };
 });

@@ -1,12 +1,15 @@
 import { getGuiController } from '../pages/codexGui/session';
 import { selectGuiProject } from '../pages/codexGui/projectSelection';
 import { guiSidebar } from '../pages/codexGui/sidebarBridge';
+import { backendSnapshot } from '../pages/codexGui/backendScope';
+import { readOfficialProjects } from '../pages/codexGui/officialProjects';
 import { readProjects } from '../../../../shared/conversation/projectCatalog';
 import type { Thread } from '../../../../shared/conversation/types';
 import { directoryProject } from '../../../../shared/remote-chat/projectDirectories';
 import type { ChatProject } from '../../../../shared/remote-chat/client/types';
 
-export function readRemoteProjects(): ChatProject[] {
+export async function readRemoteProjects(): Promise<ChatProject[]> {
+  if (backendSnapshot().backend === 'official') return readOfficialProjects();
   const state = getGuiController().getSnapshot();
   const saved = readProjects().map(project => ({ cwd: project.path, label: project.name }));
   const paths = [...state.projects, ...state.threads.map(thread => effectiveProjectThread(thread).cwd)];
