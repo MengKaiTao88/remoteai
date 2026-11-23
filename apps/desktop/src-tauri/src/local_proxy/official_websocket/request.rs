@@ -26,11 +26,14 @@ pub(super) struct ConfirmedHistory {
 pub(super) struct HistoryItem {
     original: Fingerprint,
     codex_input: Option<Fingerprint>,
+    without_reasoning_text: Option<Fingerprint>,
 }
 
 impl HistoryItem {
     fn matches(&self, input: &Fingerprint) -> bool {
-        self.original == *input || self.codex_input.as_ref() == Some(input)
+        self.original == *input
+            || self.codex_input.as_ref() == Some(input)
+            || self.without_reasoning_text.as_ref() == Some(input)
     }
 }
 
@@ -136,6 +139,7 @@ impl SentHistory {
                 .map(|original| HistoryItem {
                     original,
                     codex_input: None,
+                    without_reasoning_text: None,
                 })
                 .chain(output)
                 .collect(),
@@ -161,7 +165,8 @@ pub(super) fn fingerprint(value: &impl Serialize) -> Option<Fingerprint> {
 }
 
 pub(super) fn output_fingerprint(item: &Value) -> Option<HistoryItem> {
-    let reasoning_text = item.get("type").and_then(Value::as_str) == Some("reasoning")
+    let kind = item.get("type").and_then(Value::as_str);
+    let reasoning_text = kind == Some("reasoning")
         && item
             .get("content")
             .and_then(Value::as_array)
@@ -170,29 +175,51 @@ pub(super) fn output_fingerprint(item: &Value) -> Option<HistoryItem> {
                     .iter()
                     .any(|part| part.get("type").and_then(Value::as_str) == Some("reasoning_text"))
             });
+    // Codex may omit these output annotations when serializing its history for the next turn.
+    // Only an alternative for confirmed output drops them. Client input is still compared as sent.
+    let output_metadata = matches!(kind, Some("message" | "reasoning" | "function_call"))
+        && item.as_object().is_some_and(|fields| {
+            fields
+                .iter()
+                .any(|(key, value)| output_metadata_field(key, value))
+        });
     Some(HistoryItem {
         original: item_fingerprint(item)?,
-        codex_input: reasoning_text
-            .then(|| fingerprint_item(item, true))
+        codex_input: output_metadata
+            .then(|| fingerprint_item(item, reasoning_text, true))
+            .flatten(),
+        without_reasoning_text: reasoning_text
+            .then(|| fingerprint_item(item, true, false))
             .flatten(),
     })
 }
 
-fn item_fingerprint(item: &Value) -> Option<Fingerprint> {
-    fingerprint_item(item, false)
+fn output_metadata_field(key: &str, value: &Value) -> bool {
+    matches!(
+        key,
+        "metadata" | "internal_chat_message_metadata_passthrough"
+    ) && value.is_object()
 }
 
-fn fingerprint_item(item: &Value, omit_reasoning_text: bool) -> Option<Fingerprint> {
+fn item_fingerprint(item: &Value) -> Option<Fingerprint> {
+    fingerprint_item(item, false, false)
+}
+
+fn fingerprint_item(
+    item: &Value,
+    omit_reasoning_text: bool,
+    omit_output_metadata: bool,
+) -> Option<Fingerprint> {
     let Some(fields) = item.as_object() else {
         return fingerprint(item);
     };
     let reasoning = item.get("type").and_then(Value::as_str) == Some("reasoning");
     // Codex's typed history omits empty optionals and does not serialize a status on reasoning.
-    // Keep all non-null attributes which could affect server-side context, including item IDs.
-    let canonical = fields.iter().filter(|(key, value)| {
-        !value.is_null()
-            && !(reasoning && key.as_str() == "status")
-            && !(omit_reasoning_text && key.as_str() == "content")
+    let canonical = fields.iter().filter(|(key, value)| match key.as_str() {
+        _ if value.is_null() => false,
+        "status" if reasoning => false,
+        "content" if omit_reasoning_text => false,
+        _ => !(omit_output_metadata && output_metadata_field(key, value)),
     });
     let mut hash = HashWriter(Sha256::new());
     let mut serializer = serde_json::Serializer::new(&mut hash);

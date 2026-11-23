@@ -21,6 +21,10 @@ fn official_responses_reuses_confirmed_history_over_websocket() {
     let user = json!({"type":"message","role":"user","content":[{
         "type":"input_text", "text":"background ".repeat(10_000)
     }]});
+    let message = json!({
+        "type": "message", "role": "assistant", "status": "completed", "phase": "commentary",
+        "content": [{"type":"output_text", "text":"I will inspect the sample.", "annotations":[]}]
+    });
     let call = json!({"type":"function_call","name":"inspect","arguments":"{}","call_id":"call_1",
         "id":"fc_fixture","status":"completed"});
     let reasoning = json!({"type":"reasoning","id":"rs_fixture","summary":[],"content":null,
@@ -28,6 +32,7 @@ fn official_responses_reuses_confirmed_history_over_websocket() {
     let output = json!({"type":"function_call_output","call_id":"call_1","output":"done"});
     let expected = TurnHistory {
         user,
+        message,
         reasoning,
         call,
         output,
@@ -35,6 +40,7 @@ fn official_responses_reuses_confirmed_history_over_websocket() {
     let first_body = turn(json!([expected.user]));
     let second_body = turn(json!([
         expected.user,
+        expected.message,
         expected.reasoning,
         expected.call,
         expected.output
@@ -152,6 +158,7 @@ fn send_quota(socket: &mut MockSocket) {
 
 struct TurnHistory {
     user: Value,
+    message: Value,
     reasoning: Value,
     call: Value,
     output: Value,
@@ -164,7 +171,13 @@ fn wire_output(turn: &TurnHistory) -> Value {
     let mut call = turn.call.clone();
     call["namespace"] = Value::Null;
     call["encrypted_function_args"] = Value::Null;
-    json!([reasoning, call])
+    let mut items = [turn.message.clone(), reasoning, call];
+    // In real Codex requests these non-null fields are absent from replayed output items.
+    for item in &mut items {
+        item["metadata"] = json!({"source": "fixture"});
+        item["internal_chat_message_metadata_passthrough"] = json!({"turn_id": "fixture-turn"});
+    }
+    json!(items)
 }
 
 fn verify_two_websocket_turns(upstream: TcpListener, history: TurnHistory) -> usize {
