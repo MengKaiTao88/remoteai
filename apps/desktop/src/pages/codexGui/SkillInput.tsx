@@ -68,7 +68,8 @@ export const SkillInput = forwardRef<SkillInputHandle, {
     && (!isCoze || Boolean(onCoze)) && (!isFile || Boolean(onFile)) && (!isSsh || Boolean(onSsh));
   const ghost = useSuggestionInput({ editor, value, text: suggestion,
     enabled: active && connected && !disabled && !open && !editing, onChange, onUserInput, onInputEnd });
-  const catalog = useComposerSkills({ cwd, active: open && !isConversation && !isCoze && !isFile && !isSsh, connected });
+  const loadSkills = open && !isConversation && !isCoze && !isFile && !isSsh;
+  const catalog = useComposerSkills({ cwd, threadId: conversations?.selected ?? undefined, active: loadSkills, connected });
   const coze = useComposerCoze(open && isCoze && connected);
   const ssh = useSshCandidates({ active: open && isSsh, connected, profiles: sshProfiles });
   const query = trigger?.query.toLocaleLowerCase() ?? "";

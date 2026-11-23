@@ -1,7 +1,7 @@
 //! Reuse the normal GUI validation for single, queued and steering messages.
 use super::{
     error::{GuiError, Result},
-    prompt::{batch_params, PromptInput, TurnOptions},
+    prompt::{batch_params_with_skills, PromptInput, SkillInput, TurnOptions},
     protocol::GuiRequest,
     upload_policy::UploadLimits,
 };
@@ -86,7 +86,7 @@ pub(super) fn request(request: GuiRequest) -> Result<Value> {
         ),
         _ => return Err(GuiError::InvalidRequest),
     };
-    let (_, params) = batch_params(
+    let (_, params) = batch_params_with_skills(
         thread_id.clone(),
         messages,
         TurnOptions {
@@ -95,6 +95,7 @@ pub(super) fn request(request: GuiRequest) -> Result<Value> {
             cwd: None,
             access: None,
         },
+        SkillInput::into_official_input,
     )?;
     Ok(
         json!({"operation": if turn_id.is_some() { "steer" } else { "send" },
@@ -105,6 +106,23 @@ pub(super) fn request(request: GuiRequest) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accepts_catalog_skill_references_and_rejects_files_as_official_skills() {
+        let send = |path: &str| {
+            let request = serde_json::from_value(json!({"operation":"send","threadId":"thread-1",
+                "text":"Review this", "images":[], "access":"workspace-write",
+                "skills":[{"name":"review","path":path}]}))
+            .unwrap();
+            self::request(request)
+        };
+        let path = format!("skill://{}", "a".repeat(64));
+        assert_eq!(
+            send(&path).unwrap()["input"][1],
+            json!({"type":"skill", "name":"review", "path":path})
+        );
+        assert!(send("C:/unrelated/SKILL.md").is_err());
+    }
 
     #[test]
     fn phone_file_bytes_are_saved_before_official_steering() {

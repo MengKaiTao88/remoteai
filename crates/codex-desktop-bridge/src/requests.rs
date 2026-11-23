@@ -17,7 +17,7 @@ impl Client {
     pub async fn request(self: &Arc<Self>, request: Value) -> Result<Value> {
         match request["operation"].as_str().ok_or(Error::Invalid)? {
             "models" => self.models(&request).await,
-            "skills" => Ok(json!({"data": []})),
+            "skills" => self.skills(&request).await,
             "plugins" => self.plugins(&request).await,
             "officialProjects" => self.official_projects(&request).await,
             "list" => self.list(&request).await,
@@ -205,9 +205,9 @@ impl Client {
         }
         let mut body = json!({"id": submission, "text": input.text, "attachments": attachments,
             "mode": if steering { "steer" } else { "send" }});
-        if !input.plugins.is_empty() {
+        if !input.references.is_empty() {
             // The pinned gateway keeps selected references in its durable submission ledger.
-            body["skills"] = json!(input.plugins);
+            body["skills"] = json!(input.references);
         }
         let reply = self
             .http

@@ -334,7 +334,9 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         assert!(uuid::Uuid::parse_str(body["id"].as_str().unwrap()).is_ok());
                         assert!(body.get("access").is_none() && body.get("model").is_none());
                         let steering = body["mode"] == "steer";
-                        if body["text"] == "Use GitHub" {
+                        if body["text"] == "Use saved skill" {
+                            assert_eq!(body["skills"], json!(["a".repeat(64)]));
+                        } else if body["text"] == "Use GitHub" {
                             assert_eq!(body["skills"], json!(["plugin://github@fixture"]));
                             assert_eq!(body["attachments"], json!([]));
                         } else if steering {
@@ -369,6 +371,14 @@ pub(super) async fn fixture(drop_send: bool) -> Fixture {
                         }
                         json!({"before":format!("cursor-{}",saved.load(Ordering::SeqCst)),
                             "hasMore":saved.load(Ordering::SeqCst)<total.load(Ordering::SeqCst)})
+                    } else if path.contains("kind=remoteai-skills")
+                        || path.contains("kind=remoteai-draft-skills")
+                    {
+                        if path.contains("kind=remoteai-draft-skills") {
+                            assert!(path.to_ascii_lowercase().contains("q=local%7cfixture"));
+                        }
+                        json!({"skills":[{"id":"a".repeat(64), "name":"review", "displayName":"Code Review",
+                            "description":"Review changes", "path":"C:/private/SKILL.md"}], "total":1, "errors":[]})
                     } else if path.contains("kind=remoteai-plugins") {
                         assert_eq!(
                             path,

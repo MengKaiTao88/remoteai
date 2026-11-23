@@ -1,8 +1,10 @@
 import unittest
+from pathlib import Path
+from threading import RLock
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from native_plugins import _project_plugins, install
+from native_plugins import DRAFT_CATALOG_ID, _project_plugins, install
 
 PLUGIN = {'id': 'github@fixture', 'name': 'github', 'installed': True, 'enabled': True,
           'interface': {'displayName': 'GitHub', 'composerIconUrl': 'file://private.png'}}
@@ -27,11 +29,16 @@ class PluginTests(unittest.TestCase):
             def _call(self, _session, method, params):
                 return method, params
 
-        self.session = SimpleNamespace(origin='desktop', runtime='desktop')
+        self.session = SimpleNamespace(origin='desktop', runtime='desktop', condition=RLock(),
+                                       state={'cwd': str(Path.cwd())})
         self.model = SimpleNamespace(normalize_item=lambda item: {'text': item['content'][0]['text']})
         install(Bridge, self.model, Rejected)
         self.bridge = Bridge()
         self.bridge.session = Mock(return_value=self.session)
+        self.bridge.codex_home = Path.cwd()
+        self.bridge.catalog_reader = SimpleNamespace(get_kind=Mock(return_value={'skills': [
+            {'id': 'a' * 64, 'name': 'review', 'displayName': 'Code Review', 'description': 'Review a change',
+             'path': '/private/skill/SKILL.md'}], 'total': 1, 'errors': []}))
         self.plugins = _project_plugins({'marketplaces': [{'plugins': [PLUGIN,
             {**PLUGIN, 'id': 'off@fixture', 'enabled': False}, {**PLUGIN, 'id': 'other@fixture', 'installed': False}]}]})
 
@@ -39,10 +46,32 @@ class PluginTests(unittest.TestCase):
         with patch('native_plugins._installed', return_value=(self.plugins, False)) as installed:
             catalog = self.bridge.catalog('test-chat', kind='remoteai-plugins')
         self.bridge.session.assert_called_once_with('test-chat', attach=False, background=True)
-        installed.assert_called_once_with(self.bridge, self.session)
+        installed.assert_called_once_with(self.bridge, str(Path.cwd()))
         self.assertEqual([row['id'] for row in catalog['marketplaces'][0]['plugins']], ['github@fixture'])
         self.assertNotIn('composerIconUrl', catalog['marketplaces'][0]['plugins'][0]['interface'])
         self.assertEqual(self.bridge.catalog('test-chat', kind='models'), 'models')
+
+    def test_catalog_reuses_installed_plugins_but_validation_still_checks_the_runtime(self):
+        with patch('native_plugins._installed', side_effect=[(self.plugins, False), ({}, False)]) as installed:
+            first = self.bridge.catalog('test-chat', kind='remoteai-plugins')
+            self.assertEqual(self.bridge.catalog('test-chat', kind='remoteai-plugins'), first)
+            with self.assertRaises(Rejected):
+                self.bridge._resolve_skills(self.session, [PATH])
+        self.assertEqual(installed.call_count, 2)
+
+    def test_skills_use_the_current_chat_or_saved_project_and_omit_local_paths(self):
+        listed = self.bridge.catalog('test-chat', kind='remoteai-skills', offset=12, limit=20)
+        self.assertEqual(listed['skills'][0]['displayName'], 'Code Review')
+        self.assertNotIn('path', listed['skills'][0])
+        self.bridge.catalog_reader.get_kind.assert_called_once_with('skills', str(Path.cwd()), offset=12, limit=20)
+        self.bridge.catalog(DRAFT_CATALOG_ID, kind='remoteai-draft-skills', query='local|independent')
+        self.bridge.session.assert_called_once_with('test-chat', attach=False, background=True)
+        self.bridge.directory_projects = SimpleNamespace(get=Mock(return_value=None))
+        self.bridge.hosts = SimpleNamespace(projects=Mock(return_value=[]))
+        with self.assertRaises(ValueError):
+            self.bridge.catalog(DRAFT_CATALOG_ID, kind='remoteai-draft-skills', query='local|missing')
+        with self.assertRaises(ValueError):
+            self.bridge.catalog('test-chat', kind='remoteai-draft-skills', query='local|independent')
 
     def test_send_and_steer_forward_verified_references_as_native_mentions(self):
         with patch('native_plugins._installed', return_value=(self.plugins, False)):

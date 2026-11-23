@@ -23,7 +23,7 @@ export function ComposerAddMenu({ cwd, threadId, disabled, active, anchor, onFil
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const catalog = useComposerPlugins({ cwd, threadId, active: open && active && !disabled });
-  const skills = useComposerSkills({ cwd, active: open && active && !disabled, connected: !disabled });
+  const skills = useComposerSkills({ cwd, threadId, active: open && active && !disabled, connected: !disabled });
   useEffect(() => { setOpen(false); }, [cwd, threadId, disabled, active]);
   const close = () => { setOpen(false); trigger.current?.focus(); };
   const content = <div ref={panel} className={styles.panel} role="menu" aria-label={uiText("client.shared.add")}

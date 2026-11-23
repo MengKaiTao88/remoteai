@@ -36,7 +36,9 @@ pub(super) fn prepare_request_with_upload_policy(
     limits: super::upload_policy::UploadLimits,
 ) -> Result<()> {
     match request {
-        GuiRequest::Skills { cwd } if cwd.as_ref().is_none_or(|value| value.trim().is_empty()) => {
+        GuiRequest::Skills { cwd, .. }
+            if cwd.as_ref().is_none_or(|value| value.trim().is_empty()) =>
+        {
             *cwd = Some(execution_path(root));
         }
         GuiRequest::Start { cwd, .. } => {

@@ -1,13 +1,19 @@
 """Adapt installed plugin references while the native desktop owns the turn."""
 import re
+from collections import OrderedDict
 from functools import wraps
 from pathlib import Path
+from threading import Lock
+from time import monotonic
 
 PLUGIN_PREFIX = 'plugin://'
 PLUGIN_PATH = re.compile(r'plugin://[a-zA-Z0-9_.@-]{1,300}\Z')
 MAX_SELECTION = 8
 MAX_LABEL = 200
 MAX_DESCRIPTION = 500
+PLUGIN_CACHE_SECONDS = 45
+MAX_PLUGIN_SCOPES = 12
+DRAFT_CATALOG_ID = '00000000-0000-0000-0000-000000000000'
 
 
 def _name(value):
@@ -38,16 +44,18 @@ def _project_plugins(raw):
     return plugins
 
 
-def _installed(bridge, session=None):
+def _session_directory(session):
+    with session.condition:
+        state = session.state or session.history_state or {}
+        cwd = state.get('cwd') or session.saved_cwd
+    if isinstance(cwd, str) and Path(cwd).is_absolute() and Path(cwd).is_dir():
+        return cwd
+    return None
+
+
+def _installed(bridge, cwd):
     from bridge.features.sessions.create import _runtime_operation
 
-    cwd = None
-    if session is not None:
-        with session.condition:
-            state = session.state or session.history_state or {}
-            cwd = state.get('cwd') or session.saved_cwd
-        if not isinstance(cwd, str) or not Path(cwd).is_absolute() or not Path(cwd).is_dir():
-            cwd = None
     raw = _runtime_operation(bridge.catalog_reader.executable, bridge.codex_home,
                              cwd or str(bridge.codex_home),
                              lambda request: request('plugin/installed', {'cwds': [cwd] if cwd else []}))
@@ -58,17 +66,72 @@ def _desktop(bridge, session):
     return bridge.host == 'local' and session.origin == 'desktop'
 
 
-def _catalog(bridge, thread_id, *, user_scope):
+class _PluginCatalog:
+    def __init__(self):
+        self.lock = Lock()
+        self.cache = OrderedDict()
+
+    def read(self, bridge, cwd):
+        key = (bridge, cwd)
+        with self.lock:
+            cached = self.cache.get(key)
+            if cached and monotonic() - cached[0] < PLUGIN_CACHE_SECONDS:
+                self.cache.move_to_end(key)
+                return cached[1]
+            value = _installed(bridge, cwd)
+            if not value[1]:
+                self.cache[key] = (monotonic(), value)
+                self.cache.move_to_end(key)
+                if len(self.cache) > MAX_PLUGIN_SCOPES:
+                    self.cache.popitem(last=False)
+            return value
+
+
+def _catalog(bridge, thread_id, cache, *, user_scope):
     # Resolve an authorized local thread before reading installed plugins. Project scope
     # comes from the owner's thread, never from a path supplied by the network client.
     session = bridge.session(thread_id, attach=False, background=True)
     if not _desktop(bridge, session):
         raise ValueError('plugin_catalog_unavailable')
     try:
-        plugins, partial = _installed(bridge, None if user_scope else session)
+        plugins, partial = cache.read(bridge, None if user_scope else _session_directory(session))
     except (OSError, RuntimeError, KeyError, TypeError, AttributeError, ValueError):
         plugins, partial = {}, True
     return {'marketplaces': [{'plugins': list(plugins.values())}], 'marketplaceLoadErrors': [True] if partial else []}
+
+
+def _draft_skill_directory(bridge, project):
+    if project == 'local|independent':
+        return str(bridge.codex_home)
+    if not project.startswith('local|'):
+        raise ValueError('skill_catalog_unavailable')
+    saved = bridge.directory_projects.get(project)
+    if saved is None:
+        saved = next((row for row in bridge.hosts.projects() if row['key'] == project), None)
+    if not saved or saved['host'] != 'local' or saved.get('type', 'desktop') != 'desktop':
+        raise ValueError('skill_catalog_unavailable')
+    from bridge.features.sessions.create import project_directory
+
+    return project_directory(saved['cwd'], expected=saved.get('directoryIdentity'))['cwd']
+
+
+def _skill_catalog(bridge, thread_id, kind, options):
+    if bridge.host != 'local':
+        raise ValueError('skill_catalog_unavailable')
+    if kind == 'remoteai-draft-skills':
+        if thread_id != DRAFT_CATALOG_ID:
+            raise ValueError('skill_catalog_unavailable')
+        cwd = _draft_skill_directory(bridge, options.get('query', ''))
+    else:
+        session = bridge.session(thread_id, attach=False, background=True)
+        if not _desktop(bridge, session):
+            raise ValueError('skill_catalog_unavailable')
+        cwd = _session_directory(session) or str(bridge.codex_home)
+    result = bridge.catalog_reader.get_kind('skills', cwd, offset=options.get('offset', 0),
+                                            limit=options.get('limit', 500))
+    metadata = ('id', 'name', 'displayName', 'description')
+    return {'skills': [{key: row.get(key) for key in metadata} for row in result['skills']],
+            'total': result['total'], 'errors': [True] if result.get('errors') else []}
 
 
 def _resolve_plugins(bridge, session, references, reject):
@@ -77,7 +140,7 @@ def _resolve_plugins(bridge, session, references, reject):
     if any(not PLUGIN_PATH.fullmatch(path) for path in references):
         raise reject('plugin_selection_unavailable')
     try:
-        plugins, _ = _installed(bridge, session)
+        plugins, _ = _installed(bridge, _session_directory(session))
         return [{'id': path, 'path': path, 'name': plugins[path.removeprefix(PLUGIN_PREFIX)]['interface']['displayName']}
                 for path in sorted(set(references))]
     except (OSError, RuntimeError, KeyError, TypeError, AttributeError, ValueError):
@@ -124,11 +187,14 @@ def install(bridge_class, model, reject):
     original_resolve = bridge_class._resolve_skills
     original_call = bridge_class._call
     original_normalize = model.normalize_item
+    plugin_catalog = _PluginCatalog()
 
     @wraps(original_catalog)
     def catalog(bridge, thread_id, refresh=False, kind=None, **options):
         if kind in ('remoteai-plugins', 'remoteai-user-plugins'):
-            return _catalog(bridge, thread_id, user_scope=kind == 'remoteai-user-plugins')
+            return _catalog(bridge, thread_id, plugin_catalog, user_scope=kind == 'remoteai-user-plugins')
+        if kind in ('remoteai-skills', 'remoteai-draft-skills'):
+            return _skill_catalog(bridge, thread_id, kind, options)
         return original_catalog(bridge, thread_id, refresh=refresh, kind=kind, **options)
 
     @wraps(original_resolve)

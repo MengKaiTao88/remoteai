@@ -3,7 +3,7 @@ import { fileDownloadByteLimit, imagePreviewByteLimit, textPreviewByteLimit, vid
 import { remoteAttachments } from '../../../../shared/remote-chat/composerAttachments';
 import { guiApi } from '../../../../shared/conversation/api';
 import { summarizeTools } from '../../../../shared/conversation/toolDetails';
-import type { ApprovalReply, GuiEvent, ListResponse, Request, SkillsResponse, Thread } from '../../../../shared/conversation/types';
+import type { ApprovalReply, GuiEvent, ListResponse, Request, Thread } from '../../../../shared/conversation/types';
 import { object, type ConnectionMode, type RpcRequest, type RpcResponse }
   from '../../../../shared/remote-chat/protocol';
 import { chunks } from '../../../../shared/remote-chat/framing';
@@ -371,6 +371,7 @@ export class ChatOperations {
     if (body.operation === 'videoOpen' || body.operation === 'videoRead') {
       body.maxBytes = videoByteLimit(mode);
     }
+    if (body.operation === 'skills') return composerCatalog(body);
     applyProjectOverride(body);
     const result = body.operation === 'list' ? await readRemoteThreadList(body)
       : body.operation === 'send' ? await sendRemoteMessage(body as Extract<Request, { operation: 'send' }>)
@@ -382,7 +383,6 @@ export class ChatOperations {
     if (['projectFileRead', 'projectFileBlame', 'projectFileWrite', 'projectEntryAction']
       .includes(String(body.operation))) return result;
     this.titles.completed(body, result);
-    if (body.operation === 'skills') return composerCatalog(result as SkillsResponse, body);
     if (body.operation === 'list') {
       const list = result as ListResponse<Thread>;
       return { ...list, data: list.data.map(({ turns: _turns, ...thread }) => effectiveProjectThread(thread)),

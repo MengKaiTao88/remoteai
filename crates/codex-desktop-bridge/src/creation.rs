@@ -90,7 +90,10 @@ impl Client {
         Ok(json!({"thread":projection::thread(&view)}))
     }
 
-    async fn project_key(&self, cwd: &str) -> Result<String> {
+    pub(super) async fn project_key(&self, cwd: &str) -> Result<String> {
+        if !valid_project_path(cwd) {
+            return Err(Error::Invalid);
+        }
         let projects = self.http.get(PROJECTS_PATH).await?;
         Ok(resolve_project(&projects["projects"], cwd)?.key.to_owned())
     }

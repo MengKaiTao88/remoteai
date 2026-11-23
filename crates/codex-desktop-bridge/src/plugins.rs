@@ -2,8 +2,6 @@
 use super::{projection::rows, thread_id, Client, Error, Result};
 use serde_json::{json, Value};
 
-pub(super) const MAX_PLUGINS: usize = 8;
-
 pub(super) fn plugin_path(path: &str) -> bool {
     path.strip_prefix("plugin://").is_some_and(|id| {
         !id.is_empty()

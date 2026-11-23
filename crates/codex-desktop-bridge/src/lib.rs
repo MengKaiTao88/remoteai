@@ -11,6 +11,7 @@ mod pagination_tests;
 mod plugins;
 mod projection;
 mod requests;
+mod skills;
 mod usage;
 mod watch;
 
@@ -20,6 +21,7 @@ use tokio::sync::{broadcast, Mutex};
 use zeroize::Zeroizing;
 
 pub const INHERIT_MODEL: &str = "codex-desktop-inherit";
+pub use skills::skill_reference_id;
 const MAX_WATCHES: usize = 16;
 
 #[derive(Debug, thiserror::Error)]

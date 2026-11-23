@@ -5,17 +5,18 @@ import { guiApi } from "../../../../../shared/conversation/api";
 import { skillLabel } from "./skillEditorDom";
 import type { Skill, SkillsResponse } from "../../../../../shared/conversation/types";
 
-export function useComposerSkills({ cwd, active, connected }: {
-  cwd: string; active: boolean; connected: boolean;
+export function useComposerSkills({ cwd, threadId, active, connected }: {
+  cwd: string; threadId?: string; active: boolean; connected: boolean;
 }) {
   const { loadSkills } = useContext(MessageEditContext);
-  const [result, setResult] = useState({ cwd: "", skills: [] as Skill[], loading: false, error: "" });
+  const [result, setResult] = useState({ scope: "", skills: [] as Skill[], loading: false, error: "" });
+  const scope = JSON.stringify([cwd, threadId]);
   useEffect(() => {
     if (!active || !connected) return;
     let cancelled = false;
-    setResult({ cwd, skills: [], loading: true, error: "" });
-    const request = loadSkills ? loadSkills(cwd)
-      : guiApi.request<SkillsResponse>({ operation: "skills", cwd: cwd || undefined });
+    setResult({ scope, skills: [], loading: true, error: "" });
+    const request = loadSkills ? loadSkills(cwd, threadId)
+      : guiApi.request<SkillsResponse>({ operation: "skills", cwd: cwd || undefined, threadId });
     void request.then((response) => {
       if (cancelled) return;
       const skills = [...new Map(response.data.flatMap((entry) => entry.skills)
@@ -23,11 +24,12 @@ export function useComposerSkills({ cwd, active, connected }: {
         .sort((left, right) => skillLabel(left).localeCompare(skillLabel(right)));
       const error = response.data.some((entry) => entry.errors.length)
         ? uiText("client.workspaceActions.someSkillsCouldNotLoadReopenTheMenuToRetry") : "";
-      setResult({ cwd, skills, loading: false, error });
+      setResult({ scope, skills, loading: false, error });
     }).catch(() => {
-      if (!cancelled) setResult({ cwd, skills: [], loading: false, error: uiText("client.workspaceActions.couldNotLoadSkillsReopenTheMenuToRetry") });
+      if (!cancelled) setResult({ scope, skills: [], loading: false,
+        error: uiText("client.workspaceActions.couldNotLoadSkillsReopenTheMenuToRetry") });
     });
     return () => { cancelled = true; };
-  }, [cwd, active, connected, loadSkills]);
-  return result.cwd === cwd ? result : { skills: [], loading: active, error: "" };
+  }, [cwd, threadId, scope, active, connected, loadSkills]);
+  return result.scope === scope ? result : { skills: [], loading: active, error: "" };
 }

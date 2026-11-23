@@ -16,7 +16,7 @@ pub(super) struct Image {
 pub(super) struct Input {
     pub text: String,
     pub images: Vec<Image>,
-    pub plugins: Vec<String>,
+    pub references: Vec<String>,
 }
 
 pub(super) async fn prepare(request: &Value) -> Result<Input> {
@@ -38,23 +38,12 @@ pub(super) async fn prepare(request: &Value) -> Result<Input> {
     };
     let mut text = Vec::new();
     let mut images = Vec::new();
-    let mut plugins = Vec::new();
+    let mut references = Vec::new();
     let mut total = 0;
     for node in nodes {
         match node["type"].as_str() {
             Some("text") => text.push(node["text"].as_str().ok_or(Error::Input)?.to_owned()),
-            Some("mention") => {
-                let path = node["path"]
-                    .as_str()
-                    .filter(|path| super::plugins::plugin_path(path))
-                    .ok_or(Error::Unsupported)?;
-                if !plugins.iter().any(|id| id == path) {
-                    if plugins.len() >= super::plugins::MAX_PLUGINS {
-                        return Err(Error::Input);
-                    }
-                    plugins.push(path.to_owned());
-                }
-            }
+            Some(kind @ ("mention" | "skill")) => add_reference(&mut references, kind, &node)?,
             Some("image" | "localImage") => {
                 let image = image(node).await?;
                 total += image.bytes.len();
@@ -73,8 +62,27 @@ pub(super) async fn prepare(request: &Value) -> Result<Input> {
     Ok(Input {
         text,
         images,
-        plugins,
+        references,
     })
+}
+
+fn add_reference(references: &mut Vec<String>, kind: &str, node: &Value) -> Result<()> {
+    let path = node["path"].as_str().ok_or(Error::Unsupported)?;
+    let reference = if kind == "skill" {
+        super::skill_reference_id(path).ok_or(Error::Unsupported)?
+    } else if super::plugins::plugin_path(path) {
+        path
+    } else {
+        return Err(Error::Unsupported);
+    };
+    if references.iter().any(|id| id == reference) {
+        return Ok(());
+    }
+    if references.len() >= super::skills::MAX_REFERENCES {
+        return Err(Error::Input);
+    }
+    references.push(reference.to_owned());
+    Ok(())
 }
 
 async fn image(node: Value) -> Result<Image> {

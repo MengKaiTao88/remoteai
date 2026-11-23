@@ -7,6 +7,34 @@ fn start(cwd: Option<&str>) -> Value {
 }
 
 #[tokio::test]
+async fn skills_list_and_send_use_catalog_ids_without_exposing_host_paths() {
+    let fixture = tests::fixture(false).await;
+    let client = tests::client(&fixture).await;
+    for request in [
+        json!({"operation":"skills", "threadId":tests::THREAD}),
+        json!({"operation":"skills", "cwd":"C:\\fixture"}),
+    ] {
+        let result = client.request(request).await.unwrap();
+        let skill = &result["data"][0]["skills"][0];
+        assert_eq!(skill["interface"]["displayName"], "Code Review");
+        assert_eq!(skill["path"], format!("skill://{}", "a".repeat(64)));
+        assert!(!result.to_string().contains("C:/private"));
+    }
+    let input = |path: &str| {
+        json!({"operation":"send", "threadId":tests::THREAD, "input":[
+        {"type":"text", "text":"Use saved skill"}, {"type":"skill", "name":"review", "path":path}]})
+    };
+    assert!(client.request(input("C:/private/SKILL.md")).await.is_err());
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 0);
+    client
+        .request(input(&format!("skill://{}", "a".repeat(64))))
+        .await
+        .unwrap();
+    assert_eq!(fixture.sends.load(Ordering::SeqCst), 1);
+    client.close().await;
+}
+
+#[tokio::test]
 async fn independent_creation_waits_for_owner_and_sends_nothing_until_explicit_delivery() {
     let fixture = tests::fixture(false).await;
     fixture.creation_wait.store(2, Ordering::SeqCst);

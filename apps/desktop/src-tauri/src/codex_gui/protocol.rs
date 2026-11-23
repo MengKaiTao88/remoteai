@@ -70,6 +70,7 @@ pub(crate) enum GuiRequest {
     },
     Skills {
         cwd: Option<String>,
+        thread_id: Option<String>,
     },
     Plugins {
         cwd: Option<String>,
@@ -288,7 +289,7 @@ impl GuiRequest {
                 objective,
                 status,
             } => goals::set_params(thread_id, objective, status),
-            Self::Skills { cwd } => {
+            Self::Skills { cwd, .. } => {
                 if let Some(cwd) = &cwd {
                     directory(cwd)?;
                 }

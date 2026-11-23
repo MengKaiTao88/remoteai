@@ -123,7 +123,9 @@ impl State {
             GuiRequest::Models { cache_only, cursor } => {
                 json!({"operation": "models", "cacheOnly":cache_only, "cursor":cursor})
             }
-            GuiRequest::Skills { .. } => json!({"operation": "skills"}),
+            GuiRequest::Skills { cwd, thread_id } => {
+                json!({"operation": "skills", "cwd": cwd, "threadId": thread_id})
+            }
             GuiRequest::Plugins { cwd, thread_id } => {
                 json!({"operation": "plugins", "cwd": cwd, "threadId": thread_id})
             }

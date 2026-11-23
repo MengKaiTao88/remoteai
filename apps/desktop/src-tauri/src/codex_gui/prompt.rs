@@ -111,11 +111,23 @@ impl AttachmentInput {
 }
 
 impl SkillInput {
+    pub(super) fn into_official_input(self) -> Result<Value> {
+        if !self.valid_name() || csw_codex_desktop_bridge::skill_reference_id(&self.path).is_none()
+        {
+            return Err(GuiError::InvalidRequest);
+        }
+        Ok(json!({"type": "skill", "name": self.name, "path": self.path}))
+    }
+
+    fn valid_name(&self) -> bool {
+        !self.name.trim().is_empty()
+            && self.name.len() <= 200
+            && !self.name.chars().any(char::is_control)
+    }
+
     fn into_input(self) -> Result<Value> {
         let path = std::path::Path::new(&self.path);
-        if self.name.trim().is_empty()
-            || self.name.len() > 200
-            || self.name.chars().any(char::is_control)
+        if !self.valid_name()
             || !path.is_absolute()
             || path.file_name().is_none_or(|name| name != "SKILL.md")
             || !path.is_file()
@@ -138,13 +150,22 @@ pub(super) fn batch_params(
     messages: Vec<PromptInput>,
     options: TurnOptions,
 ) -> Result<(&'static str, Value)> {
+    batch_params_with_skills(thread_id, messages, options, SkillInput::into_input)
+}
+
+pub(super) fn batch_params_with_skills(
+    thread_id: String,
+    messages: Vec<PromptInput>,
+    options: TurnOptions,
+    skill_input: fn(SkillInput) -> Result<Value>,
+) -> Result<(&'static str, Value)> {
     const MAX_QUEUED_MESSAGES: usize = 100;
     if messages.is_empty() || messages.len() > MAX_QUEUED_MESSAGES {
         return Err(GuiError::InvalidRequest);
     }
     let mut content = Vec::new();
     for message in messages {
-        let (_, mut params) = send_params(
+        let (_, mut params) = send_params_with_skills(
             thread_id.clone(),
             message,
             TurnOptions {
@@ -153,6 +174,7 @@ pub(super) fn batch_params(
                 cwd: None,
                 access: None,
             },
+            skill_input,
         )?;
         let input = params["input"]
             .as_array_mut()
@@ -177,6 +199,15 @@ pub(super) fn send_params(
     thread_id: String,
     input: PromptInput,
     options: TurnOptions,
+) -> Result<(&'static str, Value)> {
+    send_params_with_skills(thread_id, input, options, SkillInput::into_input)
+}
+
+fn send_params_with_skills(
+    thread_id: String,
+    input: PromptInput,
+    options: TurnOptions,
+    skill_input: fn(SkillInput) -> Result<Value>,
 ) -> Result<(&'static str, Value)> {
     let PromptInput {
         transfer_mode,
@@ -207,7 +238,7 @@ pub(super) fn send_params(
         content.push(image_input(image, transfer_mode)?);
     }
     for skill in skills {
-        content.push(skill.into_input()?);
+        content.push(skill_input(skill)?);
     }
     for attachment in attachments {
         content.extend(attachment.into_inputs(transfer_mode)?);
