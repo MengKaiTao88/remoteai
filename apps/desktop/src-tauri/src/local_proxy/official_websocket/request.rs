@@ -216,11 +216,12 @@ fn fingerprint_item(
         return fingerprint(item);
     };
     let reasoning = item.get("type").and_then(Value::as_str) == Some("reasoning");
-    // Codex's typed history omits empty optionals and does not serialize a status on reasoning.
+    // Codex omits both the reasoning status and an empty reasoning content array on replay.
     let canonical = fields.iter().filter(|(key, value)| match key.as_str() {
         _ if value.is_null() => false,
         "status" if reasoning => false,
         "content" if omit_reasoning_text => false,
+        "content" if reasoning && value.as_array().is_some_and(Vec::is_empty) => false,
         _ => !(omit_output_metadata && output_metadata_field(key, value)),
     });
     let mut hash = HashWriter(Sha256::new());

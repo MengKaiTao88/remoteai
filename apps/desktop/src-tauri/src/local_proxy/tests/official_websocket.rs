@@ -11,6 +11,9 @@ mod protocol;
 #[path = "official_websocket_custom_tools.rs"]
 mod custom_tools;
 
+#[path = "official_websocket_long_history.rs"]
+mod long_history;
+
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 #[test]
@@ -32,11 +35,16 @@ fn official_responses_reuses_confirmed_history_over_websocket() {
         "id":"fc_fixture","status":"completed"});
     let reasoning = json!({"type":"reasoning","id":"rs_fixture","summary":[],"content":null,
         "encrypted_content":"synthetic-opaque-reasoning"});
+    let summary_only = json!({
+        "type":"reasoning", "id":"rs_summary_fixture", "encrypted_content":"synthetic-opaque-summary",
+        "summary":[{"type":"summary_text","text":"Inspect the supplied sample."}]
+    });
     let output = json!({"type":"function_call_output","call_id":"call_1","output":"done"});
     let expected = TurnHistory {
         user,
         message,
         reasoning,
+        summary_only,
         call,
         output,
     };
@@ -45,6 +53,7 @@ fn official_responses_reuses_confirmed_history_over_websocket() {
         expected.user,
         expected.message,
         expected.reasoning,
+        expected.summary_only,
         expected.call,
         expected.output
     ]));
@@ -163,6 +172,7 @@ struct TurnHistory {
     user: Value,
     message: Value,
     reasoning: Value,
+    summary_only: Value,
     call: Value,
     output: Value,
 }
@@ -171,10 +181,12 @@ fn wire_output(turn: &TurnHistory) -> Value {
     let mut reasoning = turn.reasoning.clone();
     reasoning["status"] = "completed".into();
     reasoning["content"] = json!([{"type":"reasoning_text","text":"upstream-only reasoning"}]);
+    let mut summary_only = turn.summary_only.clone();
+    summary_only["content"] = json!([]);
     let mut call = turn.call.clone();
     call["namespace"] = Value::Null;
     call["encrypted_function_args"] = Value::Null;
-    let mut items = [turn.message.clone(), reasoning, call];
+    let mut items = [turn.message.clone(), reasoning, summary_only, call];
     // In real Codex requests these non-null fields are absent from replayed output items.
     for item in &mut items {
         item["metadata"] = json!({"source": "fixture"});
