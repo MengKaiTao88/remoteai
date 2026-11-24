@@ -177,12 +177,14 @@ pub(super) fn output_fingerprint(item: &Value) -> Option<HistoryItem> {
             });
     // Codex may omit these output annotations when serializing its history for the next turn.
     // Only an alternative for confirmed output drops them. Client input is still compared as sent.
-    let output_metadata = matches!(kind, Some("message" | "reasoning" | "function_call"))
-        && item.as_object().is_some_and(|fields| {
-            fields
-                .iter()
-                .any(|(key, value)| output_metadata_field(key, value))
-        });
+    let output_metadata = matches!(
+        kind,
+        Some("message" | "reasoning" | "function_call" | "custom_tool_call")
+    ) && item.as_object().is_some_and(|fields| {
+        fields
+            .iter()
+            .any(|(key, value)| output_metadata_field(key, value))
+    });
     Some(HistoryItem {
         original: item_fingerprint(item)?,
         codex_input: output_metadata

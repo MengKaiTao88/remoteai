@@ -8,6 +8,9 @@ mod safety;
 #[path = "official_websocket_protocol.rs"]
 mod protocol;
 
+#[path = "official_websocket_custom_tools.rs"]
+mod custom_tools;
+
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 #[test]
