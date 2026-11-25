@@ -40,11 +40,21 @@ pub(super) fn forward<R: Runtime>(
             let mut attempt = attempt.borrow_mut();
             attempt.route.begin_attempt();
             context(&request, &attempt.target, started_at);
-            send(&request, &attempt)
+            let payload = send(&request, &attempt)?;
+            if is_official_quota_exhaustion(&payload)
+                && !official_recovery_routing::attempt_can_change_route_on_quota()
+            {
+                if let Err(error) =
+                    gui_auto_switch::observe_quota_exhaustion(request.app, &attempt.route)
+                {
+                    log_proxy_error!("GUI official quota observation failed: {error}");
+                }
+            }
+            Ok(payload)
         },
         |response, event| advance(&request, &attempt, response, event),
     );
-    let target = attempt.into_inner().target;
+    let Attempt { route, target } = attempt.into_inner();
     let diagnostic = proxy_diagnostic_entry(
         request.method,
         request.url,
@@ -54,8 +64,12 @@ pub(super) fn forward<R: Runtime>(
         proxy_diagnostic_route(request_path(request.url), &target),
     );
     // A fallback Provider must be attributed from the final GUI target, never the shared target.
-    let result =
-        attach_token_usage_capture(request.app, context(&request, &target, started_at), result);
+    let result = attach_token_usage_capture_for_route(
+        request.app,
+        context(&request, &target, started_at),
+        result,
+        Some(StreamQuotaRoute::Gui(route)),
+    );
     append_proxy_diagnostic_result(request.app, diagnostic, &result, started_at.elapsed());
     result
 }

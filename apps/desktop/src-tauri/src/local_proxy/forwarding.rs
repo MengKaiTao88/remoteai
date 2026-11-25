@@ -135,10 +135,8 @@ impl OfficialHttpRequest<'_> {
             official_websocket::Outcome::Http(route) => {
                 let body = route.body.as_deref().unwrap_or(self.body);
                 official_websocket::record_http_started(account);
-                let payload =
-                    self.send(&credentials.authentication, route.strip_routing_hint, body)?;
-                route.record(account, payload.status);
-                Ok(payload)
+                let payload = self.send(&credentials.authentication, route.headers, body)?;
+                Ok(route.watch(payload))
             }
         }
     }
@@ -160,7 +158,11 @@ fn send_official_request(
         headers,
         body: &body,
     }
-    .send(authentication, false, &body)
+    .send(
+        authentication,
+        official_websocket::HttpHeaders::default(),
+        &body,
+    )
 }
 
 fn prepare_official_body(
@@ -182,7 +184,7 @@ impl OfficialHttpRequest<'_> {
     fn send(
         &self,
         authentication: &OfficialRequestAuthentication,
-        strip_routing_hint: bool,
+        header_policy: official_websocket::HttpHeaders,
         body: &[u8],
     ) -> Result<UpstreamPayload, String> {
         let Self {
@@ -194,10 +196,10 @@ impl OfficialHttpRequest<'_> {
         } = *self;
         let request_method = reqwest_method(method)?;
         let filtered_headers;
-        let headers = if strip_routing_hint {
+        let headers = if !header_policy.is_unchanged() {
             filtered_headers = headers
                 .iter()
-                .filter(|(name, _)| !name.eq_ignore_ascii_case("x-codex-routing-hint"))
+                .filter(|(name, _)| header_policy.keep(name))
                 .cloned()
                 .collect::<Vec<_>>();
             &filtered_headers
@@ -232,13 +234,19 @@ fn apply_official_authentication(
     authentication: &OfficialRequestAuthentication,
 ) -> RequestBuilder {
     match authentication {
-        OfficialRequestAuthentication::OAuth { access_token, chatgpt_account_id } => {
+        OfficialRequestAuthentication::OAuth {
+            access_token,
+            chatgpt_account_id,
+        } => {
             request = request.bearer_auth(access_token);
             if let Some(account_id) = chatgpt_account_id {
                 request = request.header("ChatGPT-Account-Id", account_id);
             }
         }
-        OfficialRequestAuthentication::AgentIdentity { request_authentication, .. } => {
+        OfficialRequestAuthentication::AgentIdentity {
+            request_authentication,
+            ..
+        } => {
             request = request
                 .header("Authorization", &request_authentication.authorization)
                 .header("ChatGPT-Account-Id", &request_authentication.account_id);
@@ -273,7 +281,8 @@ fn official_body_for_upstream_with_tier(
     };
     let removed_incompatible_reasoning =
         remove_incompatible_official_reasoning_from_input(&mut value);
-    let removed_incompatible_message_ids = official_input::remove_incompatible_message_ids(&mut value);
+    let removed_incompatible_message_ids =
+        official_input::remove_incompatible_message_ids(&mut value);
     let removed_unsupported_controls = remove_unsupported_official_generation_controls(&mut value);
     if requested_model(&value).is_some()
         && !removed_incompatible_reasoning
@@ -338,14 +347,19 @@ fn forward_provider(
             } else {
                 request.bearer_auth(provider.api_key.trim())
             };
-            provider_request_options::headers(apply_forward_headers(request, headers, true), provider)
-                .body(body.clone())
+            provider_request_options::headers(
+                apply_forward_headers(request, headers, true),
+                provider,
+            )
+            .body(body.clone())
         },
         "Provider proxy request failed",
     )?;
     let mut payload = stream_response(response)?;
     payload.token_usage_service_tier = forwarded_request_service_tier(&body, headers);
-    if *method == Method::Get && matches!(request_path(&upstream_endpoint), "/models" | "/v1/models") {
+    if *method == Method::Get
+        && matches!(request_path(&upstream_endpoint), "/models" | "/v1/models")
+    {
         return responses_lite::provider_catalog(payload);
     }
     Ok(payload)
@@ -364,8 +378,7 @@ fn forward_provider_request(
         return Err("This endpoint only supports new responses".to_string());
     }
     // Validate before automatic API fallback so malformed Lite requests are never replayed as Chat.
-    let body = responses_lite::prepare(method, url, headers, body)
-        .map_err(|error| error.wire())?;
+    let body = responses_lite::prepare(method, url, headers, body).map_err(|error| error.wire())?;
     if provider.kind == ProviderKind::Custom
         && *method == Method::Post
         && is_response_create_endpoint(request_path(url))
@@ -379,13 +392,14 @@ fn forward_provider_request(
         .copied()
         .unwrap_or(provider.api_format);
     if is_responses_endpoint(request_path(url))
-        && matches!(format, ProviderApiFormat::AnthropicMessages | ProviderApiFormat::GeminiGenerateContent)
+        && matches!(
+            format,
+            ProviderApiFormat::AnthropicMessages | ProviderApiFormat::GeminiGenerateContent
+        )
     {
         return Err("This provider does not support this response operation".to_string());
     }
-    if is_responses_endpoint(request_path(url))
-        && format == ProviderApiFormat::OpenaiChat
-    {
+    if is_responses_endpoint(request_path(url)) && format == ProviderApiFormat::OpenaiChat {
         return forward_chat_bridge(method, url, headers, body, provider);
     }
     forward_provider(method, url, headers, body, provider)
@@ -416,8 +430,12 @@ fn forward_provider_with_format(
             forward_provider(method, url, headers, body, provider)
         }
         ProviderApiFormat::OpenaiChat => forward_chat_bridge(method, url, headers, body, provider),
-        ProviderApiFormat::AnthropicMessages => anthropic_upstream::forward(method, headers, body, provider),
-        ProviderApiFormat::GeminiGenerateContent => gemini_upstream::forward(method, headers, body, provider),
+        ProviderApiFormat::AnthropicMessages => {
+            anthropic_upstream::forward(method, headers, body, provider)
+        }
+        ProviderApiFormat::GeminiGenerateContent => {
+            gemini_upstream::forward(method, headers, body, provider)
+        }
     }
 }
 
@@ -426,12 +444,23 @@ fn apply_provider_body_options(
     body: &[u8],
     provider: &ProviderProfile,
 ) -> Result<Vec<u8>, String> {
-    if *method != Method::Post || provider.request_options.as_ref().is_none_or(|options| options.body.is_empty()) {
+    if *method != Method::Post
+        || provider
+            .request_options
+            .as_ref()
+            .is_none_or(|options| options.body.is_empty())
+    {
         return Ok(body.to_vec());
     }
-    let mut value = serde_json::from_slice(body).map_err(|error|
-        request_error::RequestError::json(request_error::Stage::Request, &error).wire())?;
+    let mut value = serde_json::from_slice(body).map_err(|error| {
+        request_error::RequestError::json(request_error::Stage::Request, &error).wire()
+    })?;
     provider_request_options::body(&mut value, provider);
-    serde_json::to_vec(&value).map_err(|_| request_error::RequestError::new(
-        request_error::Stage::Request, request_error::Problem::Encode).wire())
+    serde_json::to_vec(&value).map_err(|_| {
+        request_error::RequestError::new(
+            request_error::Stage::Request,
+            request_error::Problem::Encode,
+        )
+        .wire()
+    })
 }

@@ -200,7 +200,7 @@ fn recovery_requires_a_new_query_with_confirmed_remaining_quota() {
     let started_at = Instant::now();
     let observed_at = started_at + Duration::from_secs(1);
     let refreshed_at = observed_at + Duration::from_secs(1);
-    state.exclude("account", started_at, observed_at);
+    state.exclude("account", started_at, observed_at, true);
     state.recover("account", started_at, &remaining_usage(50.0));
     assert!(!state.is_available("account"));
     let mut failed = remaining_usage(50.0);
@@ -218,7 +218,12 @@ fn recovery_requires_a_new_query_with_confirmed_remaining_quota() {
     }
     state.recover("account", refreshed_at, &remaining_usage(50.0));
     assert!(state.is_available("account"));
-    state.exclude("account", started_at, refreshed_at + Duration::from_secs(1));
+    state.exclude(
+        "account",
+        started_at,
+        refreshed_at + Duration::from_secs(1),
+        true,
+    );
     assert!(
         state.is_available("account"),
         "Delayed old failures must not undo recovery"
@@ -227,6 +232,7 @@ fn recovery_requires_a_new_query_with_confirmed_remaining_quota() {
         "account",
         refreshed_at,
         refreshed_at + Duration::from_secs(1),
+        true,
     );
     assert!(
         !state.is_available("account"),

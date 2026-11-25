@@ -184,28 +184,34 @@ pub(super) fn concurrent_account<R: Runtime>(
     state: &ManagerStateFile,
     session_id: Option<&str>,
 ) -> Result<Option<String>, String> {
-    match super::concurrent_account_for_session(paths, state, session_id) {
+    match super::concurrent_account_for_request(app, paths, state, session_id) {
         Ok(account) => return Ok(account),
         Err(error) => {
             if !pool_is_enabled(state)
+                || !super::official_recovery_routing::manual_selection_is_current()
+                || !super::official_recovery_routing::allows_concurrent_reset()
                 || !super::available_concurrent_account_ids(paths, state)?.is_empty()
             {
                 return Err(error);
             }
         }
     }
-    if let Err(error) = restore(app) {
-        log_proxy_error!("automatic concurrent quota reset failed: {error}");
-    }
+    match restore(app) {
+        Ok(accounts) => super::official_recovery_routing::record_concurrent_restoration(&accounts),
+        Err(error) => log_proxy_error!("automatic concurrent quota reset failed: {error}"),
+    };
     let latest = super::try_read_state(paths)?;
     if !latest.concurrent_account_routing_enabled
         || latest.active_provider_id.is_some()
         || latest.active_provider_group.is_some()
         || latest.concurrent_account_group != state.concurrent_account_group
     {
-        return Err("路由设置已变更，请重试请求".to_string());
+        if super::official_recovery_routing::is_concurrent_retry() {
+            return Err(super::NO_AVAILABLE_CONCURRENT_ACCOUNT.into());
+        }
+        return Err(super::official_recovery_routing::route_changed());
     }
-    super::concurrent_account_for_session(paths, &latest, session_id)
+    super::concurrent_account_for_request(app, paths, &latest, session_id)
 }
 
 impl<R: Runtime> ResetBackend for AppBackend<'_, R> {

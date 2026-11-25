@@ -112,6 +112,12 @@ pub(crate) struct GuiAccountScheduler {
 }
 
 impl GuiAccountScheduler {
+    pub(crate) fn assigned_account(&self, session: &str) -> Option<&str> {
+        self.bindings
+            .get(session)
+            .map(|binding| binding.account_id.as_str())
+    }
+
     pub(crate) fn assign(
         &mut self,
         session: Option<&str>,

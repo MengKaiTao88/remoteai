@@ -1,4 +1,3 @@
-
 pub(crate) struct OfficialModelCatalogFetch {
     pub(crate) catalog: Value,
     pub(crate) etag: Option<String>,
@@ -23,6 +22,37 @@ pub(crate) fn fetch_official_model_catalog<R: Runtime>(
     parse_official_model_catalog_payload(payload)
 }
 
+/// Recovery requires the selected account's own catalog, with no Admin fallback.
+fn fetch_candidate_official_model_catalog<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    account_id: &str,
+    deadline: tokio::time::Instant,
+) -> Result<Value, String> {
+    let client_version = crate::official_models::model_client_version(&resolve_paths(app)?);
+    let url = official_url(&format!("/models?client_version={client_version}"));
+    let _deadline = model_catalog_deadline::Scope::until(deadline);
+    let client = http_client()?;
+    let credentials = official_credentials(
+        app,
+        &client,
+        OfficialCredentialOptions {
+            purpose: OfficialCredentialPurpose::Default,
+            session_id: None,
+            account_id_override: Some(account_id),
+        },
+    )
+    .map_err(|error| error.to_string())?;
+    let payload = send_official_request(
+        &client,
+        &Method::Get,
+        &url,
+        &[],
+        &[],
+        &credentials.authentication,
+    )?;
+    Ok(parse_official_model_catalog_payload(payload)?.catalog)
+}
+
 fn parse_official_model_catalog_payload(
     mut payload: UpstreamPayload,
 ) -> Result<OfficialModelCatalogFetch, String> {
@@ -38,8 +68,9 @@ fn parse_official_model_catalog_payload(
         .find(|(name, _)| matches!(name.to_ascii_lowercase().as_str(), "etag" | "x-models-etag"))
         .map(|(_, value)| value.clone());
     let body = read_official_model_catalog_body(&mut payload.body)?;
-    let catalog = serde_json::from_slice(&body)
-        .map_err(|error| request_error::RequestError::json(request_error::Stage::Catalog, &error).wire())?;
+    let catalog = serde_json::from_slice(&body).map_err(|error| {
+        request_error::RequestError::json(request_error::Stage::Catalog, &error).wire()
+    })?;
     Ok(OfficialModelCatalogFetch { catalog, etag })
 }
 
@@ -48,9 +79,9 @@ fn read_official_model_catalog_body(body: &mut UpstreamBody) -> Result<Vec<u8>, 
     match body {
         UpstreamBody::Buffered(value) => bytes.extend_from_slice(value),
         UpstreamBody::Streaming(reader) => {
-            reader
-                .read_to_end(&mut bytes)
-                .map_err(|error| request_error::RequestError::io(request_error::Stage::Catalog, &error).wire())?;
+            reader.read_to_end(&mut bytes).map_err(|error| {
+                request_error::RequestError::io(request_error::Stage::Catalog, &error).wire()
+            })?;
         }
     };
     Ok(bytes)
@@ -150,8 +181,9 @@ fn override_official_model_context_windows(
                 .map_err(|error| format!("Failed to read upstream model catalog: {error}"))?;
         }
     }
-    let mut catalog = serde_json::from_slice::<Value>(&body)
-        .map_err(|error| request_error::RequestError::json(request_error::Stage::Catalog, &error).wire())?;
+    let mut catalog = serde_json::from_slice::<Value>(&body).map_err(|error| {
+        request_error::RequestError::json(request_error::Stage::Catalog, &error).wire()
+    })?;
     let completed = complete_models(&mut catalog);
     let updated =
         apply_official_context_windows(&mut catalog, global_context_window, model_context_windows);
@@ -229,8 +261,9 @@ fn override_model_image_input(
                 .map_err(|error| format!("Failed to read upstream model catalog: {error}"))?;
         }
     }
-    let mut catalog = serde_json::from_slice::<Value>(&body)
-        .map_err(|error| request_error::RequestError::json(request_error::Stage::Catalog, &error).wire())?;
+    let mut catalog = serde_json::from_slice::<Value>(&body).map_err(|error| {
+        request_error::RequestError::json(request_error::Stage::Catalog, &error).wire()
+    })?;
     let Some(models) = catalog.get_mut("models").and_then(Value::as_array_mut) else {
         payload.body = UpstreamBody::Buffered(body);
         return Ok(payload);

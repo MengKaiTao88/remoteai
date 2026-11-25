@@ -102,6 +102,16 @@ fn inspect_event(bytes: &[u8]) -> EventOutcome {
     let Ok(event) = std::str::from_utf8(bytes) else {
         return EventOutcome::Forward;
     };
+    match event_payload(event) {
+        Ok(Some((value, event_type))) => classify_event(&value, event_type),
+        Ok(None) => EventOutcome::Opening,
+        Err(_) => EventOutcome::Forward,
+    }
+}
+
+pub(super) fn event_payload(
+    event: &str,
+) -> Result<Option<(Value, Option<&str>)>, serde_json::Error> {
     let mut data = String::new();
     let mut event_type = None;
     for line in event.lines() {
@@ -113,12 +123,9 @@ fn inspect_event(bytes: &[u8]) -> EventOutcome {
         }
     }
     if data.is_empty() {
-        return EventOutcome::Opening;
+        return Ok(None);
     }
-    let Ok(value) = serde_json::from_str::<Value>(&data) else {
-        return EventOutcome::Forward;
-    };
-    classify_event(&value, event_type)
+    serde_json::from_str(&data).map(|value| Some((value, event_type)))
 }
 
 pub(super) fn classify_event(value: &Value, event_type: Option<&str>) -> EventOutcome {
@@ -133,15 +140,30 @@ pub(super) fn classify_event(value: &Value, event_type: Option<&str>) -> EventOu
     if kind.is_some_and(is_opening_event) {
         return EventOutcome::Opening;
     }
-    let error = match kind {
-        Some("response.failed") => value.pointer("/response/error"),
-        Some("error") => Some(value.get("error").unwrap_or(value)),
-        _ => return EventOutcome::Forward,
-    };
-    match error.filter(|error| is_explicit_quota_error(error)) {
+    match explicit_quota_error(value, kind) {
         Some(error) => EventOutcome::Quota(error.clone()),
         None => EventOutcome::Forward,
     }
+}
+
+pub(super) fn is_confirmed_stream_exhaustion(value: &Value, event_type: Option<&str>) -> bool {
+    let payload_type = value.get("type").and_then(Value::as_str);
+    if event_type
+        .zip(payload_type)
+        .is_some_and(|(event, payload)| event != payload)
+    {
+        return false;
+    }
+    explicit_quota_error(value, payload_type.or(event_type)).is_some()
+}
+
+fn explicit_quota_error<'a>(value: &'a Value, kind: Option<&str>) -> Option<&'a Value> {
+    let error = match kind {
+        Some("response.failed") => value.pointer("/response/error"),
+        Some("error") => Some(value.get("error").unwrap_or(value)),
+        _ => None,
+    };
+    error.filter(|error| is_explicit_quota_error(error))
 }
 
 pub(super) fn is_opening_event(kind: &str) -> bool {

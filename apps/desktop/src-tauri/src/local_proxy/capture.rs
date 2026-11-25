@@ -4,10 +4,26 @@ const INCOMPLETE_USAGE_FLAG: &str = "usage_incomplete";
 
 use lan_usage_capture::{LanUsageAccounting, LanUsageCapture};
 
+enum StreamQuotaRoute {
+    Shared(Instant, u64),
+    Gui(gui_auto_switch::Route),
+}
+
 fn attach_token_usage_capture<R: Runtime + 'static>(
     app: &tauri::AppHandle<R>,
     context: Option<TokenUsageContext>,
     result: Result<UpstreamPayload, String>,
+) -> Result<UpstreamPayload, String> {
+    let route = official_recovery_routing::observation()
+        .map(|(started_at, version)| StreamQuotaRoute::Shared(started_at, version));
+    attach_token_usage_capture_for_route(app, context, result, route)
+}
+
+fn attach_token_usage_capture_for_route<R: Runtime + 'static>(
+    app: &tauri::AppHandle<R>,
+    context: Option<TokenUsageContext>,
+    result: Result<UpstreamPayload, String>,
+    quota_route: Option<StreamQuotaRoute>,
 ) -> Result<UpstreamPayload, String> {
     let mut payload = result?;
     let Some(mut context) = context else {
@@ -63,7 +79,7 @@ fn attach_token_usage_capture<R: Runtime + 'static>(
             UpstreamBody::Buffered(body)
         }
         UpstreamBody::Streaming(reader) => UpstreamBody::Streaming(Box::new(
-            TokenUsageCaptureReader::new(reader, app.clone(), context),
+            TokenUsageCaptureReader::new(reader, app.clone(), context, quota_route),
         )),
     };
     Ok(payload)
@@ -79,6 +95,7 @@ struct TokenUsageCaptureReader<R: Runtime> {
     recorded: bool,
     complete: bool,
     lan_usage: LanUsageCapture,
+    quota_route: Option<StreamQuotaRoute>,
 }
 
 impl<R: Runtime> TokenUsageCaptureReader<R> {
@@ -86,6 +103,7 @@ impl<R: Runtime> TokenUsageCaptureReader<R> {
         inner: Box<dyn Read + Send>,
         app: tauri::AppHandle<R>,
         context: TokenUsageContext,
+        quota_route: Option<StreamQuotaRoute>,
     ) -> Self {
         Self {
             lan_usage: LanUsageCapture::new(&context),
@@ -97,14 +115,18 @@ impl<R: Runtime> TokenUsageCaptureReader<R> {
             usage: None,
             recorded: false,
             complete: false,
+            quota_route,
         }
     }
 
     fn observe(&mut self, bytes: &[u8]) {
         self.lan_usage.observe(bytes);
         if self.captures_event_stream() {
-            let chunk = String::from_utf8_lossy(bytes).replace("\r\n", "\n");
-            self.sse_buffer.push_str(&chunk);
+            let chunk = String::from_utf8_lossy(bytes);
+            if self.sse_buffer.ends_with('\r') && chunk.starts_with('\n') {
+                self.sse_buffer.pop();
+            }
+            self.sse_buffer.push_str(&chunk.replace("\r\n", "\n"));
             self.process_sse_blocks();
             return;
         }
@@ -139,6 +161,7 @@ impl<R: Runtime> TokenUsageCaptureReader<R> {
             return;
         }
         if let Ok(value) = serde_json::from_str::<Value>(&data) {
+            self.observe_stream_quota(block, &value);
             self.context
                 .service_tier
                 .observe_response(extract_service_tier_from_value(&value));
@@ -148,6 +171,33 @@ impl<R: Runtime> TokenUsageCaptureReader<R> {
                 self.complete = !event_usage_incomplete(&value);
                 self.record_usage();
             }
+        }
+    }
+
+    fn observe_stream_quota(&mut self, block: &str, value: &Value) {
+        let (Some(account), Some(_)) = (&self.context.account, &self.quota_route) else {
+            return;
+        };
+        let event_type = block
+            .lines()
+            .find_map(|line| line.strip_prefix("event:"))
+            .map(str::trim);
+        if !quota_sse::is_confirmed_stream_exhaustion(value, event_type) {
+            return;
+        }
+        match self.quota_route.take() {
+            Some(StreamQuotaRoute::Shared(started_at, version)) => {
+                official_recovery_routing::observe_shared_exhaustion(
+                    account,
+                    (started_at, version),
+                );
+            }
+            Some(StreamQuotaRoute::Gui(route)) => {
+                if let Err(error) = gui_auto_switch::observe_quota_exhaustion(&self.app, &route) {
+                    log_proxy_error!("GUI official stream quota observation failed: {error}");
+                }
+            }
+            None => {}
         }
     }
 
@@ -410,8 +460,14 @@ fn record_token_usage_entry<R: Runtime>(
     );
     update_proxy_session_usage(
         context.session_id.as_deref(),
-        context.account.as_ref().map(|account| account.account_id.as_str()),
-        context.account.as_ref().map(|account| account.account_email.as_str()),
+        context
+            .account
+            .as_ref()
+            .map(|account| account.account_id.as_str()),
+        context
+            .account
+            .as_ref()
+            .map(|account| account.account_email.as_str()),
         Some(&usage),
     );
     let usage_complete = match accounting {

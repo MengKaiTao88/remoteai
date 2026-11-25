@@ -63,8 +63,14 @@ fn active_target_for_request<R: Runtime>(
         providers::ensure_not_local_proxy_base_url(&provider.base_url)?;
         return Ok(ActiveTarget::Provider(Box::new(provider)));
     }
-    if !state.concurrent_account_routing_enabled {
-        if maybe_switch_official_account_below_threshold(app)? {
+    if official_recovery_routing::approved_destination().is_none()
+        && !state.concurrent_account_routing_enabled
+    {
+        let switched = match recover_sequential_account_before_request(app, &state)? {
+            Some(switched) => switched,
+            None => maybe_switch_official_account_below_threshold(app)?,
+        };
+        if switched {
             return active_target_for_request(app, path, body);
         }
         ensure_active_official_account_meets_threshold(app)?;

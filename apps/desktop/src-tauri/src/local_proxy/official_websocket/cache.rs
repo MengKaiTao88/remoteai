@@ -8,8 +8,6 @@ use std::{
 
 const MAX_CONNECTIONS: usize = 32;
 const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
-const MAX_TRACKED_OWNERS: usize = 256;
-const OWNER_IDLE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
 
 #[derive(Clone, Eq, Hash, PartialEq)]
@@ -33,40 +31,6 @@ pub(super) struct Connection {
     pub(super) history: ConfirmedHistory,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum AccountRoute {
-    Unknown,
-    SameAccount,
-    ChangedAccount,
-    Unavailable,
-}
-
-pub(super) fn account_route(scope: &Scope, account: &str) -> AccountRoute {
-    let Ok(mut cache) = cache().lock() else {
-        return AccountRoute::Unavailable;
-    };
-    cache.prune();
-    match cache
-        .get(scope)
-        .and_then(|session| session.account.as_ref())
-    {
-        Some(owner) if owner.id != account => AccountRoute::ChangedAccount,
-        Some(_) => AccountRoute::SameAccount,
-        None => AccountRoute::Unknown,
-    }
-}
-
-pub(super) fn record_account(scope: &Scope, account: &str) {
-    if let Ok(mut cache) = cache().lock() {
-        cache.record_account(scope, account);
-    }
-}
-
-struct AccountUse {
-    id: String,
-    since: Instant,
-}
-
 enum Slot {
     Idle {
         connection: Box<Connection>,
@@ -79,7 +43,6 @@ enum Slot {
 
 #[derive(Default)]
 struct Session {
-    account: Option<AccountUse>,
     socket: Option<Slot>,
 }
 
@@ -108,50 +71,8 @@ impl Cache {
             if matches!(&session.socket, Some(Slot::Idle { since, .. }) if since.elapsed() >= IDLE_TIMEOUT) {
                 session.socket = None;
             }
-            if session.account.as_ref().is_some_and(|owner| owner.since.elapsed() >= OWNER_IDLE_TIMEOUT) {
-                session.account = None;
-            }
-            session.socket.is_some() || session.account.is_some()
+            session.socket.is_some()
         });
-    }
-
-    fn record_account(&mut self, scope: &Scope, account: &str) {
-        self.prune();
-        let new_owner = self
-            .get(scope)
-            .is_none_or(|session| session.account.is_none());
-        if new_owner
-            && self
-                .values()
-                .filter(|session| session.account.is_some())
-                .count()
-                >= MAX_TRACKED_OWNERS
-        {
-            self.evict_oldest_owner();
-        }
-        let entry = self.entry(scope.clone()).or_default();
-        if matches!(&entry.socket, Some(Slot::Idle { connection, .. }) if connection.owner.account != account)
-        {
-            entry.socket = None;
-        }
-        entry.account = Some(AccountUse {
-            id: account.into(),
-            since: Instant::now(),
-        });
-    }
-
-    fn evict_oldest_owner(&mut self) {
-        let oldest = self
-            .iter()
-            .filter_map(|(scope, session)| {
-                let owner = session.account.as_ref()?;
-                session.socket.is_none().then_some((scope, owner.since))
-            })
-            .min_by_key(|(_, since)| *since)
-            .map(|(scope, _)| scope.clone());
-        if let Some(scope) = oldest {
-            self.remove(&scope);
-        }
     }
 
     fn reserve_socket(&mut self, scope: &Scope) -> Result<Option<Connection>, Reason> {
@@ -197,12 +118,6 @@ impl Lease {
         let mut cache = cache().lock().map_err(|_| Reason::CacheUnavailable)?;
         let previous = cache.reserve_socket(&scope)?;
         Ok((Self(Some(scope)), previous))
-    }
-
-    pub(super) fn record_account(&self, account: &str) {
-        if let Some(scope) = self.0.as_ref() {
-            record_account(scope, account);
-        }
     }
 
     pub(super) fn retain(mut self, connection: Connection) {
@@ -261,7 +176,6 @@ pub(super) fn clear(gui: bool) {
             if scope.gui != gui {
                 return true;
             }
-            session.account = None;
             invalidate_socket(&mut session.socket);
             session.socket.is_some()
         });

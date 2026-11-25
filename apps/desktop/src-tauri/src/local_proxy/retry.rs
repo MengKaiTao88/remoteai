@@ -56,6 +56,8 @@ where
     let mut attempt = 0_u64;
     let mut retry_number = 0_u16;
     let mut quota_retry = QuotaRetryState::default();
+    let mut recovery_rejection = None;
+    let mut pinned_account = None;
     loop {
         attempt = attempt.saturating_add(1);
         let started = Instant::now();
@@ -63,17 +65,38 @@ where
         official_websocket::begin_attempt();
         let result = request();
         diagnostic_attempt(&result, attempt, started);
-        let response = result?;
+        let mut response = match (result, recovery_rejection.take()) {
+            (Err(error), Some(rejection)) if recovery_unavailable(&error) => return Ok(rejection),
+            (result, _) => result?,
+        };
+        let confirmed_quota = is_official_quota_exhaustion(&response);
+        let excluded = if confirmed_quota {
+            restore_pinned_account_attribution(&mut response, pinned_account.as_ref());
+            let Some(excluded) = official_recovery_routing::exclude_quota_response(&response)?
+            else {
+                return Ok(response);
+            };
+            excluded
+        } else {
+            concurrent_quota::exclude_response(&response)?
+        };
         // A confirmed concurrent quota failure invalidates cached eligibility before
         // any backoff, including when the normal 429 retry budget is exhausted.
-        let excluded = concurrent_quota::exclude_response(&response)?;
-        let can_change_route = official_websocket::attempt_can_change_route();
+        let can_change_route = if confirmed_quota {
+            official_recovery_routing::attempt_can_change_route_on_quota()
+        } else {
+            official_websocket::attempt_can_change_route()
+        };
         if excluded {
             if !can_change_route {
                 return Ok(response);
             }
             diagnostic_retry("concurrent_account_excluded", Duration::ZERO);
             record_retried_proxy_response(&response);
+            if retain_concurrent_rejection(&response, confirmed_quota) {
+                recovery_rejection = Some(response);
+            }
+            official_recovery_routing::release_pin_for_route_change(&mut pinned_account);
             continue;
         }
         if can_change_route
@@ -81,10 +104,14 @@ where
         {
             diagnostic_retry("quota_account_switch", Duration::ZERO);
             record_retried_proxy_response(&response);
+            if confirmed_quota && official_recovery_routing::approved_destination().is_some() {
+                recovery_rejection = Some(response);
+            }
+            official_recovery_routing::release_pin_for_route_change(&mut pinned_account);
             continue;
         }
         // Confirmed exhaustion cannot recover through backoff without a new target.
-        if response.status != 429 || is_official_quota_exhaustion(&response) {
+        if response.status != 429 || confirmed_quota {
             return Ok(response);
         }
         retry_number = retry_number.saturating_add(1);
@@ -101,9 +128,41 @@ where
                 return Ok(response);
             };
             official_websocket::pin_retry_account(&account.account_id);
+            pinned_account.get_or_insert_with(|| account.clone());
         }
         record_retried_proxy_response(&response);
     }
+}
+
+fn retain_concurrent_rejection(response: &UpstreamPayload, confirmed_quota: bool) -> bool {
+    if !confirmed_quota && !official_recovery_routing::is_concurrent_retry() {
+        return false;
+    }
+    response
+        .token_usage_account
+        .as_ref()
+        .is_some_and(|account| {
+            official_recovery_routing::record_concurrent_rejection(
+                &account.account_id,
+                official_websocket::attempt_can_change_route(),
+            )
+        })
+}
+
+fn restore_pinned_account_attribution(
+    response: &mut UpstreamPayload,
+    pinned: Option<&TokenUsageAccount>,
+) {
+    let Some(pinned) = pinned else { return };
+    if let Some(account) = response.token_usage_account.as_mut() {
+        if account.account_id == pinned.account_id {
+            *account = pinned.clone();
+        }
+    }
+}
+
+fn recovery_unavailable(error: &str) -> bool {
+    error == NO_AVAILABLE_CONCURRENT_ACCOUNT || official_recovery_routing::is_route_changed(error)
 }
 
 #[derive(Default)]

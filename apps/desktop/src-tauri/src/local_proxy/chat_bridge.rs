@@ -8,11 +8,15 @@ fn forward_chat_bridge(
     if *method != Method::Post {
         return Err("Chat bridge only supports POST requests".to_string());
     }
-    let mut responses_body: Value = serde_json::from_slice(&body)
-        .map_err(|error| request_error::RequestError::json(request_error::Stage::Request, &error).wire())?;
+    let mut responses_body: Value = serde_json::from_slice(&body).map_err(|error| {
+        request_error::RequestError::json(request_error::Stage::Request, &error).wire()
+    })?;
     if !responses_body.is_object() {
         return Err(request_error::RequestError::new(
-            request_error::Stage::Request, request_error::Problem::ObjectRequired).wire());
+            request_error::Stage::Request,
+            request_error::Problem::ObjectRequired,
+        )
+        .wire());
     }
     bridge_media::validate_responses(&responses_body, true)?;
     validate_anthropic_chat_tools(&responses_body, headers).map_err(|error| error.to_string())?;
@@ -136,116 +140,6 @@ fn selected_official_model(body: &Value, fallback: &str) -> String {
         .to_string()
 }
 
-pub(crate) fn enabled_concurrent_account_ids(
-    paths: &Paths,
-    state: &ManagerStateFile,
-) -> Result<Vec<String>, String> {
-    let mut account_ids = fs::read_dir(&paths.accounts)
-        .map_err(|error| format!("Failed to read account directory: {error}"))?
-        .filter_map(Result::ok)
-        .filter(|entry| entry.path().is_dir() && entry.path().join("auth.json").is_file())
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .filter(|account_id| !state.disabled_account_ids.contains(account_id))
-        .filter(|account_id| {
-            state.concurrent_account_group.as_ref().is_none_or(|group| {
-                load_account_group(&account_group_path(paths, account_id)) == *group
-            })
-        })
-        .collect::<Vec<_>>();
-    account_ids.sort();
-    Ok(account_ids)
-}
-
-fn concurrent_custom_priority_enabled(state: &ManagerStateFile) -> bool {
-    state.auto_switch_on_quota_exhaustion && state.custom_auto_switch_priority_enabled
-}
-
-fn quota_available_for_concurrent_routing(usage: &UsageSummary, threshold: Option<f64>) -> bool {
-    let Some(threshold) = threshold else {
-        return reported_quota_windows_have_remaining(usage);
-    };
-    primary_remaining_quota_score(usage).is_some_and(|remaining| remaining >= threshold)
-}
-
-fn available_concurrent_account_ids(
-    paths: &Paths,
-    state: &ManagerStateFile,
-) -> Result<Vec<String>, String> {
-    let mut account_ids = enabled_concurrent_account_ids(paths, state)?
-        .into_iter()
-        .filter(|account_id| {
-            let custom_threshold_enabled =
-                state.auto_switch_on_quota_exhaustion && state.custom_auto_switch_threshold_enabled;
-            let threshold = custom_threshold_enabled.then(|| {
-                effective_auto_switch_threshold(
-                    load_auto_switch_threshold(&auto_switch_threshold_path(paths, account_id)),
-                    state.global_auto_switch_threshold,
-                    true,
-                )
-            });
-            quota_available_for_concurrent_routing(
-                &load_usage(&usage_path(paths, account_id)),
-                threshold,
-            )
-        })
-        .collect();
-    concurrent_quota::retain_available(&mut account_ids)?;
-    Ok(account_ids)
-}
-
-fn preferred_concurrent_account_ids(
-    paths: &Paths,
-    state: &ManagerStateFile,
-    eligible_account_ids: &[String],
-) -> Vec<String> {
-    if !concurrent_custom_priority_enabled(state) {
-        return eligible_account_ids.to_vec();
-    }
-    // Read each priority once per request, before taking the router lock. A setting
-    // change must not produce an empty tier by changing between two file reads.
-    let now = chrono::Utc::now().timestamp();
-    let priorities = eligible_account_ids
-        .iter()
-        .map(|account_id| {
-            let priority = reset_priority::stored_key(paths, state, account_id, now);
-            (account_id, priority)
-        })
-        .collect::<Vec<_>>();
-    let Some(highest_priority) = priorities.iter().map(|(_, priority)| *priority).min() else {
-        return Vec::new();
-    };
-    priorities
-        .into_iter()
-        .filter(|(_, priority)| *priority == highest_priority)
-        .map(|(account_id, _)| account_id.clone())
-        .collect()
-}
-
-fn concurrent_account_for_session(
-    paths: &Paths,
-    state: &ManagerStateFile,
-    session_id: Option<&str>,
-) -> Result<Option<String>, String> {
-    let eligible_account_ids = available_concurrent_account_ids(paths, state)?;
-    let preferred_account_ids =
-        preferred_concurrent_account_ids(paths, state, &eligible_account_ids);
-    let no_available_account =
-        || "No enabled official account currently meets the configured usage threshold".to_string();
-    let Some(session_id) = session_id else {
-        return preferred_account_ids
-            .first()
-            .cloned()
-            .map(Some)
-            .ok_or_else(no_available_account);
-    };
-    let account_id = concurrent_account_router()
-        .lock()
-        .map_err(|_| "Concurrent account router lock is poisoned".to_string())?
-        .account_for_session(session_id, &eligible_account_ids, &preferred_account_ids)
-        .ok_or_else(no_available_account)?;
-    Ok(Some(account_id))
-}
-
 fn official_credentials<R: Runtime>(
     app: &tauri::AppHandle<R>,
     client: &Client,
@@ -262,12 +156,24 @@ fn official_credentials<R: Runtime>(
         official_account_snapshot(account_id_override, || {
             auto_switch_coordinator().account_snapshot(|| Ok(read_state(&paths)))
         })?;
+    if account_id_override.is_none()
+        && official_recovery_routing::is_concurrent_retry()
+        && (!state.concurrent_account_routing_enabled
+            || state.active_provider_id.is_some()
+            || state.active_provider_group.is_some())
+    {
+        return Err(NO_AVAILABLE_CONCURRENT_ACCOUNT.to_string().into());
+    }
     // A screenshot in chat does not pin an account unless the user selected an image-input target.
-    let purpose = if account_id_override.is_none() && input_image_inherits_chat_route(purpose, &state) {
-        OfficialCredentialPurpose::Default
-    } else {
-        purpose
-    };
+    let purpose =
+        if account_id_override.is_none() && input_image_inherits_chat_route(purpose, &state) {
+            OfficialCredentialPurpose::Default
+        } else {
+            purpose
+        };
+    if account_id_override.is_none() {
+        validate_recovery_account(&state, purpose)?;
+    }
     let active_account_id = state.active_account_id.as_deref();
     let concurrent_account_id = if account_id_override.is_none()
         && state.concurrent_account_routing_enabled
@@ -333,9 +239,11 @@ fn official_credentials<R: Runtime>(
     if matches!(purpose, OfficialCredentialPurpose::ImageGeneration)
         && is_agent_identity_auth(&auth)
     {
-        return Err("Select a non-Agent Identity OAuth account for image generation"
-            .to_string()
-            .into());
+        return Err(
+            "Select a non-Agent Identity OAuth account for image generation"
+                .to_string()
+                .into(),
+        );
     }
     if is_agent_identity_auth(&auth) {
         let expected = auth.clone();
@@ -356,11 +264,12 @@ fn official_credentials<R: Runtime>(
         // hot switch.  Refresh only the managed credential for the account it started with.
         diagnostic_event(json!({ "event": "official_token_refresh_started",
             "idHash": short_hash_str(&credential_account_id) }));
-        refresh_or_reload_managed_auth(client, &paths, &credential_account_id, &mut auth)
-            .map_err(|error| account_failure::CredentialError::Refresh {
+        refresh_or_reload_managed_auth(client, &paths, &credential_account_id, &mut auth).map_err(
+            |error| account_failure::CredentialError::Refresh {
                 error,
                 account: token_usage_account.clone(),
-            })?;
+            },
+        )?;
         diagnostic_event(json!({ "event": "official_token_refresh_finished",
             "idHash": short_hash_str(&credential_account_id) }));
     }
@@ -374,6 +283,26 @@ fn official_credentials<R: Runtime>(
         },
         token_usage_account,
     })
+}
+
+fn validate_recovery_account(
+    state: &ManagerStateFile,
+    purpose: OfficialCredentialPurpose,
+) -> Result<(), String> {
+    use official_recovery_routing::Destination;
+    let Some(Destination::Account(expected)) = official_recovery_routing::approved_destination()
+    else {
+        return Ok(());
+    };
+    if !official_recovery_routing::manual_selection_is_current()
+        || automatic_switch_is_blocked(state)
+        || state.active_account_id.as_ref() != Some(&expected)
+        || state.disabled_account_ids.contains(&expected)
+        || purpose != OfficialCredentialPurpose::Default
+    {
+        return Err(official_recovery_routing::route_changed());
+    }
+    Ok(())
 }
 
 struct OfficialCredentialOptions<'a> {

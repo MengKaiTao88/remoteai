@@ -14,6 +14,9 @@ mod custom_tools;
 #[path = "official_websocket_long_history.rs"]
 mod long_history;
 
+#[path = "official_account_recovery.rs"]
+mod account_recovery;
+
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 #[test]
@@ -147,6 +150,7 @@ fn verify_switched_websocket_turns(
     assert_eq!(delta["input"], json!([history[2]]));
     assert_eq!(delta["previous_response_id"], "resp_primary");
     send_quota(&mut a);
+    serve_recovery_catalog(&upstream, &accounts[1]);
     let mut b = accept_official_socket(&upstream, &accounts[1]);
     let full = receive_turn(&mut b).0;
     assert_eq!(full["input"], json!(history));
@@ -156,6 +160,38 @@ fn verify_switched_websocket_turns(
     assert_eq!(next["previous_response_id"], "resp_backup");
     assert_eq!(next["input"], json!([third_input(&history)[3]]));
     finish_turn(&mut b, "resp_backup_next", json!([]));
+}
+
+fn serve_recovery_catalog(listener: &TcpListener, account: &str) {
+    use std::io::Write as _;
+
+    let (socket, _) = listener.accept().unwrap();
+    socket.set_read_timeout(Some(TIMEOUT)).unwrap();
+    let mut request = BufReader::new(socket);
+    let mut line = String::new();
+    request.read_line(&mut line).unwrap();
+    assert!(line.starts_with("GET ") && line.contains("/models"));
+    let authorization = format!("authorization: bearer test-token-{account}");
+    let mut matched = false;
+    loop {
+        line.clear();
+        request.read_line(&mut line).unwrap();
+        if line.trim().is_empty() {
+            break;
+        }
+        matched |= line.trim().eq_ignore_ascii_case(&authorization);
+    }
+    assert!(
+        matched,
+        "the account used for discovery must be the recovery candidate"
+    );
+    let response = json!({"models":[{"slug":"gpt-5.6-sol", "supported_reasoning_levels":[{"effort":"high"}]}]});
+    write!(
+        request.get_mut(),
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}",
+        response.to_string().len()
+    )
+    .unwrap();
 }
 
 fn send_quota(socket: &mut MockSocket) {

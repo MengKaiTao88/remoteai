@@ -1,4 +1,7 @@
-use super::{account_failure, reported_quota_windows_have_remaining, UpstreamPayload};
+use super::{
+    account_failure, is_official_quota_exhaustion, reported_quota_windows_have_remaining,
+    UpstreamPayload,
+};
 use crate::models::UsageSummary;
 use std::{
     collections::HashMap,
@@ -14,16 +17,33 @@ struct ConcurrentQuotaState {
 }
 
 enum AccountQuotaState {
-    Exhausted { observed_at: Instant },
-    Recovered { refresh_started_at: Instant },
+    Exhausted {
+        observed_at: Instant,
+        confirmed_quota: bool,
+    },
+    Recovered {
+        refresh_started_at: Instant,
+    },
 }
 
 impl ConcurrentQuotaState {
-    fn exclude(&mut self, account_id: &str, request_started_at: Instant, observed_at: Instant) {
-        match self.accounts.get(account_id) {
+    fn exclude(
+        &mut self,
+        account_id: &str,
+        request_started_at: Instant,
+        observed_at: Instant,
+        confirmed_quota: bool,
+    ) {
+        match self.accounts.get_mut(account_id) {
             // Several in-flight requests can report the same exhaustion. Keep the
             // first observation so they cannot invalidate a subsequent usage refresh.
-            Some(AccountQuotaState::Exhausted { .. }) => return,
+            Some(AccountQuotaState::Exhausted {
+                confirmed_quota: existing,
+                ..
+            }) => {
+                *existing |= confirmed_quota;
+                return;
+            }
             Some(AccountQuotaState::Recovered { refresh_started_at })
                 if request_started_at < *refresh_started_at =>
             {
@@ -33,12 +53,15 @@ impl ConcurrentQuotaState {
         }
         self.accounts.insert(
             account_id.to_string(),
-            AccountQuotaState::Exhausted { observed_at },
+            AccountQuotaState::Exhausted {
+                observed_at,
+                confirmed_quota,
+            },
         );
     }
 
     fn recover(&mut self, account_id: &str, refresh_started_at: Instant, usage: &UsageSummary) {
-        let Some(AccountQuotaState::Exhausted { observed_at }) = self.accounts.get(account_id)
+        let Some(AccountQuotaState::Exhausted { observed_at, .. }) = self.accounts.get(account_id)
         else {
             return;
         };
@@ -78,6 +101,24 @@ pub(super) fn retain_available(account_ids: &mut Vec<String>) -> Result<(), Stri
     Ok(())
 }
 
+pub(super) fn confirmed_exhaustion(account_id: &str) -> Result<bool, String> {
+    Ok(matches!(
+        quota_state()?.accounts.get(account_id),
+        Some(AccountQuotaState::Exhausted {
+            confirmed_quota: true,
+            ..
+        })
+    ))
+}
+
+pub(super) fn record_confirmed_exhaustion(
+    account_id: &str,
+    started_at: Instant,
+) -> Result<(), String> {
+    quota_state()?.exclude(account_id, started_at, Instant::now(), true);
+    Ok(())
+}
+
 pub(super) fn exclude_response(response: &UpstreamPayload) -> Result<bool, String> {
     let Some(account) = response.token_usage_account.as_ref() else {
         return Ok(false);
@@ -88,7 +129,12 @@ pub(super) fn exclude_response(response: &UpstreamPayload) -> Result<bool, Strin
     if !account_failure::requires_account_failover(response) {
         return Ok(false);
     }
-    quota_state()?.exclude(&account.account_id, request_started_at, Instant::now());
+    quota_state()?.exclude(
+        &account.account_id,
+        request_started_at,
+        Instant::now(),
+        is_official_quota_exhaustion(response),
+    );
     Ok(true)
 }
 

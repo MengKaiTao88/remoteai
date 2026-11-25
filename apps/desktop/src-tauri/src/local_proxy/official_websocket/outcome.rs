@@ -1,5 +1,5 @@
 use super::super::UpstreamPayload;
-use super::cache::Scope;
+use super::{cache::Scope, context_store::ContextStore, http_context, metadata::TURN_STATE};
 use serde::Serialize;
 
 #[derive(Clone, Copy, Serialize)]
@@ -49,17 +49,33 @@ impl From<Result<UpstreamPayload, String>> for Outcome {
 
 pub(in crate::local_proxy) struct HttpRoute {
     pub(super) scope: Option<Scope>,
-    pub(in crate::local_proxy) strip_routing_hint: bool,
+    pub(in crate::local_proxy) headers: HttpHeaders,
     pub(in crate::local_proxy) body: Option<Vec<u8>>,
+    pub(super) context: Option<ContextStore>,
 }
 
 impl HttpRoute {
-    pub(in crate::local_proxy) fn record(&self, account: &str, status: u16) {
-        if !super::super::status_ok(status) {
-            return;
+    pub(in crate::local_proxy) fn watch(self, payload: UpstreamPayload) -> UpstreamPayload {
+        match self.context {
+            Some(context) => http_context::watch(context, payload),
+            None => payload,
         }
-        if let Some(scope) = self.scope.as_ref() {
-            super::cache::record_account(scope, account);
-        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub(in crate::local_proxy) struct HttpHeaders {
+    pub(super) strip_routing_hint: bool,
+    pub(super) strip_turn_state: bool,
+}
+
+impl HttpHeaders {
+    pub(in crate::local_proxy) fn is_unchanged(self) -> bool {
+        !self.strip_routing_hint && !self.strip_turn_state
+    }
+
+    pub(in crate::local_proxy) fn keep(self, name: &str) -> bool {
+        !((self.strip_routing_hint && name.eq_ignore_ascii_case("x-codex-routing-hint"))
+            || (self.strip_turn_state && name.eq_ignore_ascii_case(TURN_STATE)))
     }
 }

@@ -155,6 +155,7 @@ fn wrapped_header_quota_can_replay_self_contained_lite_tools_on_a_backup() {
             "headers":{"x-codex-rate-limit-reached-type":"workspace_member_usage_limit_reached","Retry-After":"120"}
         });
         first.send(Message::text(rejection.to_string())).unwrap();
+        serve_recovery_catalog(&upstream, &accounts[1]);
         let mut backup = accept_official_socket(&upstream, &accounts[1]);
         let replay = receive_turn(&mut backup).0;
         assert_eq!(replay["input"], expected);
@@ -265,7 +266,7 @@ fn a_failed_new_account_does_not_replace_the_confirmed_owner() {
 fn verify_failed_owner_change(upstream: TcpListener) {
     let mut first = accept_official_socket(&upstream, "a@example.test");
     receive_turn(&mut first);
-    finish_turn(&mut first, "resp_owner", json!([]));
+    finish_turn(&mut first, "resp_owner", owned_file_input());
     let mut backup = accept_official_socket(&upstream, "b@example.test");
     receive_turn(&mut backup);
     backup.send(Message::text(json!({

@@ -1,110 +1,40 @@
-//! Optional HTTP-to-WebSocket forwarding at the official Responses account boundary.
+//! Account ownership and optional WebSocket forwarding for official Responses.
+mod account_context;
+mod account_context_copy;
 mod cache;
+mod context_store;
+mod http_context;
 mod metadata;
 mod outcome;
 mod rejection;
 mod request;
+mod request_scope;
 mod socket;
 mod stream;
 
 use super::{
     apply_official_authentication, diagnostic_event, header_value, is_response_create_endpoint,
-    json_payload, lan_keys, official_body_for_upstream, proxy_session_id, request_error,
-    request_path, responses_lite, OfficialRequestAuthentication, UpstreamPayload, ORIGINATOR,
+    is_responses_endpoint, json_payload, lan_keys, official_body_for_upstream, proxy_session_id,
+    request_error, request_path, responses_lite, OfficialRequestAuthentication, UpstreamPayload,
+    ORIGINATOR,
 };
-use cache::{AccountRoute, Lease, Owner, Scope};
-pub(super) use outcome::Outcome;
+use cache::{Lease, Owner, Scope};
+use context_store::ContextStore;
+pub(super) use outcome::{HttpHeaders, Outcome};
 use outcome::{HttpRoute, Reason, UploadMode};
 use reqwest::{blocking::Client, header, Url};
 use serde_json::{json, Map, Value};
-use std::cell::RefCell;
 use tauri::{Manager, Runtime};
 use tiny_http::Method;
 
 use metadata::TURN_STATE;
+pub(super) use request_scope::{
+    attempt_can_change_route, attempt_can_change_route_on_quota, begin_attempt,
+    clear_retry_account, pin_retry_account, record_http_started, retry_account, RequestScope,
+};
+use request_scope::{guard_replay, record_send_started, strip_old_routing_hint};
 
 const MAX_SESSION_BYTES: usize = 512;
-
-#[derive(Default)]
-struct Settings {
-    enabled: bool,
-    gui: bool,
-    change_route: bool,
-    retry_account: Option<String>,
-    sent: Option<SentRequest>,
-}
-
-thread_local! {
-    static SETTINGS: RefCell<Settings> = RefCell::new(Settings::default());
-}
-
-pub(super) struct RequestScope(Settings);
-
-impl RequestScope {
-    pub(super) fn enter(enabled: bool, gui: bool) -> Self {
-        Self(SETTINGS.replace(Settings {
-            enabled,
-            gui,
-            change_route: true,
-            retry_account: None,
-            sent: None,
-        }))
-    }
-}
-
-impl Drop for RequestScope {
-    fn drop(&mut self) {
-        SETTINGS.replace(std::mem::take(&mut self.0));
-    }
-}
-
-pub(super) fn begin_attempt() {
-    SETTINGS.with_borrow_mut(|settings| settings.change_route = true);
-}
-
-pub(super) fn attempt_can_change_route() -> bool {
-    SETTINGS.with_borrow(|settings| !settings.enabled || settings.change_route)
-}
-
-fn block_route_change() {
-    SETTINGS.with_borrow_mut(|settings| settings.change_route = false);
-}
-
-pub(super) fn pin_retry_account(account: &str) {
-    SETTINGS.with_borrow_mut(|settings| settings.retry_account = Some(account.into()));
-}
-
-pub(super) fn retry_account() -> Option<String> {
-    SETTINGS.with_borrow(|settings| settings.retry_account.clone())
-}
-
-struct SentRequest {
-    account: String,
-    transport: Transport,
-}
-
-fn strip_old_routing_hint(account: &str) -> bool {
-    SETTINGS.with_borrow(|settings| {
-        settings.sent.as_ref().is_some_and(|sent| {
-            sent.account != account || matches!(sent.transport, Transport::WebSocket)
-        })
-    })
-}
-
-pub(super) fn record_http_started(account: &str) {
-    record_send_started(account, Transport::Http);
-}
-
-fn record_send_started(account: &str, transport: Transport) {
-    SETTINGS.with_borrow_mut(|settings| {
-        if settings.enabled {
-            settings.sent.get_or_insert_with(|| SentRequest {
-                account: account.into(),
-                transport,
-            });
-        }
-    });
-}
 
 pub(super) enum Transport {
     WebSocket,
@@ -125,75 +55,131 @@ pub(super) struct Request<'a, R: Runtime> {
 }
 
 pub(super) fn send<R: Runtime>(params: Request<'_, R>, transport: Transport) -> Outcome {
-    let scope = continuation_scope(params.app, params.headers);
+    let path = request_path(params.path);
     let mut route = HttpRoute {
-        scope,
-        strip_routing_hint: strip_old_routing_hint(params.account),
+        scope: continuation_scope(params.app, params.headers),
+        headers: HttpHeaders {
+            strip_routing_hint: strip_old_routing_hint(params.account),
+            strip_turn_state: false,
+        },
         body: None,
+        context: None,
     };
     if *params.method != Method::Post {
-        route.scope = None;
         return Outcome::Http(route);
     }
-    if !enabled_for(params.method, params.path) {
+    if !is_responses_endpoint(path) {
         invalidate_route(&route);
-        route.scope = None;
+        return Outcome::Http(route);
+    }
+    let creates_response = is_response_create_endpoint(path);
+    if let Some(scope) = route.scope.as_ref() {
+        route.context = match ContextStore::open(scope, params.account, creates_response) {
+            Ok(context) => context,
+            Err(error) => return context_failure(error),
+        };
+    }
+    if !creates_response && route.context.is_none() {
+        invalidate_route(&route);
         return Outcome::Http(route);
     }
     let mut options = prepared_options(&params);
-    let account_bound = guard_replay(params.headers, options.as_ref());
-    if !check_account(&mut route, params.account, account_bound) {
-        return Outcome::Response(account_conflict());
+    let has_turn_state = header_value(params.headers, TURN_STATE).is_some();
+    if creates_response {
+        guard_replay(has_turn_state, options.as_ref(), route.context.is_some());
     }
-    route.body = match sanitize_inbound(&mut options, params.headers) {
-        Ok(body) => body,
-        Err(error) => return Outcome::Failed(error),
-    };
-    if matches!(transport, Transport::Http) {
+    if let Err(error) = project_route(&mut route, &params, options.as_mut(), has_turn_state) {
+        invalidate_route(&route);
+        return error;
+    }
+    let websocket_enabled = creates_response && request_scope::websocket_enabled();
+    if matches!(transport, Transport::Http)
+        || !websocket_enabled
+        || (has_turn_state && !route.headers.strip_turn_state)
+    {
         invalidate_route(&route);
         return Outcome::Http(route);
     }
+    send_websocket(route, options, &params)
+}
+
+fn project_route<R: Runtime>(
+    route: &mut HttpRoute,
+    params: &Request<'_, R>,
+    mut options: Option<&mut Map<String, Value>>,
+    has_turn_state: bool,
+) -> Result<(), Outcome> {
+    let mut body_changed = false;
+    if let Some(context) = route.context.as_mut() {
+        let projected = context
+            .project(options.as_deref_mut(), has_turn_state)
+            .map_err(context_failure)?;
+        body_changed = projected.body_changed;
+        route.headers.strip_routing_hint |= projected.strip_routing_hint;
+        route.headers.strip_turn_state = projected.strip_turn_state;
+    }
+    if let Some(options) = options {
+        body_changed |= metadata::strip_client_turn_state(options);
+        if body_changed {
+            route.body = Some(sanitized_body(options, params.headers).map_err(Outcome::Failed)?);
+        }
+    }
+    Ok(())
+}
+
+fn send_websocket<R: Runtime>(
+    mut route: HttpRoute,
+    options: Option<Map<String, Value>>,
+    params: &Request<'_, R>,
+) -> Outcome {
     let turn = options.and_then(|options| request::Turn::from_body(options, params.headers));
-    match (route.scope.clone(), turn, Upstream::from_request(&params)) {
-        (Some(scope), Some(turn), Some(upstream))
-            if header_value(params.headers, TURN_STATE).is_none() =>
-        {
-            match prepare(scope, upstream, turn) {
-                Ok(prepared) => Outcome::from(prepared.send()),
-                Err(reason) => fallback(route, reason),
-            }
+    let (Some(scope), Some(turn), Some(upstream)) =
+        (route.scope.clone(), turn, Upstream::from_request(params))
+    else {
+        invalidate_route(&route);
+        return Outcome::Http(route);
+    };
+    match prepare(scope, upstream, turn) {
+        Ok(mut prepared) => {
+            prepared.turn.context = route.context.take();
+            Outcome::from(prepared.send())
         }
-        _ => {
-            invalidate_route(&route);
-            Outcome::Http(route)
-        }
+        Err(reason) => fallback(route, reason),
     }
 }
 
-fn check_account(route: &mut HttpRoute, account: &str, account_bound: bool) -> bool {
-    let Some(scope) = route.scope.as_ref() else {
-        return true;
-    };
-    match cache::account_route(scope, account) {
-        AccountRoute::ChangedAccount | AccountRoute::Unavailable if account_bound => {
-            cache::invalidate(scope);
-            false
+fn context_failure(error: account_context::Error) -> Outcome {
+    match error {
+        account_context::Error::Bound => Outcome::Response(account_conflict()),
+        account_context::Error::InvalidBody => {
+            let message = request_error::RequestError::new(
+                request_error::Stage::Request,
+                request_error::Problem::ObjectRequired,
+            );
+            Outcome::Response(json_payload(
+                400,
+                json!({"error":{
+                    "type":"invalid_request_error",
+                    "message":message.to_string()
+                }}),
+            ))
         }
-        AccountRoute::ChangedAccount => {
-            route.strip_routing_hint = true;
-            true
+        account_context::Error::Storage(_) => {
+            diagnostic_event(json!({"event":"official_responses_ownership_read_failed"}));
+            Outcome::Failed(
+                request_error::RequestError::http(request_error::Stage::Responses, 500).wire(),
+            )
         }
-        _ => true,
     }
 }
 
 fn account_conflict() -> UpstreamPayload {
-    let error = json!({"code":"permission_denied", "type":"invalid_request_error"});
-    let message = request_error::upstream(request_error::Stage::Responses, &error).to_string();
     json_payload(
-        409,
+        400,
         json!({"error": {
-            "code":"permission_denied", "type":"invalid_request_error", "message":message
+            "code":"account_bound_context",
+            "type":"invalid_request_error",
+            "message":account_context_copy::message(crate::storage::interface_language())
         }}),
     )
 }
@@ -210,19 +196,6 @@ fn invalidate_route(route: &HttpRoute) {
     if let Some(scope) = route.scope.as_ref() {
         cache::invalidate(scope);
     }
-}
-
-fn sanitize_inbound(
-    options: &mut Option<Map<String, Value>>,
-    headers: &[(String, String)],
-) -> Result<Option<Vec<u8>>, String> {
-    let Some(options) = options.as_mut() else {
-        return Ok(None);
-    };
-    if metadata::strip_client_turn_state(options) {
-        return sanitized_body(options, headers).map(Some);
-    }
-    Ok(None)
 }
 
 fn sanitized_body(
@@ -246,25 +219,14 @@ pub(super) fn guard_credential_replay(
     headers: &[(String, String)],
     body: &[u8],
 ) {
-    if enabled_for(method, path) {
+    if *method == Method::Post && is_response_create_endpoint(request_path(path)) {
         let options = decoded_body(headers, body).and_then(|bytes| parse_options(&bytes));
-        guard_replay(headers, options.as_ref());
+        guard_replay(
+            header_value(headers, TURN_STATE).is_some(),
+            options.as_ref(),
+            false,
+        );
     }
-}
-
-fn enabled_for(method: &Method, path: &str) -> bool {
-    SETTINGS.with_borrow(|settings| settings.enabled)
-        && *method == Method::Post
-        && is_response_create_endpoint(request_path(path))
-}
-
-fn guard_replay(headers: &[(String, String)], options: Option<&Map<String, Value>>) -> bool {
-    let account_bound =
-        header_value(headers, TURN_STATE).is_some() || options.is_some_and(request::account_bound);
-    if account_bound || !options.is_some_and(request::replay_safe) {
-        block_route_change();
-    }
-    account_bound
 }
 
 fn decoded_body<'a>(
@@ -346,6 +308,7 @@ fn prepare(scope: Scope, upstream: Upstream, mut turn: request::Turn) -> Result<
                         lease,
                         owner: upstream.owner,
                         history,
+                        context: None,
                     },
                     request,
                     mode: UploadMode::Delta,
@@ -368,6 +331,7 @@ fn prepare(scope: Scope, upstream: Upstream, mut turn: request::Turn) -> Result<
             lease,
             owner: upstream.owner,
             history,
+            context: None,
         },
         request,
         mode: UploadMode::Full,
@@ -441,7 +405,7 @@ fn continuation_scope<R: Runtime>(
         .map(|name| header_value(headers, name));
     Some(Scope {
         workspace: app.path().app_data_dir().ok()?,
-        gui: SETTINGS.with_borrow(|settings| settings.gui),
+        gui: request_scope::is_gui(),
         lan_key: lan_keys::RequestKeyScope::current(),
         client_auth: request::fingerprint(&client_auth)?,
         session,

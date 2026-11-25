@@ -13,12 +13,16 @@ pub(super) struct Scope(Option<Instant>);
 
 impl Scope {
     pub(super) fn enter() -> Self {
-        Self::until(Instant::now() + OFFICIAL_TIMEOUT)
+        Self::until(official_deadline())
     }
 
     pub(super) fn until(deadline: Instant) -> Self {
         Self(DEADLINE.replace(Some(deadline)))
     }
+}
+
+pub(super) fn official_deadline() -> Instant {
+    Instant::now() + OFFICIAL_TIMEOUT
 }
 
 impl Drop for Scope {

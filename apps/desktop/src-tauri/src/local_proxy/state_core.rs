@@ -62,6 +62,7 @@ impl ConcurrentAccountRouter {
 #[derive(Default)]
 struct AutoSwitchCoordinator {
     state: Mutex<AutoSwitchState>,
+    attempt: Mutex<()>,
 }
 
 #[derive(Default)]
@@ -78,6 +79,14 @@ struct CompletedAutoSwitchAttempt {
     observed_generation: u64,
     failed_account_id: String,
     should_retry: bool,
+    requirements: Option<AutoSwitchRequirements>,
+}
+
+struct AutoSwitchObservation<'a> {
+    generation: u64,
+    attempt_generation: u64,
+    failed_account_id: &'a str,
+    requirements: Option<&'a AutoSwitchRequirements>,
 }
 
 enum AutoSwitchAttempt {
@@ -126,6 +135,7 @@ impl AutoSwitchCoordinator {
         ))
     }
 
+    #[cfg(test)]
     fn switch_or_wait<F>(
         &self,
         observed_generation: u64,
@@ -145,6 +155,7 @@ impl AutoSwitchCoordinator {
         )
     }
 
+    #[cfg(test)]
     fn switch_or_wait_with_waiter_hook<F, W>(
         &self,
         observed_generation: u64,
@@ -157,55 +168,96 @@ impl AutoSwitchCoordinator {
         F: FnOnce() -> Result<AutoSwitchAttempt, String>,
         W: FnOnce(),
     {
-        let mut state = match self.state.try_lock() {
+        self.switch_for(
+            AutoSwitchObservation {
+                generation: observed_generation,
+                attempt_generation: observed_attempt_generation,
+                failed_account_id,
+                requirements: None,
+            },
+            switch,
+            waiter_hook,
+        )
+    }
+
+    fn switch_for<F, W>(
+        &self,
+        observation: AutoSwitchObservation<'_>,
+        switch: F,
+        waiter_hook: W,
+    ) -> Result<bool, String>
+    where
+        F: FnOnce() -> Result<AutoSwitchAttempt, String>,
+        W: FnOnce(),
+    {
+        let _attempt = self.lock_attempt(waiter_hook);
+        let state = self.lock_state();
+        if let Some(outcome) = state.completed_outcome(&observation) {
+            return Ok(outcome);
+        }
+        // Discovery and quota refresh may make network requests. Keep the
+        // switch serialized while other requests can still read route snapshots.
+        drop(state);
+        let result = switch();
+        self.lock_state().finish_attempt(observation, result)
+    }
+
+    fn lock_attempt(&self, waiter_hook: impl FnOnce()) -> MutexGuard<'_, ()> {
+        let lock = match self.attempt.try_lock() {
             Ok(guard) => guard,
             Err(TryLockError::WouldBlock) => {
                 waiter_hook();
-                self.lock_state()
-            }
-            Err(TryLockError::Poisoned(error)) => self.recover_state(error.into_inner()),
-        };
-
-        if state.active_account_generation != observed_generation {
-            return Ok(true);
-        }
-
-        if state.switch_attempt_generation != observed_attempt_generation {
-            if let Some(last_attempt) = state.last_attempt.as_ref() {
-                if last_attempt.observed_generation == observed_generation
-                    && last_attempt.failed_account_id == failed_account_id
-                {
-                    return Ok(last_attempt.should_retry);
-                }
-            }
-        }
-
-        let attempt = match switch() {
-            Ok(attempt) => attempt,
-            Err(error) => {
-                state.switch_attempt_generation = state.switch_attempt_generation.wrapping_add(1);
-                state.last_attempt = Some(CompletedAutoSwitchAttempt {
-                    observed_generation,
-                    failed_account_id: failed_account_id.to_string(),
-                    should_retry: false,
+                return self.attempt.lock().unwrap_or_else(|error| {
+                    self.attempt.clear_poison();
+                    drop(self.recover_state(self.lock_state()));
+                    error.into_inner()
                 });
-                return Err(error);
+            }
+            Err(TryLockError::Poisoned(error)) => {
+                let lock = error.into_inner();
+                self.attempt.clear_poison();
+                drop(self.recover_state(self.lock_state()));
+                lock
             }
         };
-        state.switch_attempt_generation = state.switch_attempt_generation.wrapping_add(1);
-        let should_retry = match attempt {
-            AutoSwitchAttempt::Unchanged => false,
-            AutoSwitchAttempt::AlreadyChanged => true,
-            AutoSwitchAttempt::Switched => {
-                state.active_account_generation = state.active_account_generation.wrapping_add(1);
-                true
-            }
-        };
-        state.last_attempt = Some(CompletedAutoSwitchAttempt {
-            observed_generation,
-            failed_account_id: failed_account_id.to_string(),
+        lock
+    }
+}
+
+impl AutoSwitchState {
+    fn completed_outcome(&self, observation: &AutoSwitchObservation<'_>) -> Option<bool> {
+        if self.active_account_generation != observation.generation {
+            return Some(true);
+        }
+        if self.switch_attempt_generation == observation.attempt_generation {
+            return None;
+        }
+        let last = self.last_attempt.as_ref()?;
+        (last.observed_generation == observation.generation
+            && last.failed_account_id == observation.failed_account_id
+            && last.requirements.as_ref() == observation.requirements)
+            .then_some(last.should_retry)
+    }
+
+    fn finish_attempt(
+        &mut self,
+        observation: AutoSwitchObservation<'_>,
+        result: Result<AutoSwitchAttempt, String>,
+    ) -> Result<bool, String> {
+        self.switch_attempt_generation = self.switch_attempt_generation.wrapping_add(1);
+        if matches!(result, Ok(AutoSwitchAttempt::Switched)) {
+            self.active_account_generation = self.active_account_generation.wrapping_add(1);
+        }
+        let should_retry = matches!(
+            result,
+            Ok(AutoSwitchAttempt::AlreadyChanged | AutoSwitchAttempt::Switched)
+        );
+        self.last_attempt = Some(CompletedAutoSwitchAttempt {
+            observed_generation: observation.generation,
+            failed_account_id: observation.failed_account_id.to_string(),
             should_retry,
+            requirements: observation.requirements.cloned(),
         });
-        Ok(should_retry)
+        result.map(|_| should_retry)
     }
 }

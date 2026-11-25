@@ -70,6 +70,9 @@ fn apply_account_switch<R: Runtime>(
         }
         write_state(&paths, &state)?;
     }
+    if matches!(reason, AccountSwitchReason::Manual) {
+        record_manual_account_selection();
+    }
     finish_account_switch(
         app,
         &paths,
@@ -77,12 +80,17 @@ fn apply_account_switch<R: Runtime>(
         AccountSwitchCompletion {
             proxy_running,
             write_codex,
-            refresh_model_catalog: enhancements_enabled && reason.refreshes_official_model_catalog(),
+            refresh_model_catalog: enhancements_enabled
+                && reason.refreshes_official_model_catalog(),
         },
     )
 }
 
-fn write_direct_account_auth(paths: &Paths, auth: &Value, enhancements_enabled: bool) -> Result<(), String> {
+fn write_direct_account_auth(
+    paths: &Paths,
+    auth: &Value,
+    enhancements_enabled: bool,
+) -> Result<(), String> {
     write_json_atomic(&paths.current_auth, auth)?;
     if enhancements_enabled {
         crate::providers::restore_official_config(paths)?;

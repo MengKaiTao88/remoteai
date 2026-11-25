@@ -15,21 +15,6 @@ pub(crate) fn switch_account_blocking<R: Runtime>(
     app: tauri::AppHandle<R>,
     id: String,
 ) -> Result<(), String> {
-    switch_account_blocking_with_reason(app, id, AccountSwitchReason::Manual)
-}
-
-pub(crate) fn switch_account_automatically_blocking<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    id: String,
-) -> Result<(), String> {
-    switch_account_blocking_with_reason(app, id, AccountSwitchReason::Automatic)
-}
-
-fn switch_account_blocking_with_reason<R: Runtime>(
-    app: tauri::AppHandle<R>,
-    id: String,
-    reason: AccountSwitchReason,
-) -> Result<(), String> {
     if crate::claude_accounts::is_claude_id(&id) {
         return crate::claude_accounts::switch_blocking(&app, id);
     }
@@ -37,14 +22,31 @@ fn switch_account_blocking_with_reason<R: Runtime>(
         .lock()
         .map_err(|_| "Account switch lock is poisoned".to_string())?;
     refresh_local_codex_path(&app);
+    switch_account_unlocked(&app, &id)
+}
+
+pub(crate) fn switch_account_automatically_blocking<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    id: &str,
+    can_switch: impl FnOnce(&ManagerStateFile) -> bool,
+) -> Result<bool, String> {
+    let _switch_guard = account_switch_lock()
+        .lock()
+        .map_err(|_| "Account switch lock is poisoned".to_string())?;
+    let paths = resolve_paths(&app)?;
+    if !can_switch(&try_read_state(&paths)?) {
+        return Ok(false);
+    }
+    refresh_local_codex_path(&app);
     switch_account_unlocked_with_options(
         &app,
-        &id,
+        id,
         AccountSwitchOptions {
             preserve_previous: true,
-            reason,
+            reason: AccountSwitchReason::Automatic,
         },
-    )
+    )?;
+    Ok(true)
 }
 
 /// Switch an official account without ever exposing a running ChatGPT/Codex
@@ -149,9 +151,9 @@ fn deactivate_account_unlocked<R: Runtime>(
     let auth_result = if !write_codex {
         Ok(())
     } else if proxy_running {
-        resolve_enabled_paths(app)?.iter().try_for_each(|target| {
-            crate::providers::sync_local_proxy_openai_auth(target)
-        })
+        resolve_enabled_paths(app)?
+            .iter()
+            .try_for_each(|target| crate::providers::sync_local_proxy_openai_auth(target))
     } else {
         resolve_enabled_paths(app)?
             .iter()
@@ -162,6 +164,7 @@ fn deactivate_account_unlocked<R: Runtime>(
         return Err(error);
     }
 
+    record_manual_account_selection();
     touch_account_field(&paths, &account_id, AccountSyncField::Active)?;
     app.emit("accounts-changed", ())
         .map_err(|error| error.to_string())?;
@@ -251,11 +254,7 @@ pub(crate) fn reapply_active_account_after_login<R: Runtime>(
         stop_chatgpt_processes()?;
         wait_for_chatgpt_processes_to_exit(Duration::from_secs(10))?;
     }
-    switch_account_unlocked_with_options(
-        &app,
-        &id,
-        AccountSwitchOptions::credential_refresh(),
-    )?;
+    switch_account_unlocked_with_options(&app, &id, AccountSwitchOptions::credential_refresh())?;
     if client_was_running {
         restart_chatgpt_from_target(&app, launch_target.as_ref())?;
     }

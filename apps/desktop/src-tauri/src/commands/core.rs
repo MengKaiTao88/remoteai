@@ -6,6 +6,8 @@ const LOCAL_PROXY_CONVERSATION_PROVIDER: &str = "codex-switch-local";
 const LEGACY_CODEX_COMMAND: &str = "codex";
 static ACCOUNT_AUTO_SWITCH_STATE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 static ACCOUNT_SWITCH_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+static MANUAL_ACCOUNT_SELECTION: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
 
 fn account_auto_switch_state_lock() -> &'static Mutex<()> {
     ACCOUNT_AUTO_SWITCH_STATE_LOCK.get_or_init(|| Mutex::new(()))
@@ -13,6 +15,14 @@ fn account_auto_switch_state_lock() -> &'static Mutex<()> {
 
 pub(crate) fn account_switch_lock() -> &'static Mutex<()> {
     ACCOUNT_SWITCH_LOCK.get_or_init(|| Mutex::new(()))
+}
+
+pub(crate) fn manual_account_selection() -> u64 {
+    MANUAL_ACCOUNT_SELECTION.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+pub(crate) fn record_manual_account_selection() {
+    MANUAL_ACCOUNT_SELECTION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// Import the externally managed credential only once, when Remote AI starts.
@@ -78,8 +88,7 @@ fn open_managed_folder_blocking<R: Runtime>(
             .map_err(|_| "暂时无法找到 RemoteAI Home 目录，请稍后重试。".to_string())?,
         ManagedFolder::AccountStore => resolve_paths(app)?.accounts,
     };
-    fs::create_dir_all(&path)
-        .map_err(|_| "无法创建目录，请检查文件夹权限后重试。".to_string())?;
+    fs::create_dir_all(&path).map_err(|_| "无法创建目录，请检查文件夹权限后重试。".to_string())?;
     app.opener()
         .open_path(path.display().to_string(), None::<&str>)
         .map_err(|_| "无法打开目录，请稍后重试。".to_string())
@@ -270,14 +279,12 @@ fn import_account_json_from_clipboard_blocking<R: Runtime>(
 pub(crate) async fn import_account_json_from_clipboard<R: Runtime + 'static>(
     app: tauri::AppHandle<R>,
 ) -> Result<CompatibleJsonImportResult, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        import_account_json_from_clipboard_blocking(app)
-    })
-    .await
-    .map_err(|error| {
-        eprintln!("clipboard account import task failed: {error}");
-        "剪贴板导入未完成，请重试".to_string()
-    })?
+    tauri::async_runtime::spawn_blocking(move || import_account_json_from_clipboard_blocking(app))
+        .await
+        .map_err(|error| {
+            eprintln!("clipboard account import task failed: {error}");
+            "剪贴板导入未完成，请重试".to_string()
+        })?
 }
 
 fn is_sub2api_export(value: &Value) -> bool {

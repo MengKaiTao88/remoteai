@@ -1,3 +1,7 @@
+use super::official_recovery_routing;
+
+#[path = "gui_auto_switch_failure.rs"]
+mod failure;
 use crate::{
     codex_gui::{
         account_selection::{self, GuiAccountSelection, SelectionSnapshot},
@@ -6,6 +10,7 @@ use crate::{
     },
     models::{AccountSummary, UsageSummary},
 };
+pub(super) use failure::{after_authentication_failure, after_quota, observe_quota_exhaustion};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -53,6 +58,7 @@ struct RoutingState {
 struct Exhaustion {
     observed_at: Instant,
     next_check_at: Instant,
+    confirmed_quota: bool,
 }
 
 fn with_routing<R: Runtime, T>(
@@ -111,6 +117,7 @@ pub(super) fn prepare<R: Runtime>(
         ChoiceRequest {
             session,
             failed: &HashSet::new(),
+            explicit_quota: false,
         },
     ) {
         Err(AutoSwitchError::Changed) => initial(app),
@@ -121,6 +128,7 @@ pub(super) fn prepare<R: Runtime>(
 struct ChoiceRequest<'a> {
     session: Option<&'a str>,
     failed: &'a HashSet<String>,
+    explicit_quota: bool,
 }
 
 fn quota_needs_refresh(usage: &UsageSummary) -> bool {
@@ -154,8 +162,19 @@ fn choose<R: Runtime>(
     let mut accounts = crate::commands::list_accounts_blocking(app.clone())
         .map_err(|_| AutoSwitchError::Storage)?;
     recover_exhausted(app, &route, &mut accounts)?;
-    let mut excluded = with_routing(app, &route, |state| {
-        state.exhausted.keys().cloned().collect::<HashSet<_>>()
+    let (mut excluded, known_quota) = with_routing(app, &route, |state| {
+        let exhausted = state.exhausted.keys().cloned().collect::<HashSet<_>>();
+        let existing = request
+            .session
+            .and_then(|session| state.scheduler.assigned_account(session))
+            .or(match &route.selection {
+                GuiAccountSelection::Account(id) => Some(id.as_str()),
+                _ => None,
+            });
+        let known_quota = existing
+            .and_then(|id| state.exhausted.get(id))
+            .is_some_and(|failure| failure.confirmed_quota);
+        (exhausted, known_quota)
     })?;
     excluded.extend(request.failed.iter().cloned());
     if keep_current(app, &route, &mut accounts, &excluded) {
@@ -174,7 +193,16 @@ fn choose<R: Runtime>(
         refresh_account(app, account);
     }
     let candidates = policy::candidates(&accounts, &route.config.settings, &excluded);
-    let fallback = fallback(app, &route, candidates.is_empty())?;
+    let restoring =
+        (request.explicit_quota || known_quota) && official_recovery_routing::model().is_some();
+    let fallback = if restoring
+        && (!request.explicit_quota || !super::official_websocket::attempt_can_change_route())
+    {
+        None
+    } else {
+        fallback(app, &route, candidates.is_empty())?
+    };
+    let candidates = compatible_recovery_candidates(app, candidates, restoring)?;
     commit(
         app,
         route,
@@ -184,6 +212,21 @@ fn choose<R: Runtime>(
             fallback,
         },
     )
+}
+
+fn compatible_recovery_candidates<R: Runtime>(
+    app: &AppHandle<R>,
+    mut candidates: Vec<Candidate>,
+    restoring: bool,
+) -> Result<Vec<Candidate>, AutoSwitchError> {
+    if restoring && !candidates.is_empty() {
+        candidates
+            .retain(|candidate| official_recovery_routing::account_matches(app, &candidate.id));
+        if candidates.is_empty() {
+            return Err(AutoSwitchError::NoAccount);
+        }
+    }
+    Ok(candidates)
 }
 
 fn ensure_current<R: Runtime>(app: &AppHandle<R>, route: &Route) -> Result<(), AutoSwitchError> {
@@ -346,84 +389,8 @@ fn commit_concurrent<R: Runtime>(
     .ok_or(AutoSwitchError::Changed)?
 }
 
-pub(super) fn after_quota<R: Runtime>(
-    app: &AppHandle<R>,
-    route: &Route,
-    session: Option<&str>,
-    failed: &HashSet<String>,
-) -> Result<Option<Route>, AutoSwitchError> {
-    after_failure(app, route, ChoiceRequest { session, failed }, true)
-}
-
-pub(super) fn after_authentication_failure<R: Runtime>(
-    app: &AppHandle<R>,
-    route: &Route,
-    session: Option<&str>,
-    failed: &HashSet<String>,
-) -> Result<Option<Route>, AutoSwitchError> {
-    after_failure(app, route, ChoiceRequest { session, failed }, false)
-}
-
-fn after_failure<R: Runtime>(
-    app: &AppHandle<R>,
-    route: &Route,
-    request: ChoiceRequest<'_>,
-    quota_exhausted: bool,
-) -> Result<Option<Route>, AutoSwitchError> {
-    let latest = initial(app)?;
-    if !latest.config.settings.enabled
-        || (quota_exhausted && !latest.config.settings.switch_on_quota_exhaustion)
-        || latest.config.revision != route.config.revision
-        || !matches!(route.selection, GuiAccountSelection::Account(_))
-    {
-        return Ok(None);
-    }
-    if latest.seed.revision != route.seed.revision {
-        let reusable = match &latest.selection {
-            GuiAccountSelection::Account(id) => !request.failed.contains(id),
-            GuiAccountSelection::Provider(_) | GuiAccountSelection::Aggregate(_) => true,
-            GuiAccountSelection::None => false,
-        };
-        return Ok((reusable && latest.selection != route.selection).then_some(latest));
-    }
-    if !remember_exhaustion(app, route)? {
-        return Ok(None);
-    }
-    match choose(app, route.clone(), request) {
-        Ok(next) if next.selection != route.selection => Ok(Some(next)),
-        Ok(_) | Err(AutoSwitchError::Changed | AutoSwitchError::NoAccount) => Ok(None),
-        Err(error) => Err(error),
-    }
-}
-
-fn remember_exhaustion<R: Runtime>(
-    app: &AppHandle<R>,
-    route: &Route,
-) -> Result<bool, AutoSwitchError> {
-    let GuiAccountSelection::Account(id) = &route.selection else {
-        return Ok(false);
-    };
-    with_routing(app, route, |state| {
-        // Check recovery and record this attempt together, without replaying prior retry failures.
-        if state
-            .recovered
-            .get(id)
-            .is_some_and(|recovered| *recovered > route.attempt_started_at)
-        {
-            return false;
-        }
-        let observed_at = Instant::now();
-        state.exhausted.insert(
-            id.clone(),
-            Exhaustion {
-                observed_at,
-                next_check_at: observed_at + EXHAUSTED_COOLDOWN,
-            },
-        );
-        state.scheduler.invalidate_account(id);
-        true
-    })
-}
+#[cfg(test)]
+use failure::remember_exhaustion;
 
 #[cfg(test)]
 #[path = "gui_auto_switch_tests.rs"]

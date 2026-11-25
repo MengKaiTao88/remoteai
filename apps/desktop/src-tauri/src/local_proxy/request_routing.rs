@@ -26,6 +26,7 @@ fn handle_proxy_request<R: Runtime>(
     let _timeout_scope = sse_idle_timeout::RequestScope::enter(settings.sse_idle_timeout);
     let _header_timeout_scope =
         response_header_timeout::RequestScope::enter(settings.response_header_timeout);
+    let _official_recovery = official_recovery_routing::Scope::enter(method, url, headers, &body);
     let body = request_chat_usage(method, url, body);
     if let Some(url) = gui_routing::upstream_path(url) {
         return gui_routing::handle(gui_routing::GuiProxyRequest {
@@ -228,6 +229,7 @@ fn handle_proxy_request<R: Runtime>(
                     proxy_diagnostic_entry(method, url, headers, &body, Some(&target), route);
                 usage_context = make_usage_context(&target);
             }
+            validate_official_recovery_target(&target)?;
             let account_id_override = image_account_pool
                 .as_ref()
                 .map(|pool| pool.current_account_id().to_string());
@@ -242,6 +244,12 @@ fn handle_proxy_request<R: Runtime>(
                 account_id_override: account_id_override.as_deref(),
             });
             image_account_switched.set(result.as_ref().is_ok_and(|response| {
+                if is_official_quota_exhaustion(response)
+                    && official_recovery_routing::model().is_some()
+                {
+                    return official_websocket::attempt_can_change_route_on_quota()
+                        && recover_image_input(app, &mut image_account_pool, response);
+                }
                 official_websocket::attempt_can_change_route()
                     && advance_image_account_after_429(&mut image_account_pool, response)
             }));
@@ -272,4 +280,14 @@ fn handle_proxy_request<R: Runtime>(
     let result = attach_token_usage_capture(app, usage_context, result);
     append_proxy_diagnostic_result(app, diagnostic, &result, started_at.elapsed());
     result
+}
+
+fn validate_official_recovery_target(target: &ActiveTarget) -> Result<(), String> {
+    if let Some(destination) = official_recovery_routing::approved_destination() {
+        if !official_recovery_routing::manual_selection_is_current() || !destination.permits(target)
+        {
+            return Err(official_recovery_routing::route_changed());
+        }
+    }
+    Ok(())
 }

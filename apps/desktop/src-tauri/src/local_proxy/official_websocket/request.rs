@@ -1,4 +1,4 @@
-use super::{metadata, outcome::Reason};
+use super::{account_context, metadata, outcome::Reason};
 use serde::{Serialize, Serializer};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -83,7 +83,10 @@ impl Turn {
         {
             return Err(Reason::InputPrefixChanged);
         }
-        if self.input[offset..].iter().any(contains_account_state) {
+        if self.input[offset..]
+            .iter()
+            .any(account_context::contains_bound_fields)
+        {
             return Err(Reason::AccountStateInDelta);
         }
         Ok(offset)
@@ -255,12 +258,7 @@ pub(super) fn replay_safe(options: &Map<String, Value>) -> bool {
 }
 
 pub(super) fn account_bound(options: &Map<String, Value>) -> bool {
-    ["previous_response_id", "conversation"]
-        .into_iter()
-        .any(|key| options.get(key).is_some_and(|value| !value.is_null()))
-        || options
-            .iter()
-            .any(|(key, value)| is_account_state_field(key, value) || contains_account_state(value))
+    account_context::options_contain_bound_fields(options)
 }
 
 fn has_server_state(options: &Map<String, Value>) -> bool {
@@ -285,13 +283,7 @@ fn portable_history(items: &[Value]) -> bool {
 fn portable_item<'a>(item: &'a Value, calls: &mut HashMap<&'a str, Option<&'a str>>) -> bool {
     let kind = item.get("type").and_then(Value::as_str);
     match kind {
-        Some("message") | None => {
-            item.get("role").and_then(Value::as_str).is_some()
-                && matches!(
-                    item.get("content"),
-                    Some(Value::String(_) | Value::Array(_))
-                )
-        }
+        Some("message") | None => complete_history_item(item),
         Some("reasoning") => item.get("summary").is_some_and(Value::is_array),
         Some("additional_tools") => {
             item.get("role").and_then(Value::as_str) == Some("developer")
@@ -305,12 +297,51 @@ fn portable_item<'a>(item: &'a Value, calls: &mut HashMap<&'a str, Option<&'a st
         ) => call_id(item).is_some_and(|id| {
             call_context_complete(item, kind) && calls.insert(id, Some(kind)).is_none()
         }),
-        Some("function_call_output") => match_call(item, calls, "function_call", "output"),
+        Some("function_call_output") => {
+            named_function_output(item) || match_call(item, calls, "function_call", "output")
+        }
         Some("custom_tool_call_output") => match_call(item, calls, "custom_tool_call", "output"),
         Some("tool_search_output") => match_call(item, calls, "tool_search_call", "tools"),
         Some("local_shell_call_output") => match_call(item, calls, "local_shell_call", "output"),
         _ => false,
     }
+}
+
+/// A full message or tool record can carry its own contents without an upstream
+/// item ID. The separate replay check still verifies all tool pairs.
+pub(super) fn complete_history_item(item: &Value) -> bool {
+    match item.get("type").and_then(Value::as_str) {
+        Some("message") | None => {
+            item.get("role").and_then(Value::as_str).is_some()
+                && matches!(
+                    item.get("content"),
+                    Some(Value::String(_) | Value::Array(_))
+                )
+        }
+        Some(
+            kind @ ("function_call" | "custom_tool_call" | "tool_search_call" | "local_shell_call"),
+        ) => call_id(item).is_some() && call_context_complete(item, kind),
+        Some("function_call_output") if named_function_output(item) => true,
+        Some("function_call_output" | "custom_tool_call_output" | "local_shell_call_output") => {
+            call_id(item).is_some() && item.get("output").is_some_and(|value| !value.is_null())
+        }
+        Some("tool_search_output") => {
+            call_id(item).is_some() && item.get("tools").is_some_and(|value| !value.is_null())
+        }
+        _ => false,
+    }
+}
+
+fn named_function_output(item: &Value) -> bool {
+    // Codex also sends complete function results identified by a tool name
+    // and namespace. They have no pending call to pair with.
+    item.get("call_id").is_none_or(Value::is_null)
+        && ["name", "namespace"].iter().all(|key| {
+            item.get(*key)
+                .and_then(Value::as_str)
+                .is_some_and(|name| !name.is_empty())
+        })
+        && matches!(item.get("output"), Some(Value::String(_) | Value::Array(_)))
 }
 
 fn match_call<'a>(
@@ -349,30 +380,4 @@ fn call_id(item: &Value) -> Option<&str> {
     item.get("call_id")
         .and_then(Value::as_str)
         .filter(|id| !id.is_empty())
-}
-
-fn contains_account_state(item: &Value) -> bool {
-    match item {
-        Value::Object(fields) => fields.iter().any(|(key, value)| {
-            is_account_state_field(key, value)
-                || (key == "type" && value.as_str() == Some("item_reference"))
-                || contains_account_state(value)
-        }),
-        Value::Array(items) => items.iter().any(contains_account_state),
-        _ => false,
-    }
-}
-
-fn is_account_state_field(key: &str, value: &Value) -> bool {
-    matches!(
-        key,
-        "file_id"
-            | "file_ids"
-            | "image_id"
-            | "vector_store_id"
-            | "vector_store_ids"
-            | "container_id"
-            | "encrypted_content"
-            | "encrypted_function_args"
-    ) && !value.is_null()
 }

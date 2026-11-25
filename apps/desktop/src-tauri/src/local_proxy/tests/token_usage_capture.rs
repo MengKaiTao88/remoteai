@@ -50,7 +50,12 @@ impl CaptureUsageFixture {
                 .map(|chunk| chunk.as_bytes().to_vec())
                 .collect(),
         };
-        TokenUsageCaptureReader::new(Box::new(inner), self.app.handle().clone(), self.context())
+        TokenUsageCaptureReader::new(
+            Box::new(inner),
+            self.app.handle().clone(),
+            self.context(),
+            None,
+        )
     }
 
     fn entries(&self) -> Vec<TokenUsageEntry> {

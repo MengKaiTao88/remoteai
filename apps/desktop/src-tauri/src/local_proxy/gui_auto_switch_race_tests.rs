@@ -51,12 +51,13 @@ fn a_new_quota_failure_replaces_the_observation_used_by_an_inflight_recovery() {
             Exhaustion {
                 observed_at: old_observation,
                 next_check_at: Instant::now(),
+                confirmed_quota: true,
             },
         );
     })
     .unwrap();
 
-    assert!(remember_exhaustion(fixture.app.handle(), &route).unwrap());
+    assert!(remember_exhaustion(fixture.app.handle(), &route, true).unwrap());
     with_routing(fixture.app.handle(), &route, |state| {
         let failure = state.exhausted.get("gui-a").unwrap();
         assert!(failure.observed_at > old_observation);

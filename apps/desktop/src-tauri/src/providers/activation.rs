@@ -12,9 +12,34 @@ pub(crate) fn switch_provider_blocking<R: Runtime>(
     app: tauri::AppHandle<R>,
     id: String,
 ) -> Result<(), String> {
+    let _switch_guard = lock_provider_selection()?;
     let paths = resolve_paths(&app)?;
     let provider = read_provider(&paths, &id)?;
-    activate_provider_profile(&app, &paths, &provider)
+    activate_provider_profile(&app, &paths, &provider, true)
+}
+
+pub(crate) fn switch_provider_automatically_blocking<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    id: &str,
+    can_switch: impl FnOnce(&ManagerStateFile) -> bool,
+) -> Result<bool, String> {
+    let _switch_guard = lock_provider_selection()?;
+    let paths = resolve_paths(app)?;
+    if !can_switch(&try_read_state(&paths)?) {
+        return Ok(false);
+    }
+    let provider = read_provider(&paths, id)?;
+    if provider.kind != ProviderKind::Custom {
+        return Ok(false);
+    }
+    activate_provider_profile(app, &paths, &provider, false)?;
+    Ok(true)
+}
+
+fn lock_provider_selection() -> Result<std::sync::MutexGuard<'static, ()>, String> {
+    crate::commands::account_switch_lock()
+        .lock()
+        .map_err(|_| "Account switch lock is poisoned".to_string())
 }
 
 #[tauri::command]
@@ -31,6 +56,7 @@ pub(crate) fn switch_provider_group_blocking<R: Runtime>(
     app: tauri::AppHandle<R>,
     group: String,
 ) -> Result<(), String> {
+    let _switch_guard = lock_provider_selection()?;
     let paths = resolve_paths(&app)?;
     let group = normalize_provider_group(&group)?;
     let providers = provider_group_profiles(&paths, &group)?;
@@ -73,6 +99,7 @@ pub(crate) fn switch_provider_group_blocking<R: Runtime>(
         }
         return Err(error);
     }
+    crate::commands::record_manual_account_selection();
     if write_codex {
         for target in crate::storage::resolve_enabled_paths(&app)? {
             refresh_codex_group_models_now_best_effort(&target, &providers);
@@ -87,6 +114,7 @@ pub(crate) fn switch_provider_model_and_activate_blocking<R: Runtime>(
     id: String,
     model: String,
 ) -> Result<(), String> {
+    let _switch_guard = lock_provider_selection()?;
     let paths = resolve_paths(&app)?;
     let mut provider = read_provider(&paths, &id)?;
     if provider.model_selection_controlled_by_codex {
@@ -100,13 +128,14 @@ pub(crate) fn switch_provider_model_and_activate_blocking<R: Runtime>(
     provider = normalize_provider_profile(provider)?;
     validate_provider_activation(&provider)?;
     write_local_provider(&paths, &provider, None)?;
-    activate_provider_profile(&app, &paths, &provider)
+    activate_provider_profile(&app, &paths, &provider, true)
 }
 
 fn activate_provider_profile<R: Runtime>(
     app: &tauri::AppHandle<R>,
     paths: &Paths,
     provider: &ProviderProfile,
+    manual: bool,
 ) -> Result<(), String> {
     validate_provider_activation(provider)?;
     let original_state = try_read_state(paths)?;
@@ -134,14 +163,15 @@ fn activate_provider_profile<R: Runtime>(
         Ok(())
     };
     if let Err(error) = config_result {
-        if let Err(rollback_error) = restore_provider_activation_state(
-            paths,
-            original_state,
-            "Provider switch rollback",
-        ) {
+        if let Err(rollback_error) =
+            restore_provider_activation_state(paths, original_state, "Provider switch rollback")
+        {
             eprintln!("failed to restore provider state after activation error: {rollback_error}");
         }
         return Err(error);
+    }
+    if manual {
+        crate::commands::record_manual_account_selection();
     }
     if write_codex {
         // Routing and all home configurations are already committed. Refresh the shared
@@ -157,6 +187,7 @@ pub(crate) fn activate_logical_provider<R: Runtime>(
     paths: &Paths,
     provider: &ProviderProfile,
 ) -> Result<(), String> {
+    let _switch_guard = lock_provider_selection()?;
     ensure_local_proxy_running_for_provider()?;
     ensure_not_local_proxy_base_url(&provider.base_url)?;
     let original_state = try_read_state(paths)?;
@@ -193,6 +224,7 @@ pub(crate) fn activate_logical_provider<R: Runtime>(
         }
         return Err(error);
     }
+    crate::commands::record_manual_account_selection();
     if write_codex {
         for target in crate::storage::resolve_enabled_paths(app)? {
             refresh_codex_models_best_effort(&target, provider);
@@ -259,16 +291,11 @@ fn switch_provider_model_blocking<R: Runtime>(
             write_active_provider_config(&target, &provider)?;
             refresh_codex_models_best_effort(&target, &provider);
         }
-    } else if write_codex
-        && state.active_provider_group.as_deref() == Some(provider.group.as_str())
+    } else if write_codex && state.active_provider_group.as_deref() == Some(provider.group.as_str())
     {
         let group_providers = provider_group_profiles(&paths, &provider.group)?;
         for target in crate::storage::resolve_enabled_paths(&app)? {
-            write_provider_group_local_proxy_config(
-                &target,
-                &provider.group,
-                &group_providers,
-            )?;
+            write_provider_group_local_proxy_config(&target, &provider.group, &group_providers)?;
             refresh_codex_group_models_best_effort(&target, &group_providers);
         }
     }
@@ -315,16 +342,11 @@ fn set_provider_model_control_blocking<R: Runtime>(
             write_active_provider_config(&target, &provider)?;
             refresh_codex_models_best_effort(&target, &provider);
         }
-    } else if write_codex
-        && state.active_provider_group.as_deref() == Some(provider.group.as_str())
+    } else if write_codex && state.active_provider_group.as_deref() == Some(provider.group.as_str())
     {
         let group_providers = provider_group_profiles(&paths, &provider.group)?;
         for target in crate::storage::resolve_enabled_paths(&app)? {
-            write_provider_group_local_proxy_config(
-                &target,
-                &provider.group,
-                &group_providers,
-            )?;
+            write_provider_group_local_proxy_config(&target, &provider.group, &group_providers)?;
             refresh_codex_group_models_best_effort(&target, &group_providers);
         }
     }

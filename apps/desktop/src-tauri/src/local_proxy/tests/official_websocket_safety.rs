@@ -30,6 +30,7 @@ fn verify_quota_http_fallback(upstream: TcpListener, accounts: &[String; 2], exp
         "resp_primary"
     );
     send_quota(&mut a);
+    serve_recovery_catalog(&upstream, &accounts[1]);
     let server = Server::from_listener(upstream, None).unwrap();
     let upgrade = server.recv_timeout(TIMEOUT).unwrap().unwrap();
     assert_eq!(upgrade.method(), &Method::Get);
@@ -173,15 +174,28 @@ fn run_nonportable_quota_case(input: Value, index: usize) {
         format!("a{index}@example.test"),
         format!("b{index}@example.test"),
     ];
-    let (fixture, accounts) = OfficialResponsesFixture::concurrent_for(&url, 1, accounts);
+    let (fixture, accounts) = OfficialResponsesFixture::concurrent_for(&url, 2, accounts);
+    let session = format!("nonportable-{index}");
+    let seed_output = if index < 2 { input.clone() } else { json!([]) };
     let worker = thread::spawn(move || {
+        let mut seed = accept_official_socket(&upstream, &accounts[0]);
+        receive_turn(&mut seed);
+        finish_turn(&mut seed, "resp_seed", seed_output);
         let mut socket = accept_official_socket(&upstream, &accounts[0]);
         receive_turn(&mut socket);
         send_quota(&mut socket);
         assert_no_connection(upstream);
     });
+    let seeded = fixture
+        .request(&session, "responses", turn(json!([message("initial")])))
+        .send()
+        .unwrap();
+    assert_eq!(
+        sse_event(&seeded.text().unwrap(), "response.completed")["response"]["id"],
+        "resp_seed"
+    );
     let response = fixture
-        .request(&format!("nonportable-{index}"), "responses", turn(input))
+        .request(&session, "responses", turn(input))
         .send()
         .unwrap();
     assert_eq!(response.status().as_u16(), 429);
@@ -283,7 +297,7 @@ fn an_explicit_account_change_cannot_forward_a_known_accounts_state() {
     }
     let upstream = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}", upstream.local_addr().unwrap());
-    let fixture = OfficialResponsesFixture::new(&url, 2, true);
+    let fixture = OfficialResponsesFixture::new(&url, 3, true);
     let paths = resolve_paths(fixture.app.handle()).unwrap();
     let backup = create_account(&paths, "b@example.test");
     let input = message("initial");
@@ -309,16 +323,36 @@ fn an_explicit_account_change_cannot_forward_a_known_accounts_state() {
         },
     )
     .unwrap();
+    let required_file = json!({
+        "type":"message", "role":"user", "content":[{"type":"input_file","file_id":"file-a"}]
+    });
     let request = fixture.request(
         "websocket-conversation",
         "responses",
-        turn(json!([input, reasoning, message("continue")])),
+        turn(json!([
+            input,
+            reasoning,
+            required_file,
+            message("continue")
+        ])),
     );
     let response = request.send().unwrap();
-    assert_eq!(response.status().as_u16(), 409);
+    assert_eq!(response.status().as_u16(), 400);
     assert_eq!(
         response.json::<Value>().unwrap()["error"]["code"],
-        "permission_denied"
+        "account_bound_context"
+    );
+    let unpaired = turn(json!([
+        {"type":"function_call_output", "call_id":"call_a", "output":"done"}
+    ]));
+    let response = fixture
+        .request("websocket-conversation", "responses", unpaired)
+        .send()
+        .unwrap();
+    assert_eq!(response.status().as_u16(), 400);
+    assert_eq!(
+        response.json::<Value>().unwrap()["error"]["code"],
+        "account_bound_context"
     );
     worker.join().unwrap();
     fixture.join();

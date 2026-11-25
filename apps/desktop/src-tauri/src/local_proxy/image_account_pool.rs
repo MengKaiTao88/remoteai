@@ -22,6 +22,22 @@ impl ImageAccountPool {
         self.current_index = (self.current_index + 1) % self.account_ids.len();
         Some(self.current_account_id())
     }
+
+    fn advance_recovery(
+        &mut self,
+        failed_account_id: &str,
+        mut compatible: impl FnMut(&str) -> bool,
+    ) -> Option<&str> {
+        if self.current_account_id() != failed_account_id {
+            return None;
+        }
+        let start = self.current_index + 1;
+        let offset = self.account_ids[start..]
+            .iter()
+            .position(|id| compatible(id))?;
+        self.current_index = start + offset;
+        Some(self.current_account_id())
+    }
 }
 
 fn official_credential_purpose(path: &str, body: &[u8]) -> OfficialCredentialPurpose {
@@ -183,5 +199,31 @@ fn advance_image_account_after_429(
     log_proxy_error!(
         "image request account failover: failed={failed_account_id}, next={next_account_id}"
     );
+    true
+}
+
+fn recover_image_input<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    pool: &mut Option<ImageAccountPool>,
+    response: &UpstreamPayload,
+) -> bool {
+    let Some(pool) = pool.as_mut() else {
+        return false;
+    };
+    if !is_official_quota_exhaustion(response) || official_recovery_routing::model().is_none() {
+        return false;
+    }
+    let Some(failed) = response.token_usage_account.as_ref() else {
+        return false;
+    };
+    let Some(next) = pool.advance_recovery(&failed.account_id, |id| {
+        official_recovery_routing::account_matches(app, id)
+    }) else {
+        return false;
+    };
+    if !official_recovery_routing::manual_selection_is_current() {
+        return false;
+    }
+    official_recovery_routing::approve_account(next.to_owned());
     true
 }

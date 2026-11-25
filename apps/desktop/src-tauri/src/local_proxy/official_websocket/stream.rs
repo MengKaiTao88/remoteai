@@ -4,6 +4,7 @@ use super::super::{
 };
 use super::{
     cache::{Connection, Lease, Owner},
+    context_store::ContextStore,
     metadata::{self, TURN_STATE},
     outcome::{Reason, UploadMode},
     rejection::opening_rejection,
@@ -26,6 +27,7 @@ pub(super) struct SentTurn {
     pub(super) lease: Lease,
     pub(super) owner: Owner,
     pub(super) history: SentHistory,
+    pub(super) context: Option<ContextStore>,
 }
 
 pub(super) fn send(
@@ -65,7 +67,6 @@ struct Reader {
     bytes: Cursor<Vec<u8>>,
     items: OutputItems,
     finished: bool,
-    account_recorded: bool,
     begun: Instant,
     last_received: Instant,
     header_timeout: Duration,
@@ -80,7 +81,6 @@ impl Reader {
             bytes: Cursor::default(),
             items: OutputItems::default(),
             finished: false,
-            account_recorded: false,
             begun: Instant::now(),
             last_received: Instant::now(),
             header_timeout: response_header_timeout::current(),
@@ -164,8 +164,8 @@ impl Reader {
 
     fn encode_event(&mut self, event: Event) -> Vec<u8> {
         let kind = event.kind();
-        if event.acknowledges_generation() {
-            self.record_account();
+        if let Some(context) = self.turn.as_ref().and_then(|turn| turn.context.as_ref()) {
+            context.record(&event.value);
         }
         self.items.observe(kind, &event.value);
         match kind {
@@ -206,16 +206,6 @@ impl Reader {
             .turn
             .as_mut()
             .and_then(|turn| turn.history.confirm(id, output));
-    }
-
-    fn record_account(&mut self) {
-        if self.account_recorded {
-            return;
-        }
-        if let Some(turn) = self.turn.as_ref() {
-            turn.lease.record_account(&turn.owner.account);
-            self.account_recorded = true;
-        }
     }
 
     fn retain(&mut self) {
@@ -261,18 +251,6 @@ impl Event {
 
     fn kind(&self) -> &str {
         self.value["type"].as_str().unwrap_or_default()
-    }
-
-    fn acknowledges_generation(&self) -> bool {
-        if quota_sse::response_contains_output(&self.value) {
-            return true;
-        }
-        let kind = self.kind();
-        !quota_sse::is_opening_event(kind)
-            && !matches!(
-                kind,
-                "error" | "response.failed" | "response.cancelled" | "response.incomplete"
-            )
     }
 
     fn take_private_turn_state(&mut self) -> Option<String> {
