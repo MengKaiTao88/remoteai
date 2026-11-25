@@ -90,7 +90,7 @@ pub(super) fn send<R: Runtime>(params: Request<'_, R>, transport: Transport) -> 
     }
     if let Err(error) = project_route(&mut route, &params, options.as_mut(), has_turn_state) {
         invalidate_route(&route);
-        return error;
+        return error.into();
     }
     let websocket_enabled = creates_response && request_scope::websocket_enabled();
     if matches!(transport, Transport::Http)
@@ -103,17 +103,31 @@ pub(super) fn send<R: Runtime>(params: Request<'_, R>, transport: Transport) -> 
     send_websocket(route, options, &params)
 }
 
+enum ProjectionError {
+    Context(account_context::Error),
+    Encoding(request_error::RequestError),
+}
+
+impl From<ProjectionError> for Outcome {
+    fn from(error: ProjectionError) -> Self {
+        match error {
+            ProjectionError::Context(error) => context_failure(error),
+            ProjectionError::Encoding(error) => Self::Failed(error.wire()),
+        }
+    }
+}
+
 fn project_route<R: Runtime>(
     route: &mut HttpRoute,
     params: &Request<'_, R>,
     mut options: Option<&mut Map<String, Value>>,
     has_turn_state: bool,
-) -> Result<(), Outcome> {
+) -> Result<(), ProjectionError> {
     let mut body_changed = false;
     if let Some(context) = route.context.as_mut() {
         let projected = context
             .project(options.as_deref_mut(), has_turn_state)
-            .map_err(context_failure)?;
+            .map_err(ProjectionError::Context)?;
         body_changed = projected.body_changed;
         route.headers.strip_routing_hint |= projected.strip_routing_hint;
         route.headers.strip_turn_state = projected.strip_turn_state;
@@ -121,7 +135,8 @@ fn project_route<R: Runtime>(
     if let Some(options) = options {
         body_changed |= metadata::strip_client_turn_state(options);
         if body_changed {
-            route.body = Some(sanitized_body(options, params.headers).map_err(Outcome::Failed)?);
+            route.body =
+                Some(sanitized_body(options, params.headers).map_err(ProjectionError::Encoding)?);
         }
     }
     Ok(())
@@ -201,16 +216,15 @@ fn invalidate_route(route: &HttpRoute) {
 fn sanitized_body(
     options: &Map<String, Value>,
     headers: &[(String, String)],
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, request_error::RequestError> {
     let bytes = serde_json::to_vec(options).map_err(|_| {
         request_error::RequestError::new(
             request_error::Stage::Responses,
             request_error::Problem::Encode,
         )
-        .wire()
     })?;
     let encoding = header_value(headers, "content-encoding").unwrap_or("identity");
-    responses_lite::encode(&bytes, encoding).map_err(|error| error.wire())
+    responses_lite::encode(&bytes, encoding)
 }
 
 pub(super) fn guard_credential_replay(

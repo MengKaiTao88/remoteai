@@ -308,6 +308,10 @@ fn accept_socket_with_turn_state(
 ) -> MockSocket {
     stream.set_read_timeout(Some(TIMEOUT)).unwrap();
     stream.set_write_timeout(Some(TIMEOUT)).unwrap();
+    #[allow(
+        clippy::result_large_err,
+        reason = "Tungstenite requires its concrete HTTP error response for handshake callbacks."
+    )]
     let validate = |request: &tungstenite::handshake::server::Request,
                     mut response: tungstenite::handshake::server::Response| {
         assert_eq!(request.uri().path(), "/responses");

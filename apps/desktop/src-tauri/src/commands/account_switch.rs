@@ -153,7 +153,7 @@ fn deactivate_account_unlocked<R: Runtime>(
     } else if proxy_running {
         resolve_enabled_paths(app)?
             .iter()
-            .try_for_each(|target| crate::providers::sync_local_proxy_openai_auth(target))
+            .try_for_each(crate::providers::sync_local_proxy_openai_auth)
     } else {
         resolve_enabled_paths(app)?
             .iter()
