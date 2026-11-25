@@ -50,10 +50,17 @@ fn record_preparation(runtime: &std::path::Path, status: &str) {
 }
 
 #[cfg(windows)]
-fn prepare(root: &std::path::Path, runtime: &std::path::Path) -> Result<Credentials> {
+fn helper_command(
+    root: &std::path::Path,
+    runtime: &std::path::Path,
+) -> Result<std::process::Command> {
     use std::os::windows::process::CommandExt;
-    record_preparation(runtime, "preparing");
-    let output = std::process::Command::new("powershell.exe")
+    // The desktop can inherit a PATH without the Windows PowerShell directory.
+    let powershell =
+        crate::desktop_service::platform::system_binary(r"WindowsPowerShell\v1.0\powershell.exe")
+            .map_err(|_| GuiError::Startup)?;
+    let mut command = std::process::Command::new(powershell);
+    command
         .args(["-NoProfile", "-NonInteractive", "-File"])
         // Windows PowerShell must load its own modules even when launched from PowerShell 7.
         .env_remove("PSModulePath")
@@ -65,15 +72,27 @@ fn prepare(root: &std::path::Path, runtime: &std::path::Path) -> Result<Credenti
         .arg("-Python")
         .arg(root.join("python/python.exe"))
         .arg("-PrepareOnly")
-        .creation_flags(0x08000000)
-        .output()
-        .map_err(|error| {
-            record_preparation(
-                runtime,
-                &format!("helper-spawn-failed:{:?}", error.raw_os_error()),
-            );
-            GuiError::Startup
-        })?;
+        .creation_flags(0x08000000);
+    Ok(command)
+}
+
+#[cfg(windows)]
+fn prepare(root: &std::path::Path, runtime: &std::path::Path) -> Result<Credentials> {
+    record_preparation(runtime, "preparing");
+    let mut command = helper_command(root, runtime).inspect_err(|_| {
+        record_preparation(runtime, "helper-system-directory-unavailable");
+    })?;
+    let output = command.output().map_err(|error| {
+        record_preparation(
+            runtime,
+            &format!(
+                "helper-spawn-failed:{:?}:{:?}",
+                error.kind(),
+                error.raw_os_error()
+            ),
+        );
+        GuiError::Startup
+    })?;
     // Never log these streams: the one-shot helper returns a DPAPI-protected local secret.
     if !output.status.success() || output.stdout.len() > 16 * 1024 {
         record_preparation(
@@ -185,4 +204,36 @@ fn start(_app: &AppHandle) -> Result<Config> {
     Err(GuiError::OfficialBridge(
         csw_codex_desktop_bridge::Error::Unsupported,
     ))
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::helper_command;
+
+    #[test]
+    fn helper_launches_from_the_system_path() {
+        let root = tempfile::Builder::new()
+            .prefix("gateway helper ")
+            .tempdir()
+            .unwrap();
+        let runtime = root.path().join("test runtime");
+        std::fs::write(
+            root.path().join("Ensure-Gateway.ps1"),
+            r#"param([string]$RuntimeRoot, [string]$BridgePath, [string]$Python, [switch]$PrepareOnly)
+if (-not $PrepareOnly -or $RuntimeRoot -ne (Join-Path $PSScriptRoot 'test runtime')) { exit 1 }
+Write-Output 'gateway-helper-ready'
+"#,
+        )
+        .unwrap();
+
+        let mut command = helper_command(root.path(), &runtime).unwrap();
+        assert!(std::path::Path::new(command.get_program()).is_absolute());
+        let output = command.env("PATH", root.path()).output().unwrap();
+
+        assert!(output.status.success());
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "gateway-helper-ready"
+        );
+    }
 }

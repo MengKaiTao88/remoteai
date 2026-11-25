@@ -111,7 +111,7 @@ pub(super) fn console_session() -> Option<u32> {
     let id = unsafe { windows_sys::Win32::System::RemoteDesktop::WTSGetActiveConsoleSessionId() };
     (id != u32::MAX).then_some(id)
 }
-pub(super) fn system_binary(name: &str) -> Result<std::path::PathBuf> {
+pub(crate) fn system_binary(name: &str) -> Result<std::path::PathBuf> {
     let mut path = [0u16; 32768];
     // SAFETY: Windows receives the actual capacity of this initialized path buffer.
     let length = unsafe {
