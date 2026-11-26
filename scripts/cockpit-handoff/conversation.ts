@@ -1,13 +1,16 @@
 import { createHash } from 'node:crypto';
+import { summarizeTools } from '../../shared/conversation/toolDetails';
 import { defaultText } from '../../shared/localization/messages';
 import type { GuiEvent } from '../../shared/conversation/types';
 import { CONNECTION_ERRORS } from '../../shared/remote-chat/connectionErrors';
-import { DEFAULT_COMPOSER } from '../../shared/remote-chat/composer';
 import { chatHandshake, validateChatHandshake } from '../../shared/remote-chat/handshake';
 import { parseHistoryWindow, sliceHistory } from '../../shared/remote-chat/historyPage';
 import { HISTORY_CHANGED, historyDelta, parseHistoryVersion } from '../../shared/remote-chat/historySync';
+import { PROJECT_LIST_OPERATION, PROJECT_SELECT_OPERATION } from '../../shared/remote-chat/projects';
 import { object, type RpcRequest, type RpcResponse } from '../../shared/remote-chat/protocol';
-import { approvals, modelSettings, projectModels, projectThread, type NativeView } from './projection';
+import type { SidebarSnapshot } from '../../shared/remote-chat/sidebar';
+import { NativeComposer } from './composer';
+import { approvals, modelSettings, projectThread, type NativeView } from './projection';
 import type { NativeGateway } from './nativeProcess';
 
 const POLL_MS = 1250;
@@ -17,10 +20,16 @@ const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const unsupported = () => new Error(defaultText('client.errors.thisOperationIsNotSupportedByThisClient'));
 type Request = Record<string, unknown>;
 
+function sidebar(pins: string[]): SidebarSnapshot {
+  return { pins, threads: {}, readState: {}, revision: Date.now() };
+}
+
 function thread(value: unknown) {
   if (typeof value !== 'string' || !UUID.test(value)) throw new Error(CONNECTION_ERRORS.invalid);
   return value.toLowerCase();
 }
+
+const composerScope = (value: unknown) => value == null ? null : thread(value);
 
 export function submissionId(threadId: string, requestId: string) {
   const bytes = createHash('sha256').update(JSON.stringify([threadId, requestId])).digest();
@@ -31,6 +40,7 @@ export function submissionId(threadId: string, requestId: string) {
 }
 
 export class ConversationViewer {
+  private readonly composer: NativeComposer;
   private threadId?: string;
   private sequence?: number;
   private connected?: boolean;
@@ -40,7 +50,9 @@ export class ConversationViewer {
   private readonly requests = new Map<string, { fingerprint: string; reply: Promise<RpcResponse> }>();
 
   constructor(private readonly native: NativeGateway, private readonly session: string,
-    private readonly emit: (event: GuiEvent) => void) {}
+    private readonly emit: (event: GuiEvent) => void) {
+    this.composer = new NativeComposer(native);
+  }
 
   execute(request: RpcRequest): Promise<RpcResponse> {
     const id = request.id;
@@ -131,8 +143,16 @@ export class ConversationViewer {
       case 'list': return this.list(body);
       case 'viewThread': this.select(body.threadId === null ? undefined : thread(body.threadId)); return {};
       case 'read': case 'syncHistory': return this.history(body);
+      case 'toolDetails': case 'processDetails': return this.details(body);
       case 'models': case 'modelsRefresh': return this.models(body);
+      case 'composerSet': return this.composer.write(composerScope(body.threadId), body.settings);
+      case PROJECT_LIST_OPERATION: return this.native.call('projects');
+      case PROJECT_SELECT_OPERATION: return this.draftProject(body);
       case 'guiAccountsRead': return { choices: [], selection: { kind: 'none' }, running: false };
+      case 'start': return this.start(body, request.id);
+      case 'rename': return this.native.call('rename', { threadId: thread(body.threadId), name: body.name });
+      case 'archive': case 'unarchive': return this.archive(body, request.id);
+      case 'threadPin': return this.pin(body);
       case 'resume': return this.resume(thread(body.threadId));
       case 'send': case 'steer': return this.send(body, request.id);
       case 'interrupt': return this.native.call('interrupt', { threadId: thread(body.threadId), turnId: body.turnId });
@@ -144,10 +164,31 @@ export class ConversationViewer {
   private async list(body: Request) {
     const offset = typeof body.cursor === 'string' && /^\d{1,6}$/.test(body.cursor) ? Number(body.cursor) : 0;
     const limit = Number.isSafeInteger(body.limit) ? Math.min(100, Math.max(1, Number(body.limit))) : 50;
-    const rows = await this.native.call<NativeView[]>('list', { offset, limit: limit + 1,
+    const { rows, pins } = await this.native.call<{ rows: NativeView[]; pins: string[] }>('list', { offset, limit: limit + 1,
       search: typeof body.search === 'string' ? body.search.slice(0, 200) : '', archived: body.archived === true });
     return { data: rows.slice(0, limit).map(row => ({ ...projectThread(row), turns: undefined })),
-      nextCursor: rows.length > limit && offset + limit <= 100_000 ? String(offset + limit) : null };
+      nextCursor: rows.length > limit && offset + limit <= 100_000 ? String(offset + limit) : null, sidebar: sidebar(pins) };
+  }
+
+  private async draftProject(body: Request) {
+    if (body.threadId != null) throw unsupported();
+    if (typeof body.cwd !== 'string' || body.cwd.length > 4_096) throw new Error(CONNECTION_ERRORS.invalid);
+    return this.native.call('project', { cwd: body.cwd });
+  }
+
+  private async archive(body: Request, rpcId: string) {
+    const threadId = thread(body.threadId);
+    const result = await this.native.call<{ status: string; reason?: string }>('archive', {
+      threadId, archived: body.operation === 'archive', requestId: submissionId(threadId, `${this.session}:${rpcId}`),
+    });
+    if (result.status === 'rejected' && result.reason) throw new Error(result.reason);
+    if (result.status !== 'confirmed') throw new Error(CONNECTION_ERRORS.configuration);
+    return result;
+  }
+
+  private async pin(body: Request) {
+    const pins = await this.native.call<string[]>('pin', { threadId: thread(body.threadId), pinned: body.pinned });
+    return sidebar(pins);
   }
 
   private async history(body: Request) {
@@ -158,22 +199,43 @@ export class ConversationViewer {
       await new Promise(resolve => setTimeout(resolve, 250));
       result = await this.native.call<NativeView>('view', { threadId });
     }
-    const current = projectThread(result);
-    if (body.operation === 'read') return { thread: current };
-    const { thread: visible, page } = sliceHistory(current, parseHistoryWindow(body.window));
-    return { ...historyDelta(visible, parseHistoryVersion(body.known)), page };
+    const project = (view: NativeView) => body.deferToolDetails === true
+      ? summarizeTools(projectThread(view)) : projectThread(view);
+    if (body.operation === 'read') return { thread: project(result) };
+    const window = parseHistoryWindow(body.window);
+    let { thread: visible, page } = sliceHistory(project(result), window);
+    if (window.older && !page.hasMore && result.historyComplete === false) {
+      result = await this.native.call<NativeView>('olderHistory', { threadId });
+      ({ thread: visible, page } = sliceHistory(project(result), window));
+    }
+    return { ...historyDelta(visible, parseHistoryVersion(body.known)),
+      page: { ...page, hasMore: page.hasMore || result.historyComplete === false } };
+  }
+
+  private async details(body: Request) {
+    const threadId = thread(body.threadId);
+    const view = await this.native.call<NativeView>('view', { threadId });
+    const items = projectThread(view).turns?.find(turn => turn.id === body.turnId)?.items ?? [];
+    const first = items.findIndex(item => item.id === body.itemId);
+    if (first < 0) throw new Error(CONNECTION_ERRORS.invalid);
+    if (body.operation === 'toolDetails') return { item: items[first] };
+    const last = items.findIndex(item => item.id === body.endItemId);
+    if (last < first) throw new Error(CONNECTION_ERRORS.invalid);
+    return { items: items.slice(first, last + 1) };
   }
 
   private async models(body: Request) {
-    const threadId = body.threadId == null ? null : thread(body.threadId);
-    const id = threadId ?? this.threadId;
-    if (!id) return { data: [], nextCursor: null, composer: { models: [], threadId, settings: DEFAULT_COMPOSER,
-      revision: Date.now() } };
-    const view = await this.native.call<NativeView>('view', { threadId: id });
-    const settings = modelSettings(view);
-    const catalog = await this.native.call<{ models?: unknown }>('models', { threadId: id }).catch(() => ({}));
-    const models = projectModels('models' in catalog ? catalog.models : [], settings);
-    return { data: models, nextCursor: null, composer: { models, settings, threadId, revision: Date.now() } };
+    const composer = await this.composer.read(composerScope(body.threadId), body.operation === 'modelsRefresh');
+    return { data: composer.models, nextCursor: null, composer };
+  }
+
+  private async start(body: Request, rpcId: string) {
+    if (body.cwd != null && (typeof body.cwd !== 'string' || body.cwd.length > 4_096)) {
+      throw new Error(CONNECTION_ERRORS.invalid);
+    }
+    const result = await this.native.call<NativeView>('start', { cwd: body.cwd ?? null,
+      requestId: submissionId(this.session, rpcId), title: defaultText('client.chat.newChat') });
+    return { thread: projectThread(result) };
   }
 
   private async send(body: Request, rpcId: string) {
@@ -186,14 +248,19 @@ export class ConversationViewer {
     const threadId = thread(body.threadId);
     const clientId = typeof body.clientId === 'string' && body.clientId.length <= 160
       ? body.clientId : `${this.session}:${rpcId}`;
-    const view = await this.native.call<NativeView>('view', { threadId });
+    const mode = body.operation === 'steer' ? 'steer' : 'send';
+    let view = await this.native.call<NativeView>('view', { threadId });
+    if (!view.connected && mode === 'send') {
+      await this.resume(threadId);
+      view = await this.native.call<NativeView>('view', { threadId });
+    }
     if (!view.connected) throw new Error(CONNECTION_ERRORS.guiDisconnected);
     const settings = modelSettings(view);
     if ((body.model && body.model !== settings.model) || (body.effort && body.effort !== settings.effort)) {
       throw new Error(CONNECTION_ERRORS.configuration);
     }
     const result = await this.native.call<{ status: string }>('send', { threadId, text: body.text,
-      mode: body.operation === 'steer' ? 'steer' : 'send', turnId: body.turnId, submissionId: submissionId(threadId, clientId) });
+      mode, turnId: body.turnId, submissionId: submissionId(threadId, clientId) });
     if (result.status !== 'accepted') throw new Error(CONNECTION_ERRORS.guiTimeout);
     return {};
   }

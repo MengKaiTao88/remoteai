@@ -9,6 +9,10 @@ from pathlib import Path
 from threading import BoundedSemaphore, Lock
 from uuid import UUID
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import native_composer
+import native_threads
+
 MAX_LINE = 256 * 1024
 WORKERS = 8
 OUTPUT = Lock()
@@ -43,6 +47,7 @@ def enable_adapters(bridge_module, adapters):
     native_activity.install_labels(model)
     native_permissions.install()
     native_protocol.install(bridge_module.Bridge)
+    native_threads.install_observer_protocol(bridge_module, native_protocol.compatible_state)
     native_plugins.install(bridge_module.Bridge, model, bridge_module.SubmissionRejected)
     native_questions.install()
     native_queue.install(bridge_module.Bridge)
@@ -70,7 +75,11 @@ def native_view(bridge, thread_id, request):
         return {'sequence': session.sequence, 'connected': session.connected and owner_online()}
     result = bridge.view(thread_id, attach=False, background=True)
     result['connected'] = result.get('connected') is True and owner_online()
-    return result
+    if request.get('composer') is True and not result['connected'] and result.get('permissionMode') == 'custom':
+        permission = native_composer.saved_permission(bridge.store, thread_id)
+        if permission:
+            result['permissionMode'] = permission
+    return native_threads.display_view(bridge, result)
 
 
 def native_send(bridge, thread, request):
@@ -90,19 +99,46 @@ def execute(bridge, request):
     if operation == 'list':
         limit = min(101, max(1, int(request.get('limit', 51))))
         offset = min(100_000, max(0, int(request.get('offset', 0))))
-        return bridge.list(query=request.get('search', '')[:200], limit=limit, offset=offset,
+        rows = bridge.list(query=request.get('search', '')[:200], limit=limit, offset=offset,
                            archived=request.get('archived') is True, source='desktop', local_only=True)
+        return {'rows': [native_threads.display_view(bridge, row) for row in rows],
+                'pins': bridge.session_pins.identifiers()}
+    if operation == 'projects':
+        return native_threads.projects(bridge)
+    if operation == 'project':
+        return native_threads.project_summary(native_threads.saved_project(bridge, request['cwd']))
+    if operation == 'models':
+        raw_thread = request.get('threadId')
+        thread = None if raw_thread is None else desktop_thread(bridge, raw_thread)
+        return native_composer.models(bridge, thread, request.get('refresh') is True)
+    if operation == 'start':
+        if not owner_online():
+            raise Offline()
+        thread = desktop_thread(bridge, native_composer.create(bridge, request))
+        return native_view(bridge, thread, {})
     thread = desktop_thread(bridge, request['threadId'])
     if operation == 'view':
         return native_view(bridge, thread, request)
+    if operation == 'olderHistory':
+        native_threads.expand_history(bridge, thread)
+        return native_view(bridge, thread, {})
     if operation == 'resume':
         if not owner_online():
             raise Offline()
         return {'connected': bridge.activate(thread).connected}
     if operation == 'send':
         return native_send(bridge, thread, request)
-    if operation == 'models':
-        return bridge.catalog(thread, kind='models', refresh=False)
+    if operation == 'settings':
+        if not owner_online():
+            raise Offline()
+        native_composer.apply(bridge, thread, request['settings'])
+        return native_view(bridge, thread, {})
+    if operation == 'rename':
+        return bridge.rename(thread, request['name'])
+    if operation == 'archive':
+        return native_threads.archive(bridge, thread, request['archived'], request['requestId'])
+    if operation == 'pin':
+        return native_threads.pin(bridge, thread, request['pinned'])
     if operation == 'interrupt':
         turns = native_view(bridge, thread, {}).get('turns', [])
         if not owner_online() or not any(t['id'] == request.get('turnId') and t['status'] == 'inProgress' for t in turns):

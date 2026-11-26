@@ -37,7 +37,7 @@ foreach ($name in @('image_archive.py','native_activity.py','native_history.py',
 Copy-Item -LiteralPath $node -Destination (Join-Path $app 'node.exe')
 $nodeLicense = Join-Path (Split-Path -Parent $node) 'LICENSE'
 if (Test-Path -LiteralPath $nodeLicense) { Copy-Item -LiteralPath $nodeLicense -Destination (Join-Path $app 'LICENSE.node') }
-foreach ($name in @('native.py','vault.py')) {
+foreach ($name in @('native.py','native_composer.py','native_threads.py','vault.py')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $app
 }
 $launcherExe = Join-Path $app 'RemoteAIHandoff.exe'
